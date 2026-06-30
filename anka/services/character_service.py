@@ -59,7 +59,7 @@ class CharacterService:
         self._chars: dict[str, CharacterModel] | None = None
         self._recruited: dict[str, list[str]] | None = None
         self._names: dict[str, str] | None = None
-        self._sprites = SpriteResolver([context.mod.path, context.game_path])
+        self._sprites = SpriteResolver.for_mod(context.mod.path, context.game_path)
 
     # --- file location ---------------------------------------------------
     def characters_file(self, tag: str) -> Path:

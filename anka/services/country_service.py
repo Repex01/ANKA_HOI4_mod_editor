@@ -25,6 +25,7 @@ class CountryRef:
     rel_file: str                   # e.g. "countries/Germany.txt"
     is_vanilla: bool
     source_root: Path               # mod path or game path that owns the file
+    edited: bool = False            # vanilla tag that the mod overrides/edits
 
     @property
     def country_file(self) -> Path:
@@ -55,12 +56,50 @@ class CountryService:
 
     # --- tags ------------------------------------------------------------
     def list_tags(self, include_vanilla: bool = False) -> list[CountryRef]:
-        mod_refs = self._read_tag_dir(self.ctx.mod.path, is_vanilla=False)
-        refs = {r.tag: r for r in mod_refs}
+        refs = {r.tag: r for r in self._read_tag_dir(self.ctx.mod.path, is_vanilla=False)}
+        vanilla = {r.tag: r for r in self._read_tag_dir(self.ctx.game_path, is_vanilla=True)}
+
+        # Vanilla tags the mod edits (history/colors/characters/flags) are shown even
+        # when vanilla is hidden, flagged as edited.
+        for tag in self._mod_touched_tags():
+            if tag not in refs and tag in vanilla:
+                ref = vanilla[tag]
+                ref.edited = True
+                refs[tag] = ref
+
         if include_vanilla:
-            for r in self._read_tag_dir(self.ctx.game_path, is_vanilla=True):
-                refs.setdefault(r.tag, r)
+            for tag, ref in vanilla.items():
+                refs.setdefault(tag, ref)
         return sorted(refs.values(), key=lambda r: r.tag)
+
+    def _mod_touched_tags(self) -> set[str]:
+        """Tags the mod modifies via files other than country_tags."""
+        mod = self.ctx.mod.path
+        tags: set[str] = set()
+
+        hist = mod / GAME_DIRS.HISTORY_COUNTRIES
+        if hist.is_dir():
+            for f in hist.glob("*.txt"):
+                tags.add(f.stem.split(" ")[0].split("-")[0].strip())
+
+        chars = mod / GAME_DIRS.CHARACTERS
+        if chars.is_dir():
+            for f in chars.glob("*.txt"):
+                if _TAG_RE.match(f.stem):
+                    tags.add(f.stem)
+
+        colors = self._colors_block(mod)
+        if colors is not None:
+            tags.update(p.key for p in colors.pairs() if _TAG_RE.match(p.key))
+
+        flags = mod / GAME_DIRS.GFX_FLAGS
+        if flags.is_dir():
+            for f in flags.glob("*.tga"):
+                head = f.stem.split("_")[0]
+                if _TAG_RE.match(head):
+                    tags.add(head)
+
+        return {t for t in tags if _TAG_RE.match(t)}
 
     def _read_tag_dir(self, root: Path, is_vanilla: bool) -> list[CountryRef]:
         tag_dir = root / GAME_DIRS.COUNTRY_TAGS
@@ -192,13 +231,18 @@ class CountryService:
         ``TAG_<ideology>`` + ``_DEF`` / ``_ADJ`` for ruling-party cosmetic names.
         """
         base = self._loc_key(tag, ideology)
-        result = {"name": "", "definite": "", "adjective": ""}
+        # Party names are per-ideology and live in their own file (parties_l_*.yml).
+        party_key = f"{tag}_{ideology}_party" if ideology else f"{tag}_party"
+        result = {"name": "", "definite": "", "adjective": "",
+                  "party": "", "party_long": "", "party_desc": ""}
+        suffixes = {"_DEF": "definite", "_ADJ": "adjective"}
         for root in (self.ctx.game_path, self.ctx.mod.path):  # mod overrides game
             loc_dir = root / GAME_DIRS.LOCALISATION / language
             if not loc_dir.is_dir():
                 continue
             for yml in loc_dir.glob("*.yml"):
-                if "countries" not in yml.name.lower() and "anka" not in yml.name.lower():
+                name = yml.name.lower()
+                if not any(s in name for s in ("countries", "anka", "part")):
                     continue
                 try:
                     loc = LocFile.load(yml)
@@ -206,10 +250,15 @@ class CountryService:
                     continue
                 if base in loc:
                     result["name"] = loc.get(base, "")
-                if f"{base}_DEF" in loc:
-                    result["definite"] = loc.get(f"{base}_DEF", "")
-                if f"{base}_ADJ" in loc:
-                    result["adjective"] = loc.get(f"{base}_ADJ", "")
+                for suffix, field_name in suffixes.items():
+                    if f"{base}{suffix}" in loc:
+                        result[field_name] = loc.get(f"{base}{suffix}", "")
+                if party_key in loc:
+                    result["party"] = loc.get(party_key, "")
+                if f"{party_key}_long" in loc:
+                    result["party_long"] = loc.get(f"{party_key}_long", "")
+                if f"{party_key}_desc" in loc:
+                    result["party_desc"] = loc.get(f"{party_key}_desc", "")
         return result
 
     def get_names(self, tag: str) -> dict[str, str]:
@@ -231,19 +280,35 @@ class CountryService:
         return names
 
     def set_localisation(self, tag: str, language: str, ideology: str | None,
-                         name: str, definite: str = "", adjective: str = "") -> Path:
-        """Write name/DEF/ADJ for a tag+language (optionally an ideology variant)."""
+                         name: str, definite: str = "", adjective: str = "",
+                         party: str = "", party_long: str = "", party_desc: str = "") -> Path:
+        """Write country name/DEF/ADJ to the countries loc file. Party name/long/desc
+        (all optional) go to a *separate* parties file, mirroring vanilla's layout."""
         base = self._loc_key(tag, ideology)
-        path = (self.ctx.mod.path / GAME_DIRS.LOCALISATION / language
-                / f"anka_countries_l_{language}.yml")
-        loc = LocFile.load(path) if path.exists() else LocFile(language)
+        loc_root = self.ctx.mod.path / GAME_DIRS.LOCALISATION / language
+        country_path = loc_root / f"anka_countries_l_{language}.yml"
+        loc = LocFile.load(country_path) if country_path.exists() else LocFile(language)
         if name:
             loc.set(base, name)
         if definite or name:
             loc.set(f"{base}_DEF", definite or name)
         if adjective:
             loc.set(f"{base}_ADJ", adjective)
-        return loc.save(path)
+        loc.save(country_path)
+
+        # Party localisation — separate file, written only when something is provided.
+        if ideology and (party or party_long or party_desc):
+            party_key = f"{tag}_{ideology}_party"
+            party_path = loc_root / f"anka_parties_l_{language}.yml"
+            ploc = LocFile.load(party_path) if party_path.exists() else LocFile(language)
+            if party:
+                ploc.set(party_key, party)
+            if party_long:
+                ploc.set(f"{party_key}_long", party_long)
+            if party_desc:
+                ploc.set(f"{party_key}_desc", party_desc)
+            ploc.save(party_path)
+        return country_path
 
     # Backwards-compatible thin wrapper used by country creation.
     def set_name(self, tag: str, language: str, name: str, definite: str | None = None) -> Path:
@@ -334,16 +399,20 @@ class CountryService:
                 names.update(f.stem for f in folder.glob("*.txt"))
         return sorted(names)
 
-    def get_oob(self, tag: str) -> str:
-        value = self._history_block(tag).get_scalar("set_oob", "")
+    # OOB kinds map to their history keys.
+    OOB_KEYS = {"land": "set_oob", "naval": "set_naval_oob", "air": "set_air_oob"}
+
+    def get_oob(self, tag: str, kind: str = "land") -> str:
+        value = self._history_block(tag).get_scalar(self.OOB_KEYS[kind], "")
         return (value or "").strip('"')
 
-    def set_oob(self, tag: str, name: str, oob_name: str) -> Path:
+    def set_oob(self, tag: str, name: str, oob_name: str, kind: str = "land") -> Path:
         block = self._history_block(tag)
+        key = self.OOB_KEYS[kind]
         if oob_name:
-            block.set("set_oob", Scalar(oob_name, quoted=True))
+            block.set(key, Scalar(oob_name, quoted=True))
         else:
-            block.remove("set_oob")
+            block.remove(key)
         return self._write_history(tag, name, block)
 
     # --- starting technologies ------------------------------------------

@@ -12,6 +12,23 @@ from pathlib import Path
 from .pdx import Block, Pair, Scalar, dump_file, parse_file
 
 
+def _get_block_ci(block: Block, key: str):
+    """Case-insensitive child-block lookup (HOI4 keys are case-insensitive)."""
+    low = key.lower()
+    for pair in block.pairs():
+        if pair.key.lower() == low and isinstance(pair.value, Block):
+            return pair.value
+    return None
+
+
+def _get_scalar_ci(block: Block, key: str) -> str | None:
+    low = key.lower()
+    for pair in block.pairs():
+        if pair.key.lower() == low and isinstance(pair.value, Scalar):
+            return pair.value.raw
+    return None
+
+
 class SpriteRegistry:
     """Idempotent SpriteType management for a single .gfx file."""
 
@@ -63,35 +80,51 @@ class SpriteRegistry:
 class SpriteResolver:
     """Resolve a ``GFX_*`` sprite name to its on-disk texture.
 
-    Builds one map by scanning every ``interface/*.gfx`` in the given roots (mod first so
-    it overrides the game). Cached after the first lookup. Used to preview portraits /
-    icons that are referenced only by sprite name in script.
+    Sprites are declared in ``interface/**/*.gfx`` across several *content roots* — the
+    mod, the base game, and every DLC folder (``dlc/*`` and ``integrated_dlc/*``). Each
+    DLC ships its own ``interface`` and its ``texturefile`` paths are relative to that
+    DLC's root, so the resolver records, per root, where to anchor the texture. The map is
+    built once (lazily) and cached. Roots are scanned low→high priority; later roots win,
+    so the mod overrides the game which overrides DLC.
     """
 
-    def __init__(self, roots: list[Path]):
-        self._roots = [Path(r) for r in roots]
+    def __init__(self, content_roots: list[Path]):
+        self._roots = [Path(r) for r in content_roots]
         self._map: dict[str, Path] | None = None
+
+    @classmethod
+    def for_mod(cls, mod_path: Path, game_path: Path) -> "SpriteResolver":
+        """Build the standard root list: DLC folders, then game, then mod (highest)."""
+        roots: list[Path] = []
+        for dlc_parent in ("dlc", "integrated_dlc"):
+            parent = game_path / dlc_parent
+            if parent.is_dir():
+                roots.extend(sorted(p for p in parent.iterdir() if p.is_dir()))
+        roots.append(game_path)
+        roots.append(mod_path)
+        return cls(roots)
 
     def _build(self) -> dict[str, Path]:
         mapping: dict[str, Path] = {}
-        # Game first, mod last so the mod wins on name clashes.
-        for root in reversed(self._roots):
+        for root in self._roots:  # later roots (game, mod) override earlier DLC
             interface = root / "interface"
             if not interface.is_dir():
                 continue
-            for gfx in interface.glob("*.gfx"):
+            for gfx in interface.rglob("*.gfx"):
                 try:
                     block = parse_file(gfx)
                 except Exception:
                     continue
-                sprites = block.get_block("spriteTypes")
+                sprites = _get_block_ci(block, "spriteTypes")
                 if sprites is None:
                     continue
-                for sprite in sprites.get_all("SpriteType"):
-                    if not isinstance(sprite, Block):
+                # HOI4 is case-insensitive: entries appear as both `SpriteType` and
+                # `spriteType` (the latter dominates the leader-portrait files).
+                for pair in sprites.pairs():
+                    if pair.key.lower() != "spritetype" or not isinstance(pair.value, Block):
                         continue
-                    name = (sprite.get_scalar("name", "") or "").strip('"')
-                    texture = (sprite.get_scalar("texturefile", "") or "").strip('"')
+                    name = (_get_scalar_ci(pair.value, "name") or "").strip('"')
+                    texture = (_get_scalar_ci(pair.value, "texturefile") or "").strip('"')
                     if name and texture:
                         mapping[name] = root / texture.replace("\\", "/")
         return mapping

@@ -70,9 +70,10 @@ class CountriesEditor(EditorModule):
         the editor persists real edits but never rewrites untouched countries."""
         form_vars = [
             self._pol_ruling, self._pol_last_election, self._pol_freq, self._pol_elections,
-            self._pol_research, self._pol_stability, self._pol_war, self._pol_manpower, self._pol_oob,
+            self._pol_research, self._pol_stability, self._pol_war, self._pol_manpower,
             self._loc_name, self._loc_def, self._loc_adj,
-            *self._pop_vars.values(),
+            self._loc_party, self._loc_party_long, self._loc_party_desc,
+            *self._pop_vars.values(), *self._oob_vars.values(),
         ]
         for var in form_vars:
             var.trace_add("write", lambda *_: self._mark_dirty())
@@ -194,50 +195,66 @@ class CountriesEditor(EditorModule):
         tab = ttk.Frame(self._nb, style="Card.TFrame", padding=18)
         self._nb.add(tab, text=self.t("countries.tabs.localisation"))
         tab.columnconfigure(1, weight=1)
+        r = 0
 
         ttk.Label(tab, text=self.t("countries.name_language"), style="CardMuted.TLabel").grid(
-            row=0, column=0, sticky="w", pady=4)
+            row=r, column=0, sticky="w", pady=4)
         self._loc_lang = tk.StringVar(value="english")
         ttk.Combobox(tab, textvariable=self._loc_lang, values=list(HOI4_LANGUAGES), state="readonly",
-                     width=16).grid(row=0, column=1, sticky="w", padx=8)
+                     width=16).grid(row=r, column=1, sticky="w", padx=8); r += 1
 
-        # Ideology variant: base (no ideology) or a ruling-party cosmetic name.
         ttk.Label(tab, text=self.t("countries.name_ideology"), style="CardMuted.TLabel").grid(
-            row=1, column=0, sticky="w", pady=4)
+            row=r, column=0, sticky="w", pady=4)
         self._loc_base_label = self.t("countries.name_base")
         self._loc_ideology = tk.StringVar(value=self._loc_base_label)
         ideo_values = [self._loc_base_label] + [g.name for g in self.ideology_service.list_groups()]
         ttk.Combobox(tab, textvariable=self._loc_ideology, values=ideo_values, state="readonly",
-                     width=16).grid(row=1, column=1, sticky="w", padx=8)
+                     width=16).grid(row=r, column=1, sticky="w", padx=8); r += 1
 
-        ttk.Label(tab, text=self.t("countries.name_value"), style="CardMuted.TLabel").grid(
-            row=2, column=0, sticky="w", pady=4)
+        # --- Country name section ---
+        ttk.Label(tab, text=self.t("countries.section.country_name"), style="Heading.TLabel").grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(12, 4)); r += 1
         self._loc_name = tk.StringVar()
-        ttk.Entry(tab, textvariable=self._loc_name).grid(row=2, column=1, sticky="ew", padx=8)
-
-        ttk.Label(tab, text=self.t("countries.name_definite"), style="CardMuted.TLabel").grid(
-            row=3, column=0, sticky="w", pady=4)
+        self._loc_row(tab, r, self.t("countries.name_value"), self._loc_name); r += 1
         self._loc_def = tk.StringVar()
-        ttk.Entry(tab, textvariable=self._loc_def).grid(row=3, column=1, sticky="ew", padx=8)
-
-        ttk.Label(tab, text=self.t("countries.name_adjective"), style="CardMuted.TLabel").grid(
-            row=4, column=0, sticky="w", pady=4)
+        self._loc_row(tab, r, self.t("countries.name_definite"), self._loc_def); r += 1
         self._loc_adj = tk.StringVar()
-        ttk.Entry(tab, textvariable=self._loc_adj).grid(row=4, column=1, sticky="ew", padx=8)
+        self._loc_row(tab, r, self.t("countries.name_adjective"), self._loc_adj); r += 1
+
+        # Spacer + separator between the country-name and party sections.
+        ttk.Separator(tab, orient="horizontal").grid(
+            row=r, column=0, columnspan=2, sticky="ew", pady=(16, 4)); r += 1
+
+        # --- Party section (optional) ---
+        ttk.Label(tab, text=self.t("countries.section.party"), style="Heading.TLabel").grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(4, 0)); r += 1
+        ttk.Label(tab, text=self.t("countries.party_optional"), style="CardMuted.TLabel").grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(0, 4)); r += 1
+        self._loc_party = tk.StringVar()
+        self._loc_party_entry = self._loc_row(tab, r, self.t("countries.party_name"), self._loc_party); r += 1
+        self._loc_party_long = tk.StringVar()
+        self._loc_party_long_entry = self._loc_row(tab, r, self.t("countries.party_long"), self._loc_party_long); r += 1
+        self._loc_party_desc = tk.StringVar()
+        self._loc_party_desc_entry = self._loc_row(tab, r, self.t("countries.party_desc"), self._loc_party_desc); r += 1
 
         ttk.Button(tab, text=self.t("common.save"), style="Accent.TButton",
-                   command=self._save_name).grid(row=5, column=1, sticky="w", padx=8, pady=10)
+                   command=self._save_name).grid(row=r, column=1, sticky="w", padx=8, pady=(12, 8)); r += 1
 
         ttk.Label(tab, text=self.t("countries.existing_names"), style="CardMuted.TLabel").grid(
-            row=6, column=0, columnspan=2, sticky="w", pady=(10, 2))
+            row=r, column=0, columnspan=2, sticky="w", pady=(8, 2)); r += 1
         self._loc_existing = ttk.Label(tab, text="", style="Card.TLabel", justify="left", wraplength=460)
-        self._loc_existing.grid(row=7, column=0, columnspan=2, sticky="w")
+        self._loc_existing.grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
         self._loc_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
-        self._loc_status.grid(row=8, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        self._loc_status.grid(row=r, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        # Reload fields whenever language or ideology variant changes.
         self._loc_lang.trace_add("write", lambda *_: self._load_localisation())
         self._loc_ideology.trace_add("write", lambda *_: self._load_localisation())
+
+    def _loc_row(self, parent, row, label, var) -> ttk.Entry:
+        ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", pady=4)
+        entry = ttk.Entry(parent, textvariable=var)
+        entry.grid(row=row, column=1, sticky="ew", padx=8)
+        return entry
 
     # --- tab: territory --------------------------------------------------
     def _build_tab_territory(self) -> None:
@@ -327,10 +344,15 @@ class CountriesEditor(EditorModule):
         self._entry_field(tab, row, self.t("countries.war_support"), self._pol_war); row += 1
         self._entry_field(tab, row, self.t("countries.manpower"), self._pol_manpower); row += 1
 
-        self._pol_oob = tk.StringVar()
-        oob_values = [self.t("countries.oob_none")] + self.service.list_oob_files()
+        # Order of battle: land / naval / air, each from the existing OOB files.
         self._oob_none_label = self.t("countries.oob_none")
-        self._combo_field(tab, row, self.t("countries.oob"), self._pol_oob, oob_values, width=28); row += 1
+        oob_values = [self._oob_none_label] + self.service.list_oob_files()
+        self._oob_vars: dict[str, tk.StringVar] = {}
+        for kind in ("land", "naval", "air"):
+            var = tk.StringVar()
+            self._oob_vars[kind] = var
+            self._combo_field(tab, row, self.t(f"countries.oob_{kind}"), var, oob_values, width=28); row += 1
+        self._pol_oob = self._oob_vars["land"]  # back-compat alias
 
         ttk.Button(tab, text=self.t("common.save"), style="Accent.TButton",
                    command=self._save_politics).grid(row=row, column=0, sticky="w", padx=16, pady=12); row += 1
@@ -393,18 +415,18 @@ class CountriesEditor(EditorModule):
         sb.grid(row=1, column=0, sticky="nse")
         self._chars_tree.configure(yscrollcommand=sb.set)
 
-        # Portrait preview panel for the selected character.
+        # Portrait gallery for the selected character — shows ALL portraits
+        # (leader/commander/advisor, every category & size).
         side = ttk.Frame(tab, style="Card.TFrame")
         side.grid(row=1, column=1, sticky="nsew", padx=(12, 0))
-        self._char_name_lbl = ttk.Label(side, text="", style="Heading.TLabel", wraplength=200)
-        self._char_name_lbl.pack(anchor="w", pady=(0, 8))
-        self._portrait_canvas = tk.Canvas(side, width=160, height=210, highlightthickness=1,
-                                          highlightbackground=self.palette.border,
-                                          bg=self.palette.surface_alt, bd=0)
-        self._portrait_canvas.pack(anchor="w")
-        self._portrait_caption = ttk.Label(side, text="", style="CardMuted.TLabel", wraplength=200)
-        self._portrait_caption.pack(anchor="w", pady=(4, 0))
-        self._portrait_photos: list = []  # keep refs
+        side.rowconfigure(1, weight=1)
+        side.columnconfigure(0, weight=1)
+        self._char_name_lbl = ttk.Label(side, text="", style="Heading.TLabel", wraplength=210)
+        self._char_name_lbl.grid(row=0, column=0, sticky="w", pady=(0, 8))
+        self._gallery = ScrollableFrame(side, bg=self.palette.surface)
+        self._gallery.grid(row=1, column=0, sticky="nsew")
+        self._gallery.body.configure(style="Card.TFrame")
+        self._portrait_photos: list = []  # keep PhotoImage refs alive
 
         self._chars_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
         self._chars_status.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
@@ -422,8 +444,8 @@ class CountriesEditor(EditorModule):
         for ref in self._refs:
             if query and query not in ref.tag.lower() and query not in ref.name.lower():
                 continue
-            label = f"{ref.tag}   {ref.name}" + ("" if not ref.is_vanilla else "  ·")
-            self._tree.insert("", "end", iid=ref.tag, text=label)
+            marker = "  ✎" if ref.edited else ("  ·" if ref.is_vanilla else "")
+            self._tree.insert("", "end", iid=ref.tag, text=f"{ref.tag}   {ref.name}{marker}")
 
     def _on_select(self, _e=None) -> None:
         sel = self._tree.selection()
@@ -475,9 +497,9 @@ class CountriesEditor(EditorModule):
             var.set(str(pops.get(group, "")))
         self._update_pop_sum()
 
-        # OOB
-        oob = self.service.get_oob(ref.tag)
-        self._pol_oob.set(oob or self._oob_none_label)
+        # OOB (land / naval / air)
+        for kind, var in self._oob_vars.items():
+            var.set(self.service.get_oob(ref.tag, kind) or self._oob_none_label)
 
         # technologies (tech, condition) entries
         self._tech_selection = self.service.get_technology_entries(ref.tag)
@@ -530,11 +552,14 @@ class CountriesEditor(EditorModule):
     def _load_localisation(self) -> None:
         if not self._selected:
             return
-        loc = self.service.get_localisation(self._selected.tag, self._loc_lang.get(),
-                                            self._current_ideology())
+        ideology = self._current_ideology()
+        loc = self.service.get_localisation(self._selected.tag, self._loc_lang.get(), ideology)
         self._loc_name.set(loc.get("name", ""))
         self._loc_def.set(loc.get("definite", ""))
         self._loc_adj.set(loc.get("adjective", ""))
+        self._loc_party.set(loc.get("party", ""))
+        self._loc_party_long.set(loc.get("party_long", ""))
+        self._loc_party_desc.set(loc.get("party_desc", ""))
 
     def _render_existing_names(self) -> None:
         names = getattr(self, "_names", {})
@@ -547,13 +572,25 @@ class CountriesEditor(EditorModule):
         name = self._loc_name.get().strip()
         if not name:
             return
+        ideology = self._current_ideology()
+        party = (self._loc_party.get().strip(), self._loc_party_long.get().strip(),
+                 self._loc_party_desc.get().strip())
+        # Party names require an ideology; warn but still save the country name.
+        if any(party) and not ideology:
+            self._loc_status.configure(text=self.t("countries.party_needs_ideology"),
+                                       foreground=self.palette.danger)
         try:
             self.service.set_localisation(
-                self._selected.tag, self._loc_lang.get(), self._current_ideology(),
-                name, self._loc_def.get().strip(), self._loc_adj.get().strip())
+                self._selected.tag, self._loc_lang.get(), ideology,
+                name, self._loc_def.get().strip(), self._loc_adj.get().strip(),
+                party=party[0] if ideology else "",
+                party_long=party[1] if ideology else "",
+                party_desc=party[2] if ideology else "")
             self._names = self.service.get_names(self._selected.tag)
             self._render_existing_names()
-            self._loc_status.configure(text=self.t("countries.name_saved"), foreground=self.palette.text_muted)
+            if not (any(party) and not ideology):
+                self._loc_status.configure(text=self.t("countries.name_saved"),
+                                           foreground=self.palette.text_muted)
         except Exception as exc:
             self._loc_status.configure(text=f"{self.t('common.error')}: {exc}", foreground=self.palette.danger)
 
@@ -654,9 +691,10 @@ class CountriesEditor(EditorModule):
                         pass
             if pops:
                 self.service.set_popularities(tag, name, pops)
-            # OOB
-            oob = self._pol_oob.get()
-            self.service.set_oob(tag, name, "" if oob == self._oob_none_label else oob)
+            # OOB (land / naval / air)
+            for kind, var in self._oob_vars.items():
+                value = var.get()
+                self.service.set_oob(tag, name, "" if value == self._oob_none_label else value, kind)
         except Exception as exc:
             self._pol_status.configure(text=f"{self.t('common.error')}: {exc}", foreground=self.palette.danger)
             return
@@ -758,33 +796,41 @@ class CountriesEditor(EditorModule):
 
     def _show_portraits(self, model) -> None:
         from PIL import Image, ImageTk
-        self._portrait_canvas.delete("all")
-        self._portrait_photos = []
+        self._clear_portrait()
+        self._char_name_lbl.configure(text=model.name)
+        body = self._gallery.body
         sprites = model.sprites()
-        # Show the first resolvable portrait large; list the rest as captions.
-        drawn = False
-        captions = []
-        for cat, size, sprite in sprites:
+        if not sprites:
+            ttk.Label(body, text=self.t("common.none"), style="CardMuted.TLabel").grid(
+                row=0, column=0, padx=6, pady=6)
+            return
+        for i, (cat, size, sprite) in enumerate(sprites):
+            cell = ttk.Frame(body, style="Card.TFrame")
+            cell.grid(row=i // 2, column=i % 2, padx=6, pady=6, sticky="n")
             path = self.character_service.resolve_sprite(sprite)
-            captions.append(f"{cat}/{size}: {sprite}" + ("" if path else "  (?)"))
-            if not drawn and path:
+            canvas = tk.Canvas(cell, width=84, height=112, highlightthickness=1,
+                               highlightbackground=self.palette.border,
+                               bg=self.palette.surface_alt, bd=0)
+            canvas.pack()
+            if path:
                 try:
-                    img = Image.open(path); img.thumbnail((158, 208), Image.Resampling.LANCZOS)
+                    img = Image.open(path)
+                    img.thumbnail((82, 110), Image.Resampling.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
                     self._portrait_photos.append(photo)
-                    self._portrait_canvas.create_image(80, 105, image=photo)
-                    drawn = True
+                    canvas.create_image(42, 56, image=photo)
                 except Exception:
-                    pass
-        if not drawn:
-            self._portrait_canvas.create_text(80, 105, text="—", fill=self.palette.text_muted)
-        self._portrait_caption.configure(text="\n".join(captions) if captions else self.t("common.none"))
+                    canvas.create_text(42, 56, text="✕", fill=self.palette.text_muted)
+            else:
+                canvas.create_text(42, 56, text="?", fill=self.palette.text_muted)
+            ttk.Label(cell, text=f"{cat}/{size}", style="CardMuted.TLabel").pack()
 
     def _clear_portrait(self) -> None:
-        if hasattr(self, "_portrait_canvas"):
-            self._portrait_canvas.delete("all")
+        if hasattr(self, "_gallery"):
+            for child in self._gallery.body.winfo_children():
+                child.destroy()
             self._char_name_lbl.configure(text="")
-            self._portrait_caption.configure(text="")
+            self._portrait_photos = []
 
     def _add_character(self) -> None:
         if not self._selected:

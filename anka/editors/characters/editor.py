@@ -18,8 +18,10 @@ from ...services.character_service import (
     PORTRAIT_CATEGORIES,
 )
 from ...services.ideology_service import IdeologyService
+from ...services.trait_service import TraitService
 from ...ui.widgets import ImageDropZone, ScrollableFrame
 from ..base import EditorModule, EditorRegistry
+from .dialogs import ItemPickerDialog
 
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{1,}$")
 
@@ -35,6 +37,7 @@ class CharactersEditor(EditorModule):
         super().__init__(context, services)
         self.service = context.characters  # shared across editor modules
         self.ideology_service = IdeologyService(context)
+        self.trait_service = TraitService(context)
         self._models = []
         self._selected = None
         self._editing_existing = False
@@ -152,7 +155,7 @@ class CharactersEditor(EditorModule):
         self._row_combo(f, r, self.t("characters.leader.ideology"), self._v_leader_ideo,
                         list(self._ideo_map)); r += 1
         self._v_leader_traits = tk.StringVar()
-        self._row_entry(f, r, self.t("characters.traits"), self._v_leader_traits); r += 1
+        self._trait_row(f, r, self._v_leader_traits, "leader"); r += 1
 
         # Advisor
         self._role_advisor = tk.BooleanVar()
@@ -164,7 +167,7 @@ class CharactersEditor(EditorModule):
         self._v_adv_cost = tk.StringVar()
         self._row_entry(f, r, self.t("characters.advisor.cost"), self._v_adv_cost, width=8); r += 1
         self._v_adv_traits = tk.StringVar()
-        self._row_entry(f, r, self.t("characters.traits"), self._v_adv_traits); r += 1
+        self._trait_row(f, r, self._v_adv_traits, "advisor"); r += 1
 
         # General
         self._role_general = tk.BooleanVar()
@@ -173,14 +176,14 @@ class CharactersEditor(EditorModule):
         self._row_combo(f, r, self.t("characters.general.role"), self._v_gen_role, list(GENERAL_ROLES)); r += 1
         self._gen_skills = self._skill_row(f, r, ("skill", "attack", "defense", "planning", "logistics")); r += 1
         self._v_gen_traits = tk.StringVar()
-        self._row_entry(f, r, self.t("characters.traits"), self._v_gen_traits); r += 1
+        self._trait_row(f, r, self._v_gen_traits, "unit"); r += 1
 
         # Admiral
         self._role_admiral = tk.BooleanVar()
         self._check(f, r, self.t("characters.role.admiral"), self._role_admiral); r += 1
         self._adm_skills = self._skill_row(f, r, ("skill", "attack", "defense", "maneuvering", "coordination")); r += 1
         self._v_adm_traits = tk.StringVar()
-        self._row_entry(f, r, self.t("characters.traits"), self._v_adm_traits); r += 1
+        self._trait_row(f, r, self._v_adm_traits, "unit"); r += 1
 
         ttk.Button(f, text=self.t("common.save"), style="Accent.TButton",
                    command=self._save).grid(row=r, column=0, sticky="w", padx=16, pady=12); r += 1
@@ -382,6 +385,36 @@ class CharactersEditor(EditorModule):
 
     def _fail_msg(self, msg: str) -> None:
         self._status.configure(text=f"{self.t('common.error')}: {msg}", foreground=self.palette.danger)
+
+    def _trait_row(self, parent, row, var, kind):
+        """A traits entry plus a '+' button opening the dynamic trait picker."""
+        ttk.Label(parent, text=self.t("characters.traits"), style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", padx=16, pady=3)
+        cell = ttk.Frame(parent, style="Card.TFrame")
+        cell.grid(row=row, column=1, sticky="w", padx=8, pady=3)
+        ttk.Entry(cell, textvariable=var, width=30).pack(side="left")
+        ttk.Button(cell, text="+", width=3,
+                   command=lambda: self._pick_traits(var, kind)).pack(side="left", padx=4)
+
+    def _trait_list(self, kind: str) -> list[str]:
+        if kind == "unit":
+            return self.trait_service.unit_leader_traits()
+        if kind == "advisor":
+            return self.trait_service.advisor_traits()
+        return self.trait_service.country_leader_traits()
+
+    def _pick_traits(self, var, kind) -> None:
+        current = set(var.get().split())
+
+        def add(selected):
+            combined = list(dict.fromkeys(var.get().split() + selected))
+            var.set(" ".join(combined))
+
+        ItemPickerDialog(self._root_widget(), self, self.t("characters.traits"),
+                         self._trait_list(kind), add, exclude=current)
+
+    def _root_widget(self):
+        return self._tree.winfo_toplevel()
 
     def _row_entry(self, parent, row, label, var, width=24):
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", padx=16, pady=3)
