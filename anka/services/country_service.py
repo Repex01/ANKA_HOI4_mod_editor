@@ -1,0 +1,628 @@
+"""Read/write country data for the Countries editor.
+
+Sources inside a mod (falling back to the base game for vanilla tags):
+  * ``common/country_tags/*.txt`` — ``TAG = "countries/File.txt"`` mapping
+  * ``common/countries/colors.txt`` — per-tag map & UI colors
+  * ``common/countries/<File>.txt`` — the country definition (graphical culture, ...)
+  * ``gfx/flags/<TAG>.tga`` — flag asset
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from ..config.constants import GAME_DIRS, HOI4_LANGUAGES
+from ..core.localisation import LocFile
+from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
+from ..domain.mod import ModContext
+
+
+@dataclass
+class CountryRef:
+    tag: str
+    name: str                       # human-ish name derived from the country filename
+    rel_file: str                   # e.g. "countries/Germany.txt"
+    is_vanilla: bool
+    source_root: Path               # mod path or game path that owns the file
+
+    @property
+    def country_file(self) -> Path:
+        return self.source_root / "common" / self.rel_file
+
+
+@dataclass
+class CountryColor:
+    rgb: tuple[int, int, int] | None = None
+    extras: list = field(default_factory=list)  # preserved sub-entries (color_ui, ...)
+
+
+_TAG_RE = re.compile(r"^[A-Z]{2,3}$")
+
+
+def _invert_condition(cond: str) -> str:
+    """Invert a tech condition for an ``else`` branch (dlc:X <-> notdlc:X)."""
+    if cond.startswith("dlc:"):
+        return "notdlc:" + cond[4:]
+    if cond.startswith("notdlc:"):
+        return "dlc:" + cond[7:]
+    return cond
+
+
+class CountryService:
+    def __init__(self, context: ModContext):
+        self.ctx = context
+
+    # --- tags ------------------------------------------------------------
+    def list_tags(self, include_vanilla: bool = False) -> list[CountryRef]:
+        mod_refs = self._read_tag_dir(self.ctx.mod.path, is_vanilla=False)
+        refs = {r.tag: r for r in mod_refs}
+        if include_vanilla:
+            for r in self._read_tag_dir(self.ctx.game_path, is_vanilla=True):
+                refs.setdefault(r.tag, r)
+        return sorted(refs.values(), key=lambda r: r.tag)
+
+    def _read_tag_dir(self, root: Path, is_vanilla: bool) -> list[CountryRef]:
+        tag_dir = root / GAME_DIRS.COUNTRY_TAGS
+        if not tag_dir.is_dir():
+            return []
+        out: list[CountryRef] = []
+        for file in sorted(tag_dir.glob("*.txt")):
+            try:
+                block = parse_file(file)
+            except Exception:
+                continue
+            for pair in block.pairs():
+                tag = pair.key
+                if not _TAG_RE.match(tag) or not isinstance(pair.value, Scalar):
+                    continue
+                rel = pair.value.raw.strip('"')
+                name = Path(rel).stem.replace("_", " ")
+                out.append(CountryRef(tag, name, rel, is_vanilla, root))
+        return out
+
+    # --- colors ----------------------------------------------------------
+    def _colors_block(self, root: Path) -> Block | None:
+        path = root / GAME_DIRS.COUNTRY_COLORS
+        if not path.exists():
+            return None
+        try:
+            return parse_file(path)
+        except Exception:
+            return None
+
+    def get_color(self, ref: CountryRef) -> CountryColor:
+        for root in (self.ctx.mod.path, self.ctx.game_path):
+            block = self._colors_block(root)
+            if block is None:
+                continue
+            entry = block.get_block(ref.tag)
+            if entry is None:
+                continue
+            # Prefer the UI color (always rgb), fall back to the map color (rgb or HSV).
+            rgb = self._color_from(entry.get_block("color_ui")) or self._color_from(entry.get_block("color"))
+            return CountryColor(rgb=rgb)
+        # Some countries store color directly in the country file.
+        try:
+            cblock = parse_file(ref.country_file)
+            return CountryColor(rgb=self._color_from(cblock.get_block("color")))
+        except Exception:
+            return CountryColor()
+
+    @staticmethod
+    def _color_from(node: Block | None) -> tuple[int, int, int] | None:
+        """Parse an rgb/hsv color block into 0-255 RGB."""
+        if node is None:
+            return None
+        vals = node.array_values()
+        if len(vals) < 3:
+            return None
+        try:
+            nums = [float(v) for v in vals[:3]]
+        except ValueError:
+            return None
+        if (node.tag or "rgb").lower() == "hsv":
+            import colorsys
+            r, g, b = colorsys.hsv_to_rgb(*nums)
+            return (round(r * 255), round(g * 255), round(b * 255))
+        return tuple(int(n) for n in nums)  # type: ignore[return-value]
+
+    def set_color(self, tag: str, rgb: tuple[int, int, int], ref: CountryRef | None = None) -> list[Path]:
+        """Write a tag's color to the mod's colors.txt and, when the country's
+        definition file lives in the mod, into that file too (the user asked for both).
+        For vanilla countries we only touch colors.txt (authoritative) to avoid copying
+        the whole definition file."""
+        written: list[Path] = [self._write_colors_txt(tag, rgb)]
+        if ref is not None:
+            def_file = ref.country_file
+            if self._is_in_mod(def_file) and def_file.exists():
+                block = parse_file(def_file)
+                block.set("color", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+                dump_file(block, def_file)
+                written.append(def_file)
+        return written
+
+    def _write_colors_txt(self, tag: str, rgb: tuple[int, int, int]) -> Path:
+        path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COLORS
+        block = self._colors_block(self.ctx.mod.path) or Block()
+        entry = block.get_block(tag)
+        rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
+        if entry is None:
+            entry = Block()
+            entry.add("color", rgb_block)
+            entry.add("color_ui", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+            block.add(tag, entry)
+        else:
+            entry.set("color", rgb_block)
+            if entry.get_block("color_ui") is None:
+                entry.add("color_ui", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(block, path)
+        return path
+
+    # --- country definition file ----------------------------------------
+    def load_country(self, ref: CountryRef) -> Block:
+        return parse_file(ref.country_file)
+
+    def graphical_culture(self, ref: CountryRef) -> str:
+        try:
+            return self.load_country(ref).get_scalar("graphical_culture", "") or ""
+        except Exception:
+            return ""
+
+    def flag_path(self, tag: str, suffix: str | None = None) -> Path | None:
+        existing = self.ctx.flags.existing(tag, suffix)
+        if existing:
+            return existing
+        # Vanilla fallback for preview.
+        name = f"{tag}_{suffix}" if suffix else tag
+        candidate = self.ctx.game_path / "gfx" / "flags" / f"{name}.tga"
+        return candidate if candidate.exists() else None
+
+    # --- localisation: names per language & ideology --------------------
+    @staticmethod
+    def _loc_key(tag: str, ideology: str | None) -> str:
+        """Base localisation key: ``TAG`` or ``TAG_<ideology>`` (cosmetic variant)."""
+        return tag if not ideology else f"{tag}_{ideology}"
+
+    def get_localisation(self, tag: str, language: str, ideology: str | None = None) -> dict[str, str]:
+        """Read name / definite (DEF) / adjective (ADJ) for a tag+language+ideology.
+
+        HOI4 keys: ``TAG``, ``TAG_DEF``, ``TAG_ADJ`` for the base, and
+        ``TAG_<ideology>`` + ``_DEF`` / ``_ADJ`` for ruling-party cosmetic names.
+        """
+        base = self._loc_key(tag, ideology)
+        result = {"name": "", "definite": "", "adjective": ""}
+        for root in (self.ctx.game_path, self.ctx.mod.path):  # mod overrides game
+            loc_dir = root / GAME_DIRS.LOCALISATION / language
+            if not loc_dir.is_dir():
+                continue
+            for yml in loc_dir.glob("*.yml"):
+                if "countries" not in yml.name.lower() and "anka" not in yml.name.lower():
+                    continue
+                try:
+                    loc = LocFile.load(yml)
+                except Exception:
+                    continue
+                if base in loc:
+                    result["name"] = loc.get(base, "")
+                if f"{base}_DEF" in loc:
+                    result["definite"] = loc.get(f"{base}_DEF", "")
+                if f"{base}_ADJ" in loc:
+                    result["adjective"] = loc.get(f"{base}_ADJ", "")
+        return result
+
+    def get_names(self, tag: str) -> dict[str, str]:
+        """Map language -> base display name (for quick listings)."""
+        names: dict[str, str] = {}
+        for root in (self.ctx.game_path, self.ctx.mod.path):
+            loc_dir = root / GAME_DIRS.LOCALISATION
+            if not loc_dir.is_dir():
+                continue
+            for yml in loc_dir.glob("**/*.yml"):
+                if "countries" not in yml.name.lower() and "anka" not in yml.name.lower():
+                    continue
+                try:
+                    loc = LocFile.load(yml)
+                except Exception:
+                    continue
+                if tag in loc:
+                    names[loc.language] = loc.get(tag, "")
+        return names
+
+    def set_localisation(self, tag: str, language: str, ideology: str | None,
+                         name: str, definite: str = "", adjective: str = "") -> Path:
+        """Write name/DEF/ADJ for a tag+language (optionally an ideology variant)."""
+        base = self._loc_key(tag, ideology)
+        path = (self.ctx.mod.path / GAME_DIRS.LOCALISATION / language
+                / f"anka_countries_l_{language}.yml")
+        loc = LocFile.load(path) if path.exists() else LocFile(language)
+        if name:
+            loc.set(base, name)
+        if definite or name:
+            loc.set(f"{base}_DEF", definite or name)
+        if adjective:
+            loc.set(f"{base}_ADJ", adjective)
+        return loc.save(path)
+
+    # Backwards-compatible thin wrapper used by country creation.
+    def set_name(self, tag: str, language: str, name: str, definite: str | None = None) -> Path:
+        return self.set_localisation(tag, language, None, name, definite or name)
+
+    # --- history: capital, stability, war support, manpower -------------
+    def get_history(self, tag: str) -> dict[str, str]:
+        """Read a few scalar history values for display (capital, stability, ...)."""
+        path = self._find_history_file(tag)
+        out: dict[str, str] = {}
+        if path is None:
+            return out
+        try:
+            block = parse_file(path)
+        except Exception:
+            return out
+        for key in ("capital", "set_stability", "set_war_support", "add_manpower", "set_research_slots"):
+            value = block.get_scalar(key)
+            if value is not None:
+                out[key] = value
+        return out
+
+    def set_history_values(self, tag: str, name: str, **values) -> Path:
+        """Set scalar history keys (capital / set_stability / set_war_support /
+        add_manpower), copying the file into the mod first if it is vanilla."""
+        block = self._history_block(tag)
+        for key, value in values.items():
+            if value is None or value == "":
+                continue
+            block.set(key, Scalar(str(value)))
+        return self._write_history(tag, name, block)
+
+    def _history_block(self, tag: str) -> Block:
+        source = self._find_history_file(tag)
+        return parse_file(source) if source else Block()
+
+    def _write_history(self, tag: str, name: str, block: Block) -> Path:
+        target = self._mod_history_path(tag, name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(block, target)
+        return target
+
+    # --- popularities (dynamic ideologies) ------------------------------
+    def get_popularities(self, tag: str) -> dict[str, int]:
+        block = self._history_block(tag).get_block("set_popularities")
+        if block is None:
+            return {}
+        out: dict[str, int] = {}
+        for pair in block.pairs():
+            if isinstance(pair.value, Scalar) and pair.value.as_int() is not None:
+                out[pair.key] = pair.value.as_int()
+        return out
+
+    def set_popularities(self, tag: str, name: str, popularities: dict[str, int]) -> Path:
+        block = self._history_block(tag)
+        pop = Block()
+        for ideology, value in popularities.items():
+            pop.add(ideology, Scalar(str(int(value))))
+        block.set("set_popularities", pop)
+        return self._write_history(tag, name, block)
+
+    # --- set_politics ----------------------------------------------------
+    def get_politics(self, tag: str) -> dict[str, str]:
+        block = self._history_block(tag).get_block("set_politics")
+        if block is None:
+            return {}
+        keys = ("ruling_party", "last_election", "election_frequency", "elections_allowed")
+        return {k: (block.get_scalar(k, "") or "").strip('"') for k in keys if block.has(k)}
+
+    def set_politics(self, tag: str, name: str, ruling_party: str, last_election: str,
+                     election_frequency: str | int, elections_allowed: bool) -> Path:
+        block = self._history_block(tag)
+        politics = block.get_block("set_politics") or Block()
+        politics.set("ruling_party", Scalar(ruling_party))
+        politics.set("last_election", Scalar(last_election.strip('"'), quoted=True))
+        politics.set("election_frequency", Scalar(str(election_frequency)))
+        politics.set("elections_allowed", Scalar("yes" if elections_allowed else "no"))
+        block.set("set_politics", politics)
+        return self._write_history(tag, name, block)
+
+    # --- order of battle (OOB) ------------------------------------------
+    def list_oob_files(self) -> list[str]:
+        """OOB file stems available in history/units (mod + game)."""
+        names: set[str] = set()
+        for root in (self.ctx.game_path, self.ctx.mod.path):
+            folder = root / "history/units"
+            if folder.is_dir():
+                names.update(f.stem for f in folder.glob("*.txt"))
+        return sorted(names)
+
+    def get_oob(self, tag: str) -> str:
+        value = self._history_block(tag).get_scalar("set_oob", "")
+        return (value or "").strip('"')
+
+    def set_oob(self, tag: str, name: str, oob_name: str) -> Path:
+        block = self._history_block(tag)
+        if oob_name:
+            block.set("set_oob", Scalar(oob_name, quoted=True))
+        else:
+            block.remove("set_oob")
+        return self._write_history(tag, name, block)
+
+    # --- starting technologies ------------------------------------------
+    def get_technology_entries(self, tag: str) -> list[tuple[str, str]]:
+        """All starting techs as ``(tech, condition)`` pairs.
+
+        Condition is ``""`` (unconditional), ``"dlc:<Name>"`` or ``"notdlc:<Name>"``,
+        gathered recursively from ``set_technology`` blocks nested inside
+        ``if``/``else`` DLC checks — the reason a country like the USSR has most of its
+        techs behind ``has_dlc`` guards.
+        """
+        out: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        self._walk_technology(self._history_block(tag), "", out, seen)
+        return out
+
+    def get_technologies(self, tag: str) -> list[str]:
+        return [t for t, _ in self.get_technology_entries(tag)]
+
+    def _walk_technology(self, block: Block, cond: str, out: list, seen: set) -> None:
+        for item in block.items:
+            if not isinstance(item, Pair) or not isinstance(item.value, Block):
+                continue
+            if item.key == "set_technology":
+                for tp in item.value.pairs():
+                    if isinstance(tp.value, Scalar) and tp.value.as_int() == 1:
+                        entry = (tp.key, cond)
+                        if entry not in seen:
+                            seen.add(entry)
+                            out.append(entry)
+            elif item.key in ("if", "else_if"):
+                branch = self._dlc_condition(item.value.get_block("limit")) or cond
+                self._walk_technology(item.value, branch, out, seen)
+            elif item.key == "else":
+                self._walk_technology(item.value, _invert_condition(cond), out, seen)
+
+    @staticmethod
+    def _dlc_condition(limit: Block | None) -> str:
+        if limit is None:
+            return ""
+        dlc = limit.get_scalar("has_dlc")
+        if dlc:
+            return f"dlc:{dlc.strip(chr(34))}"
+        for neg in ("NOT", "not"):
+            neg_block = limit.get_block(neg)
+            if neg_block is not None:
+                inner = neg_block.get_scalar("has_dlc")
+                if inner:
+                    return f"notdlc:{inner.strip(chr(34))}"
+        return ""
+
+    def set_technology_entries(self, tag: str, name: str, entries: list[tuple[str, str]]) -> Path:
+        """Write techs back, grouping by condition: unconditional into a top-level
+        ``set_technology`` and each DLC condition into an ``if = { limit = {...} }``."""
+        block = self._history_block(tag)
+        # Drop the tech statements we manage, then rebuild them.
+        block.items = [it for it in block.items
+                       if not (isinstance(it, Pair) and it.key == "set_technology")
+                       and not (isinstance(it, Pair) and it.key == "if" and self._is_anka_tech_if(it.value))]
+
+        groups: dict[str, list[str]] = {}
+        for tech, cond in entries:
+            groups.setdefault(cond, []).append(tech)
+
+        # Unconditional first.
+        if groups.get(""):
+            block.set("set_technology", Block([Pair(t, Scalar("1")) for t in groups[""]]))
+        for cond, techs in groups.items():
+            if not cond:
+                continue
+            kind, _, dlc = cond.partition(":")
+            limit = Block()
+            if kind == "dlc":
+                limit.add("has_dlc", Scalar(dlc, quoted=True))
+            else:  # notdlc
+                limit.add("NOT", Block([Pair("has_dlc", Scalar(dlc, quoted=True))]))
+            if_block = Block()
+            if_block.add("limit", limit)
+            if_block.add("set_technology", Block([Pair(t, Scalar("1")) for t in techs]))
+            block.add("if", if_block)
+        return self._write_history(tag, name, block)
+
+    @staticmethod
+    def _is_anka_tech_if(value) -> bool:
+        """An ``if`` block we authored: a limit with has_dlc and a single set_technology."""
+        return (isinstance(value, Block) and value.get_block("set_technology") is not None
+                and value.get_block("limit") is not None and len(value.items) == 2)
+
+    # --- country creation ------------------------------------------------
+    def create_country(
+        self,
+        tag: str,
+        name: str,
+        rgb: tuple[int, int, int] = (128, 128, 128),
+        graphical_culture: str = "western_european_gfx",
+        capital: int | None = None,
+    ) -> dict[str, Path]:
+        """Create a brand-new country: tag mapping, definition file, history file,
+        color and English name. Returns the paths written."""
+        tag = tag.upper()
+        safe_name = "".join(c for c in name if c.isalnum() or c in " _-").strip() or tag
+        written: dict[str, Path] = {}
+
+        # 1) country_tags entry
+        tags_file = self.ctx.mod.path / GAME_DIRS.COUNTRY_TAGS / "zz_anka_countries.txt"
+        tags_block = parse_file(tags_file) if tags_file.exists() else Block()
+        rel = f"countries/{safe_name}.txt"
+        tags_block.set(tag, Scalar(rel, quoted=True))
+        tags_file.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(tags_block, tags_file)
+        written["tags"] = tags_file
+
+        # 2) definition file
+        def_file = self.ctx.mod.path / "common" / rel
+        def_block = Block()
+        def_block.add("graphical_culture", Scalar(graphical_culture))
+        def_block.add("graphical_culture_2d", Scalar(graphical_culture.replace("_gfx", "_2d")))
+        def_block.add("color", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+        def_file.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(def_block, def_file)
+        written["definition"] = def_file
+
+        # 3) colors.txt
+        written["colors"] = self._write_colors_txt(tag, rgb)
+
+        # 4) history file
+        hist = Block()
+        if capital is not None:
+            hist.add("capital", Scalar(str(capital)))
+        hist.add("set_research_slots", Scalar("3"))
+        hist.add("set_stability", Scalar("0.5"))
+        hist.add("set_war_support", Scalar("0.5"))
+        politics = Block()
+        politics.add("ruling_party", Scalar("neutrality"))
+        politics.add("last_election", Scalar("1936.1.1", quoted=True))
+        politics.add("election_frequency", Scalar("48"))
+        politics.add("elections_allowed", Scalar("no"))
+        hist.add("set_politics", politics)
+        pop = Block()
+        pop.add("neutrality", Scalar("100"))
+        hist.add("set_popularities", pop)
+        hist_path = self._mod_history_path(tag, safe_name)
+        hist_path.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(hist, hist_path)
+        written["history"] = hist_path
+
+        # 5) English name
+        written["loc"] = self.set_name(tag, "english", name)
+        return written
+
+    def add_recruit_character(self, tag: str, name: str, char_id: str) -> Path:
+        """Append ``recruit_character = <char_id>`` to the country history (idempotent)."""
+        block = self._history_block(tag)
+        if char_id not in [v.raw for v in block.get_all("recruit_character") if isinstance(v, Scalar)]:
+            block.add("recruit_character", Scalar(char_id))
+        return self._write_history(tag, name, block)
+
+    def remove_recruit_character(self, tag: str, name: str, char_id: str) -> Path:
+        """Remove a ``recruit_character = <char_id>`` line from the country history."""
+        block = self._history_block(tag)
+        block.items = [
+            it for it in block.items
+            if not (isinstance(it, Pair) and it.key == "recruit_character"
+                    and isinstance(it.value, Scalar) and it.value.raw == char_id)
+        ]
+        return self._write_history(tag, name, block)
+
+    # --- deletion --------------------------------------------------------
+    def delete_country(self, ref: CountryRef) -> list[Path]:
+        """Delete a *mod* country's files (tag mapping, definition, history, color,
+        localisation, flags). Vanilla countries are refused — there is nothing of ours
+        to remove. Returns the paths that were changed or deleted."""
+        if ref.is_vanilla:
+            raise ValueError("Cannot delete a vanilla country")
+        tag = ref.tag
+        touched: list[Path] = []
+
+        # 1) remove the tag from every mod country_tags file
+        tag_dir = self.ctx.mod.path / GAME_DIRS.COUNTRY_TAGS
+        if tag_dir.is_dir():
+            for file in tag_dir.glob("*.txt"):
+                try:
+                    block = parse_file(file)
+                except Exception:
+                    continue
+                if block.has(tag):
+                    block.remove(tag)
+                    if list(block.pairs()):
+                        dump_file(block, file)
+                    else:
+                        file.unlink(missing_ok=True)
+                    touched.append(file)
+
+        # 2) definition file (only if it lives in the mod)
+        if self._is_in_mod(ref.country_file) and ref.country_file.exists():
+            ref.country_file.unlink()
+            touched.append(ref.country_file)
+
+        # 3) history file
+        for candidate in (self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES).glob(f"{tag} *.txt"):
+            candidate.unlink(missing_ok=True)
+            touched.append(candidate)
+        simple = self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES / f"{tag}.txt"
+        if simple.exists():
+            simple.unlink()
+            touched.append(simple)
+
+        # 4) colors.txt entry
+        colors_path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COLORS
+        if colors_path.exists():
+            block = self._colors_block(self.ctx.mod.path)
+            if block is not None and block.has(tag):
+                block.remove(tag)
+                dump_file(block, colors_path)
+                touched.append(colors_path)
+
+        # 5) localisation TAG / TAG_DEF in mod files
+        loc_dir = self.ctx.mod.path / GAME_DIRS.LOCALISATION
+        if loc_dir.is_dir():
+            for yml in loc_dir.glob("**/*.yml"):
+                try:
+                    loc = LocFile.load(yml)
+                except Exception:
+                    continue
+                if tag in loc or f"{tag}_DEF" in loc:
+                    loc.remove(tag).remove(f"{tag}_DEF")
+                    loc.save(yml)
+                    touched.append(yml)
+
+        # 6) flag assets (large + medium + small, base + ideology variants)
+        flags_dir = self.ctx.mod.path / GAME_DIRS.GFX_FLAGS
+        for sub in ("", "medium", "small"):
+            folder = flags_dir / sub if sub else flags_dir
+            if not folder.is_dir():
+                continue
+            for flag in list(folder.glob(f"{tag}.tga")) + list(folder.glob(f"{tag}_*.tga")):
+                flag.unlink(missing_ok=True)
+                touched.append(flag)
+
+        # 7) characters file + leader portraits owned by this tag
+        char_file = self.ctx.mod.path / GAME_DIRS.CHARACTERS / f"{tag}.txt"
+        if char_file.exists():
+            char_file.unlink()
+            touched.append(char_file)
+        portrait_dir = self.ctx.mod.path / "gfx" / "leaders" / tag
+        if portrait_dir.is_dir():
+            for p in portrait_dir.glob("*"):
+                p.unlink(missing_ok=True)
+            try:
+                portrait_dir.rmdir()
+            except OSError:
+                pass
+            touched.append(portrait_dir)
+        return touched
+
+    # --- helpers ---------------------------------------------------------
+    def _is_in_mod(self, path: Path) -> bool:
+        try:
+            path.resolve().relative_to(self.ctx.mod.path.resolve())
+            return True
+        except (ValueError, OSError):
+            return False
+
+    def _find_history_file(self, tag: str) -> Path | None:
+        for root in (self.ctx.mod.path, self.ctx.game_path):
+            folder = root / GAME_DIRS.HISTORY_COUNTRIES
+            if not folder.is_dir():
+                continue
+            matches = list(folder.glob(f"{tag} - *.txt")) + list(folder.glob(f"{tag}.txt"))
+            if matches:
+                return matches[0]
+        return None
+
+    def _mod_history_path(self, tag: str, name: str) -> Path:
+        existing = self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES
+        if existing.is_dir():
+            for candidate in existing.glob(f"{tag} - *.txt"):
+                return candidate
+            simple = existing / f"{tag}.txt"
+            if simple.exists():
+                return simple
+        return existing / f"{tag} - {name}.txt"

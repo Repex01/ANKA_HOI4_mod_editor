@@ -1,0 +1,23 @@
+// Paradox script (Clausewitz) grammar — tolerant, LALR-friendly.
+// A document is a sequence of items: either `key <op> value` pairs or bare values
+// (array elements). Tagged blocks like `rgb { ... }` are a token followed by a block.
+
+start: _item*
+
+block: "{" _item* "}"
+
+_item: pair | _value
+
+pair: _key OP _value
+_key: TOKEN | STRING
+
+_value: block | tagged | STRING | TOKEN
+tagged: TOKEN block
+
+OP: "==" | "<=" | ">=" | "!=" | "=" | "<" | ">"
+STRING: /"[^"]*"/
+TOKEN: /[^\s{}="<>!#]+/
+COMMENT: /#[^\n]*/
+
+%ignore /[ \t\r\n]+/
+%ignore COMMENT
