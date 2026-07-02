@@ -1,0 +1,7348 @@
+{
+ "source": "triggers_documentation.md",
+ "count": 596,
+ "items": [
+  {
+   "name": "add_to_temp_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Adds an element to a temporary array",
+   "example": "add_to_temp_array = {\n\tarray = array_name\n\tvalue = 42 #optional, if not defined adds scope\n\tindex = 3 #optional, default is end. otherwise elements are shifted\n}\n#shorter usage: add_to_temp_array = { array_name = 42 }"
+  },
+  {
+   "name": "add_to_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "add_to_temp_variable = { num_dogs = 42 }\nadd_to_temp_variable = {\n\tnum_dogs = { value = num_cats  multiply = 2 }\n}",
+   "example": ""
+  },
+  {
+   "name": "advisor_can_be_fired",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Return true if the character has an advisor role and they can be fired.\nWarning: will return false if the character has no advisor role or it does not match the input slot. You should use has_advisor_role trigger first to really test the can_be_fired flag.\n\nExamples:\nsome_character_scope = {\n  advisor_can_be_fired = {\n    slot = political_advisor # mandatory if the character has several advisor role\n  }\n}\n\nsome_character_scope = {\n  advisor_can_be_fired = yes # or no\n}",
+   "example": ""
+  },
+  {
+   "name": "agency_upgrade_number",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the number of upgrade done in the intelligence agency. \nagency_upgrade_number > 4",
+   "example": ""
+  },
+  {
+   "name": "ai_has_role_division",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if the ai controlled country has any fielded divisions for a specific role",
+   "example": ""
+  },
+  {
+   "name": "ai_has_role_template",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if the ai controlled country has any template for a specific role",
+   "example": ""
+  },
+  {
+   "name": "ai_irrationality",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check the ai irrationality value",
+   "example": ""
+  },
+  {
+   "name": "ai_liberate_desire",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check what liberation desire the country has towards a specified country",
+   "example": ""
+  },
+  {
+   "name": "ai_wants_divisions",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Will compare towards the amount of divisions an ai wants to have.",
+   "example": ""
+  },
+  {
+   "name": "all_active_scientist",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if all active scientists of the Country in scope matches the triggers.\nex: GER = {\n  all_active_scientists = {\n\ttooltip = my_loc_key # Optional\n     ... Character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_allied_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if all allied countries meet the trigger. Does not include the country itself. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_army_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if All Army Leader of the Country in scope match the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  all_army_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_character",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if all characters meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_claimant",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "all_claimant = {\n\ttooltip = my_loc # Optional bindable localization\n\thas_war_goal = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "all_collection_elements",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "all_collection_elements = {\n    collection = {\n\t\tinput = game:scope\n\t\toperators = { controlled_states }\n\t}\n\tis_core_of = PREV\n}",
+   "example": ""
+  },
+  {
+   "name": "all_controlled_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all of the states controlled by the scope country meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_core_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if all of the country core states for the scope meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_country",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all countries meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_country_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "all_country_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { SWE NOR FIN DEN ICE }\n\thas_defensive_war = yes\n}\n\nall_country_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\thas_defensive_war = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "all_country_with_original_tag",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all country with current scope's original tag meets the trigger.",
+   "example": "all_country_with_original_tag = { \n  original_tag_to_check = ENG # the trigger check all countries that has this original tag \n  # ... triggers to check \n}"
+  },
+  {
+   "name": "all_enemy_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all enemy countries meet the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_guaranteed_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if every country with current scoped country guarantees.",
+   "example": "all_country_with_original_tag = { \n  # ... triggers to check \n}"
+  },
+  {
+   "name": "all_military_industrial_organization",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if all Military Industrial Organisations of the Country in scope match the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  any_military_industrial_organization = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... MIO scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_navy_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if all Navy Leaders of the Country in scope match the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  all_navy_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_neighbor_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all neighbor countries meet the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_neighbor_state",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all neighbor states meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_occupied_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all occupied countries meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on an array and check a trigger for each value, if any false returns false. otherwise returns true",
+   "example": "all_of = {\n\tarray = array_name\n\tvalue = value_name #optional (default 'v') current value in array will be stored in this temp variable\n\tindex = index_name #optional (default 'i') current index in array will be stored in this temp variable\n #trigger 1\n #trigger 2 ...\n}"
+  },
+  {
+   "name": "all_of_scopes",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on an array and check a trigger for each scope in it, if any false returns false. otherwise returns true",
+   "example": "all_of_scopes = {\n\tarray = array_name\n\ttooltip = loc #if defined the trigger will output tooltip using this title. loc_NOT will be used if trigger is inside a NOT\n #trigger 1\n #trigger 2 ...\n}"
+  },
+  {
+   "name": "all_operative_leader",
+   "scopes": [
+    "COUNTRY",
+    "OPERATION"
+   ],
+   "targets": [],
+   "desc": "check if all operatives meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_other_country",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all other countries meets the trigger. Excludes current country. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_owned_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all owned states meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_purchase_contracts",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if all purchase contracts of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  all_purchase_contracts = {\n\ttooltip = my_loc_key # Optional\n     ... Purchase Contract scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_scientists",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if all scientists of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  all_scientists = {\n\ttooltip = my_loc_key # Optional\n     ... Character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "all_state",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all states meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_subject_countries",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if all subject countries meet the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "all_unit_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if all Unit Leaders of the Country in scope match the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  all_unit_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "alliance_naval_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares the estimated naval strength between the scope country, his allies and his enemies.",
+   "example": ""
+  },
+  {
+   "name": "alliance_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares the estimated army strength between the scope country, his allies and his enemies.",
+   "example": ""
+  },
+  {
+   "name": "always",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "always returns specified value",
+   "example": ""
+  },
+  {
+   "name": "amount_manpower_in_deployment_queue",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks for amount manpower currently in deploymentview. amount_manpower_in_training > 10",
+   "example": ""
+  },
+  {
+   "name": "amount_research_slots",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check number of research current research slots \n amount_research_slots > 2",
+   "example": ""
+  },
+  {
+   "name": "amount_taken_ideas",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has current country picked specified amount of ideas. Category and slots is optional.\nExcludes national_spirit, hidden, law = yes\namount_taken_ideas = {\n\tamount < <int> (mandatory)\n\tcategories = { military_staff } (optional)\n\tslots = { army_chief political_advisor } (optional)\n}",
+   "example": ""
+  },
+  {
+   "name": "and",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "all inside trigger must be true",
+   "example": ""
+  },
+  {
+   "name": "any_active_scientist",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if at least one active scientist of the Country in scope matches the triggers.\nex: GER = {\n  any_active_scientist = {\n\ttooltip = my_loc_key # Optional\n    ... Character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_allied_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if any allied country meets the trigger. Does not include the country itself. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_army_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if at least one Army Leader of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  any_army_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_character",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if any character meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_claim",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if there is a claim between a country and all others",
+   "example": ""
+  },
+  {
+   "name": "any_collection_element",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_collection_element = {\n    collection = {\n\t\tinput = game:scope\n\t\toperators = { controlled_states }\n\t}\n\tis_core_of = PREV\n}\nany_collection_element = {\n    collection = {\n\t\tinput = game:scope\n\t\toperators = { controlled_states }\n\t}\n\tis_core_of = PREV\n\tcount = 3\n}",
+   "example": ""
+  },
+  {
+   "name": "any_controlled_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any of the states controlled by the scope country meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_core_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if any of the country core states for scope meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_country",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any country meets the trigger",
+   "example": ""
+  },
+  {
+   "name": "any_country_division",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any division meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_country_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_country_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { SWE NOR FIN DEN ICE }\n\thas_defensive_war = yes\n}\n\nany_country_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\thas_defensive_war = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "any_country_with_core",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any country with a core on the scoped state meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_country_with_original_tag",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any country with current scope's original tag meets the trigger.",
+   "example": "any_country_with_original_tag = { \n  original_tag_to_check = ENG # the trigger check all countries that has this original tag \n  # ... triggers to check \n}"
+  },
+  {
+   "name": "any_country_with_original_tag_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_country_with_original_tag_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { SWE NOR FIN DEN ICE }\n\thas_defensive_war = yes\n}\n\nany_country_with_original_tag_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\thas_defensive_war = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "any_enemy_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any enemy country meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_guaranteed_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any country with current scoped country guarantees.",
+   "example": "any_guaranteed_country = { \n  # ... triggers to check \n}"
+  },
+  {
+   "name": "any_home_area_neighbor_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if any neighbor country in the home area meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_military_industrial_organization",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if at least one Military Industrial Organisation of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  any_military_industrial_organization = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... MIO scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_navy_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if at least one Navy Leader of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  any_navy_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_neighbor_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any neighbor country meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_neighbor_state",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any neighbor state meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_occupied_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any any occupied meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on an array and check a trigger for each value, if any true returns true. otherwise returns false",
+   "example": "any_of = {\n\tarray = array_name\n\tvalue = value_name #optional (default 'value') current value in array will be stored in this temp variable\n\tindex = index_name #optional (default 'index') current index in array will be stored in this temp variable\n #trigger 1\n #trigger 2 ...\n}"
+  },
+  {
+   "name": "any_of_scopes",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on an array and check a trigger for each scope in it, if any true returns true. otherwise returns false",
+   "example": "any_of_scopes = {\n\tarray = array_name\n\ttooltip = loc #if defined the trigger will output tooltip using this title. loc_NOT will be used if trigger is inside a NOT\n #trigger 1\n #trigger 2 ...\n}"
+  },
+  {
+   "name": "any_operative_leader",
+   "scopes": [
+    "COUNTRY",
+    "OPERATION"
+   ],
+   "targets": [],
+   "desc": "check if any operatives meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_other_country",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any other country meets the trigger. Excludes current country. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_other_country_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_other_country_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { SWE NOR FIN DEN ICE }\n\thas_defensive_war = yes\n}\n\nany_other_country_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\thas_defensive_war = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "any_other_country_with_original_tag_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_country_with_original_tag_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { SWE NOR FIN DEN ICE }\n\thas_defensive_war = yes\n}\n\nany_country_with_original_tag_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\thas_defensive_war = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "any_owned_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any owned state meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_province_building_level",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "In the current state, checks if any province within the specified limit has a building of the specified level.",
+   "example": "any_province_building_level = {\n  province = {\n    id = 421  # Only check specific provinces instead of all in state, can specify multiple provinces on multiple lines.\n    all_provinces = yes  # default: no. Mutually exclusive with 'id = xxx']\n    limit_to_border = yes  # default: no. Only border provinces.\n    limit_to_coastal = yes  # default: no. Only coastal provinces.\n    limit_to_victory_point = yes  # default: no. Only provinces with > 0 victory points.\n    limit_to_naval_base = yes  # default: no. Only provinces with a naval base.\n  }\n  building = bunker  # Building type.\n  level < 3  # Building level to check.\n}"
+  },
+  {
+   "name": "any_purchase_contract",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if at least one Purchase contract of the Country in scope matches the triggers. \ntooltip=key can be defined to override title.\nex: GER = {\n  any_purchase_contract = {\n\ttooltip = my_loc_key # Optional\n    ... Purchase Contract scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_scientist",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if at least one scientist of the Country in scope matches the triggers. \ntooltip=key can be defined to override title.\nex: GER = {\n  any_scientist = {\n\ttooltip = my_loc_key # Optional\n    ... Character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_state",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any state meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_state_division",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any division meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_state_in",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any state in the given category meets the trigger.\ntooltip=key can be defined to override title.\nThe trigger takes one of the followings:\n\tarray: an array of states.\n\tcontinent: A continent.\n\tai_area: The id of an area.\n\tstrategic_region: The id of an region.\n\n* Note that no default tooltip is available for array and ai_area.",
+   "example": "Check if the trigger is valid in any state in a continent:\nany_state_in = {\tconteinent = europe\n\tFOO_TRIGGER = BAR\n}"
+  },
+  {
+   "name": "any_state_of",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "any_state_of = {\n\ttooltip = my_loc # Optional bindable localization\n\ttarget = { 1 42 1992 }\n\tcontroller = {\n\t\thas_defensive_war = yes\n\t}\n}\n\nany_state_of = {\n    tooltip = my_loc # Optional bindable localization\n\ttarget = constant:country_groups:nordics\n\tcontroller = {\n\t\thas_defensive_war = yes\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "any_subject_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if any subject country meets the trigger. tooltip=key can be defined to override title",
+   "example": ""
+  },
+  {
+   "name": "any_unit_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if at least one Unit Leader of the Country in scope matches the triggers.\ntooltip=key can be defined to override title.\nex: GER = {\n  any_unit_leader = {\n\ttooltip = my_loc_key # Optional\n\tinclude_invisible = yes # Optional - default = no\n    ... character scope triggers ...\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "any_war_score",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "compares the warscore of all wars in a country to see if any fullfills the comparison condition 0-100 -",
+   "example": "any_war_score > 40"
+  },
+  {
+   "name": "area",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check state's strategic area id",
+   "example": ""
+  },
+  {
+   "name": "armor",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check that average armor level of combatant is over a certain level",
+   "example": ""
+  },
+  {
+   "name": "army_manpower_in_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks for amount manpower currently the target state with option to specify a type.",
+   "example": "army_manpower_in_state = {\n\tstate = <id> (variables supported)\n\tamount < <int> (variables supported)\n\ttype > <equipment_type> (armor, infantry, etc.)"
+  },
+  {
+   "name": "attack_skill_level",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Compares attack skill level of a unit leader.",
+   "example": "attack_skill_level > 5"
+  },
+  {
+   "name": "average_stats",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Compares the average stats for a unit leader.",
+   "example": "average_stats > 10"
+  },
+  {
+   "name": "building_count_trigger",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the current scope has the specified amount of the specified building. \nUsage: <Building> < <int>\nSupported buildings: infrastructure, arms_factory, industrial_complex, air_base, supply_node, rail_way, naval_facility, naval_base, bunker, coastal_bunker, stronghold_network, dockyard, anti_air_building, synthetic_refinery, fuel_silo, radar_station, mega_gun_emplacement, rocket_site, naval_supply_hub, naval_headquarters, nuclear_reactor, nuclear_reactor_heavy_water, commercial_nuclear_reactor, nuclear_facility, air_facility, land_facility, dam, dam_mountain, cataract_dam_mountain, canal_kiel, canal_panama, energy_infrastructure, industrial_infrastructure, landmark_big_ben, landmark_colosseum, landmark_cristo_redentor, landmark_eiffel_tower, landmark_statue_of_liberty, landmark_kremlin, landmark_hofburg_palace, landmark_berlin_reichstag, landmark_berlin_volkshalle, landmark_taj_mahal, landmark_sadabad_complex, landmark_hagia_sophia, landmark_forbidden_city, landmark_nanjing_presidential_palace, landmark_nanjing_presidential_palace_prc, landmark_nanjing_presidential_palace_gen, landmark_great_wall_section, landmark_tokyo_imperial_palace, landmark_national_diet, landmark_hakko_ichiu, landmark_prague_castle, landmark_bojnice_castle.",
+   "example": ""
+  },
+  {
+   "name": "buyer",
+   "scopes": [
+    "PURCHASE_CONTRACT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check the buyer country.",
+   "example": "buyer = GER"
+  },
+  {
+   "name": "can_assign_supportive_scientist_to_faction",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the faction from the country in scope has a free slot for a supportive scientist for the country with the specialization type\nex:\nGer = {\n\tcan_assign_supportive_scientist_to_faction = specialization_land\n}",
+   "example": ""
+  },
+  {
+   "name": "can_be_captured",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "can_be_captured = yes/no - Checks if the current character can be captured while deployed in a division",
+   "example": ""
+  },
+  {
+   "name": "can_be_country_leader",
+   "scopes": [
+    "COUNTRY",
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Returns true if specified character has a least one country leader role.",
+   "example": "can_be_country_leader = GER_erwin_rommelGER_erwin_rommel = { can_be_country_leader = yes }"
+  },
+  {
+   "name": "can_build_railway",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a railway can be built according to specifications.",
+   "example": "can_build_railway = {\n  build_only_on_allied = yes # No by default. If yes and the effect scope is country, it will only build on allied territories for the country\n\n  # You can specify a weight function that will be used in pathing. The scope will be the controller of the province it is trying to path to.\n  # A negative value will make it not to path to that controller.\n  # Non-negative values will be used as a path cost for that province.\n  controller_priority = {\n    base = 1\n\n    modifier = {\n      tag = MAN\n      add = 2\n    }\n  }\n\n  # The following options are used for picking a path. You can specify multiple options and it will pick in following order:\n  fallback = yes # Default no. If yes, each option will try to fallback to next one.\n  # option 1: List of provinces to draw railways. If fallback = yes uses start and end provinces of the path as fallback in option 2.\n  path = { 10 20 30 40 }\n  # option 2: Specify start & end province IDs. It will pick the shortest path. If provinces are not valid and if fallback = yes it will use states of those provs and use in option 3.\n  start_province = 42\n  target_province = 84\n  # option 3: Specify start & end state IDs. It will pick provinces with the best node (capital > nodes > naval )\n  start_state = 50\n  target_state = 100\n}"
+  },
+  {
+   "name": "can_construct_building",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Checks if the country (as ROOT) and state in scope can build a building in the state.\nex:\nGER = {\n\t65 = {\n\t\tcan_construct_building = land_facility\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "can_declare_war_on",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if the country could potentially declare a war on the target ( according to game rules, relationship, etc... ). Example can_declare_war_on = GER",
+   "example": ""
+  },
+  {
+   "name": "can_research",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country can research technology",
+   "example": ""
+  },
+  {
+   "name": "can_select_trait",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if leader can select a trait",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_medal",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the required medal is achieved and collected",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_playthrough_ratio",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the ratio (first/second) of two playthrough values to a number",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_playthrough_value",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares a playthrough value to a number",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_points",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares a career points value to a number",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_ratio",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the ratio (first/second) of two career profile values to a number",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_ribbon",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the required ribbon is achieved and collected",
+   "example": ""
+  },
+  {
+   "name": "career_profile_check_value",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares a career profile value to a number",
+   "example": ""
+  },
+  {
+   "name": "career_profile_has_player_flag",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the flag is set for the local player",
+   "example": ""
+  },
+  {
+   "name": "career_profile_set_temp_playthrough_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Sets a temporary variable to a value or another variable",
+   "example": "career_profile_set_temp_playthrough_variable = {\nvar = num_dogs\n\tvalue = num_dogs_in_career_profile\n}"
+  },
+  {
+   "name": "career_profile_set_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Sets a temporary variable to a value or another variable",
+   "example": "career_profile_set_temp_variable = {\nvar = num_dogs\n\tvalue = num_dogs_in_career_profile\n}"
+  },
+  {
+   "name": "casualties",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check the amount of casualties a country has suffered in all of it's wars",
+   "example": ""
+  },
+  {
+   "name": "casualties_inflicted_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks the casualties infliced by the speficied country to the scopped country.\nE.g. true if Germany has been inflicted more than 200k casualties by Poland:\nGER = {\n  casualties_inflicted_by = {\n    opponent = POL\n    thousands > 200\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "casualties_k",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check the amount of casualties in thousands a country has suffered in all of it's wars",
+   "example": ""
+  },
+  {
+   "name": "check_expr",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "check_expr = { value = 2  add = 3  greater_than = 4 }",
+   "example": ""
+  },
+  {
+   "name": "check_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares a variable to a number or another variable\nex:\ncheck_variable = {\n\tvar = varname\n\tvalue = 12\t# accepts variables\n\tcompare = equals\n\t# possible values for compare :\n\t# less_than, less_than_or_equals\n\t# greater_than, greater_than_or_equals\n\t# equals, not_equals\n\ttooltip = loc_str_id_with_LEFT_and_RIGHT  #localized text with LEFT and/or RIGHT tokens in it\n}\n# some shorter versions :\ncheck_variable = { varname = 0 }\ncheck_variable = { varname > 12 }\ncheck_variable = { varname < 42 }\ncheck_variable = { varname > another_varname }",
+   "example": ""
+  },
+  {
+   "name": "civilwar_target",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "civilwar target is ( for civil wars checks )",
+   "example": ""
+  },
+  {
+   "name": "clamp_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "clamps a temp variable between two values/variables",
+   "example": ""
+  },
+  {
+   "name": "clear_temp_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Clears the contents of a temporary array",
+   "example": "clear_temp_array = array_name"
+  },
+  {
+   "name": "collection_contains",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "collection_contains = {\n    collection = game:all_countries\n\tcountries = { ENG GER }\n}\ncollection_contains = {\n    collection = game:all_countries\n\tcountry = FRA\n}",
+   "example": ""
+  },
+  {
+   "name": "collection_size",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "collection_size = {\n\tinput = collection_id # see the documentation in common/collections for detailed info\n\tvalue > N # supported operators: <, >, =\n\tvalue < M # multiple comparisons are allowed!\n\tvalue < VAR # variables can be used\n}",
+   "example": ""
+  },
+  {
+   "name": "command_power",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if available command power is more or less that specified value \n command_power > 1.5",
+   "example": ""
+  },
+  {
+   "name": "command_power_daily",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if daily command power increase is more or less that specified value \n command_power_daily > 1.5",
+   "example": ""
+  },
+  {
+   "name": "compare_autonomy_progress_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if autonomy progress ratio is higher than value, example:\ncompare_autonomy_progress_ratio > 0.5",
+   "example": ""
+  },
+  {
+   "name": "compare_autonomy_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if autonomy state is higher than other one, example:\ncompare_autonomy_state > puppet",
+   "example": ""
+  },
+  {
+   "name": "compare_ideology_with_faction",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "compare_ideology_with_faction = {\n\tvalue > 0.5\n\tleader = FROM\n}",
+   "example": ""
+  },
+  {
+   "name": "compare_intel_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compare the intel of the scoped country with the specified one:\nGER = {\n  # is true if all predicates are satisfied\n  compare_intel_with = { \n    target = POL\n    civilian_intel > 0.5  # GER has at least 0.5 more civ. intel than POL\n    army_intel = 0  # GER has as much army intel as POL\n    navy_intel < 0  # POL has more navy intel than GER\n    # airforce_intel is not specified and thus ignored in the comparison\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "compliance",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the current compliance level of a state to a value.",
+   "example": "compliance > 50"
+  },
+  {
+   "name": "compliance_speed",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the current compliance speed of a state to a value.",
+   "example": "compliance_speed > 50"
+  },
+  {
+   "name": "conscription_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks conscription ratio of the country compared to target conscription ratio.",
+   "example": ""
+  },
+  {
+   "name": "contract_contains_equipment",
+   "scopes": [
+    "PURCHASE_CONTRACT"
+   ],
+   "targets": [],
+   "desc": "Check if contract contains equipment category, equipment archetype or equipment.",
+   "example": "contract_contains_equipment = infantry_equipment"
+  },
+  {
+   "name": "controls_province",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check controller for province",
+   "example": ""
+  },
+  {
+   "name": "controls_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "CAPITAL"
+   ],
+   "desc": "check controller for state(s)",
+   "example": ""
+  },
+  {
+   "name": "convoy_threat",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "A trigger to check convoy threat for a country. Controlled by NAVAL_CONVOY_DANGER defines. Returns a value between 0 and 1. Example convoy_threat > 0.5",
+   "example": ""
+  },
+  {
+   "name": "core_compliance",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the core (average of all occupied states) compliance value of occupied_country_tag that is occuppied by the country in current scope.",
+   "example": "core_compliance = { \n occupied_country_tag = ITA \n value > 35 \n}"
+  },
+  {
+   "name": "core_resistance",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the core (average of all occupied states) resistance value of occupied_country_tag that is occuppied by the country in current scope.",
+   "example": "core_resistance = { \n occupied_country_tag = ITA \n value > 35 \n}"
+  },
+  {
+   "name": "count_in_collection",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "count_in_collection = {\n\t\tcollection = {\n\t\t\tinput = game:scope\n\t\t\toperators = { faction_members }\n\t\t\tname = FACTION\n\t\t}\n\t\tunit = armor  # (optional) checks the number of subunits that have the correct equipment type\n\t\tbuildings = {industrial_complex } # (optional) checks the number of building types in total\n\t\tmanpower = yes # (optional, default: no) checks the number of deployed manpower\n\t\tequipment_ratio = 0.9 (optional, only works with land units default 0) what percentage of equipment the division needs to atleast have to be counted\n\t\tunit_category = { marine marine_commando category_fighter }(optional) checks the number of sub units that match a certain sub unit definition / category\n\t\tstockpile = light_tank_equipment (optional) counts the amount of a certain archetype in the countries stockpile\n\t\tsize > 10\n\t}",
+   "example": ""
+  },
+  {
+   "name": "count_triggers",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Returns true if the specified number of sub-triggers return true\ncount_triggers = { amount = 2 <trigger> <trigger> <trigger> }",
+   "example": ""
+  },
+  {
+   "name": "country_exists",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if the specified country exist",
+   "example": ""
+  },
+  {
+   "name": "current_conscription_amount",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the current conscription amount of the country.",
+   "example": ""
+  },
+  {
+   "name": "custom_override_tooltip",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "custom_override_tooltip = {\n\ttooltip = MY_TOOLTIP # Simple loc key tooltip\n\tnot_tooltip = MY_TOOLTIP_NOT\n\t<other triggers>\n}",
+   "example": ""
+  },
+  {
+   "name": "custom_trigger_tooltip",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "",
+   "example": ""
+  },
+  {
+   "name": "date",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "checks for a specific date",
+   "example": ""
+  },
+  {
+   "name": "days_since_capitulated",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the number of days since the country last capitulated, even if it is no longer capitulated.\n\tIf it has not ever capitulated, the value is extremely large.\n\tIt is recommended to combine this with has_capitulated = yes when you specifically want to ignore non-active capitulations.\nExamples:\n\tHOL = { has_capitulated = yes days_since_capitulated > 60 } # The Netherlands has been capitulated for more than two months\n\tFRA = { has_capitulated = yes days_since_capitulated < 21 } # France has capitulated sometime within the past three weeks\n\tGER = { OR = { has_capitulated = no days_since_capitulated > 14 } } # Germany is not both actively and recently capitulated",
+   "example": ""
+  },
+  {
+   "name": "days_since_last_strategic_bombing",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks the days since last strategic bombing.\ndays_since_last_strategic_bombing < 10",
+   "example": ""
+  },
+  {
+   "name": "deal_completion",
+   "scopes": [
+    "PURCHASE_CONTRACT"
+   ],
+   "targets": [],
+   "desc": "Check value of purchase contract completion.",
+   "example": "deal_completition < 0.6"
+  },
+  {
+   "name": "debug_math_expr",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "debug_math_expr = { value = 120  add = 15  clamp = { min = 0  max = 100 } }",
+   "example": ""
+  },
+  {
+   "name": "decryption_progress",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks decryption ratio against a country.",
+   "example": "decryption_progress = { \n target = GER\n value > 0.5\n} \n#or decryption_progress@GER as variable"
+  },
+  {
+   "name": "defense_skill_level",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Compares defense skill level of a unit leader.",
+   "example": "defense_skill_level > 5"
+  },
+  {
+   "name": "difficulty",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "check if the difficulty is above or below specified value 0-2 (difficulty enum).",
+   "example": "difficulty > 0 (above easy)"
+  },
+  {
+   "name": "dig_in",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if we have digin level (lowest)",
+   "example": ""
+  },
+  {
+   "name": "distance_to",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check distance between two states",
+   "example": ""
+  },
+  {
+   "name": "divide_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "divide_temp_variable = { num_dogs = 2 }\ndivide_temp_variable = {\n\tnum_dogs = { value = num_cats  add = 1 }\n}",
+   "example": ""
+  },
+  {
+   "name": "division_has_battalion_in_template",
+   "scopes": [],
+   "targets": [],
+   "desc": "checks if division template has the subunit type.",
+   "example": ""
+  },
+  {
+   "name": "division_has_majority_template",
+   "scopes": [],
+   "targets": [],
+   "desc": "checks if division template has majority of subunit type.",
+   "example": ""
+  },
+  {
+   "name": "divisions_in_border_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of divisions in specified state owned by current country.",
+   "example": ""
+  },
+  {
+   "name": "divisions_in_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of divisions in specified state owned by current country. \ndivisions_in_state = { \n  state = state_id \n  size > 42 \n  type = unit type eg. infantry, armor (optional) \n  unit = specific unit eg. mountaineers, light_tank (optional) \n}",
+   "example": ""
+  },
+  {
+   "name": "enemies_naval_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the estimated navy strength between the scope country and all its enemies",
+   "example": ""
+  },
+  {
+   "name": "enemies_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the estimated army strength between the scope country and all its enemies",
+   "example": ""
+  },
+  {
+   "name": "energy_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "energy_ratio > 0.8 - Compare current energy fulfilment to the factories, with 1 being 100% and 0 being 0%",
+   "example": ""
+  },
+  {
+   "name": "estimated_intel_max_armor",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares estimated max armor based on intel.",
+   "example": "estimated_intel_max_armor = { tag = ITA value > 1 }"
+  },
+  {
+   "name": "estimated_intel_max_piercing",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares estimated max armor based on intel.",
+   "example": "estimated_intel_max_piercing = { tag = ITA value > 1 }"
+  },
+  {
+   "name": "exists",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check if the current country exist. The country of the scope you are in.",
+   "example": "DEN = { exists = yes }"
+  },
+  {
+   "name": "faction_goal_fulfillment",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\tfaction_goal_fulfillment = {\n\t\tgoal = goal_id\n\t\tvalue > X # supports > and <, can accept variables, can be repeated multiple times\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_influence_rank",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\tfaction_influence_rank < 5\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_influence_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\tfaction_influence_ratio > 0.1\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_influence_score",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\tfaction_influence_score > 100\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_manifest_fulfillment",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "TAG = {\n\tfaction_manifest_fulfillment > VALUE\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_power_projection",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\tfaction_power_projection > VALUE\n}",
+   "example": ""
+  },
+  {
+   "name": "faction_upgrade_level",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "TAG = {\n\tfaction_upgrade_level > upgrade_token\n}",
+   "example": ""
+  },
+  {
+   "name": "fastest_unit",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if fastest unit of combatant is over this limit",
+   "example": ""
+  },
+  {
+   "name": "fighting_army_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the total army fighting strength between the scope country and the one set with 'tag'\n\nExample 1:\nfighting_army_strength_ratio = {\n\ttag = TAG\n\tratio > 0.7 # can be '<','>' or '='\n}\n\nExample 2:\nfighting_army_strength_ratio = {\n\ttag = TAG\n\tratio > VARIABLE # can be '<','>' or '='\n}",
+   "example": ""
+  },
+  {
+   "name": "find_highest_in_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on for each element of an array, finds the highest value and stores result in temp variables",
+   "example": "find_highest_in_array = {\n\tarray = array_name\n\tvalue = value_name #optional (default 'v') highest value in array will be stored in this temp variable\n\tindex = index_name #optional (default 'i') index of highest value in array will be stored in this temp variable\n}"
+  },
+  {
+   "name": "find_lowest_in_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Runs a loop on for each element of an array, finds the lowest value and stores result in temp variables",
+   "example": "find_lowest_in_array = {\n\tarray = array_name\n\tvalue = value_name #optional (default 'v') lowest value in array will be stored in this temp variable\n\tindex = index_name #optional (default 'i') index of lowest value in array will be stored in this temp variable\n}"
+  },
+  {
+   "name": "focus_progress",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks focus progress example:\n focus_progress = { focus = id progress > 0.5 }",
+   "example": ""
+  },
+  {
+   "name": "foreign_manpower",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check the amount of foreign garrison manpower we have",
+   "example": ""
+  },
+  {
+   "name": "free_building_slots",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "checks building for available construction levels \nfree_building_slots = { \n\tbuilding = building_type \n\tsize > 5 \n\tinclude_locked = yes # Optional - only to be used for buildings using Shared Slots. \n\tprovince = 42 #will check province buildings if specified \n}",
+   "example": ""
+  },
+  {
+   "name": "frontage_full",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if sides front is full or can get more reinforcements",
+   "example": ""
+  },
+  {
+   "name": "fuel_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the fuel ratio to a variable.",
+   "example": "fuel_ratio > 0.5"
+  },
+  {
+   "name": "game_rules_allow_achievements",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Returns true if all of the active game rule options allow achievements.",
+   "example": ""
+  },
+  {
+   "name": "garrison_manpower_need",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check the amount of manpower needed by garrisons",
+   "example": ""
+  },
+  {
+   "name": "get_highest_scored_country_temp",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "calculates the highest scored country that is defined in a country scorer and sets it to a variable.",
+   "example": "get_highest_scored_country_temp = { \n  scorer = scorer_id \n  var = var_name # variable name that the result will be stored. default is highest_scored_country \n}"
+  },
+  {
+   "name": "get_sorted_scored_countries_temp",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "calculates & sorts all countries in a country scorer and stores them and their scores in temp arrays.",
+   "example": "get_sorted_scored_countries_temp = { \n  scorer = scorer_id # id that is used in country scorer  array = array_name # a name to store sorted countries as a temp array (default to sorted_country_list) \n  scores = array_name # corresponding score temp array for countries stored in array (default to country_list_scores) \n}"
+  },
+  {
+   "name": "get_supply_vehicles_temp",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "sets a temp variable to the number of supply vehicles in stockpile or that are needed. example \nget_supply_vehicles_temp = { \n\tvar = num_vehicles #variable to set \n\ttype = truck #can be truck or train \n\tneed = yes #default no. If yes, gets the number of needed vehicles \n}",
+   "example": ""
+  },
+  {
+   "name": "gives_military_access_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if country gives military access to specified country",
+   "example": ""
+  },
+  {
+   "name": "hardness",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check lowest/highest hardness level on combatant",
+   "example": ""
+  },
+  {
+   "name": "has_ability",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "does unit leader have the abilityCheck if a unit leader has the ability.",
+   "example": "has_ability = force_attack"
+  },
+  {
+   "name": "has_active_mission",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has an active mission with specified ID. has_active_mission = my_test_mission",
+   "example": ""
+  },
+  {
+   "name": "has_active_resistance",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "returns true if state has an active resistance (above zero)",
+   "example": ""
+  },
+  {
+   "name": "has_active_rule",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_active_rule = rule_key\n}",
+   "example": ""
+  },
+  {
+   "name": "has_added_tension_amount",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compare if the country has added above or below the specified ammount of tension",
+   "example": ""
+  },
+  {
+   "name": "has_advisor_role",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_advisor_role = 'character_slot_name' - Checks if the character in scope has an advisor role for the given slot",
+   "example": ""
+  },
+  {
+   "name": "has_air_experience",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares current country's air experience with right side value.\n has_air_experience < <value>",
+   "example": ""
+  },
+  {
+   "name": "has_air_ledger",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_air_ledger = yes/no - Checks if the current character has an air ledger",
+   "example": ""
+  },
+  {
+   "name": "has_allowed_idea_with_traits",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has allowed ideas with specific traits more than limit.",
+   "example": "has_available_idea_with_traits = { \n\tidea = head_of_intelligence # trait names. can be a list of traits in { } \n\tlimit = 1 \n\tcharacters = yes/no - only runs this trigger on characters \n\tignore = generic_head_of_intelligence # if specified, these ideas will be ignored. can be a list of ideas in { }\n}"
+  },
+  {
+   "name": "has_annex_war_goal",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks a country has annex war goal on another country",
+   "example": ""
+  },
+  {
+   "name": "has_any_captured_general",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "FRA = {\n\thas_any_captured_general = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_any_custom_difficulty_setting",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Returns true if the game has any custom difficulty on",
+   "example": ""
+  },
+  {
+   "name": "has_any_general_captured_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "FRA = {\n\thas_any_general_captured_by = GER # This will be true if any of France's generals are captured by Germany\n}",
+   "example": ""
+  },
+  {
+   "name": "has_any_grand_doctrine",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_any_grand_doctrine = land\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_any_license",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Country has any active licenses",
+   "example": "has_any_license = yes"
+  },
+  {
+   "name": "has_any_power_balance",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks if country has any active power balance",
+   "example": "has_any_power_balance = yes/no"
+  },
+  {
+   "name": "has_army_experience",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares current country's army experience with right side value.\n has_army_experience < <value>",
+   "example": ""
+  },
+  {
+   "name": "has_army_ledger",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_army_ledger = yes/no - Checks if the current character has an army ledger",
+   "example": ""
+  },
+  {
+   "name": "has_army_manpower",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of manpower of selected type, additionally of a specified type",
+   "example": ""
+  },
+  {
+   "name": "has_army_size",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of divisions, additionally of a specified type",
+   "example": ""
+  },
+  {
+   "name": "has_artillery_ratio",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check that ratio of atrillery battalions in the composition of a side of combating troops are over a certain level.\nFor example:\nhas_artillery_ratio > 0.1",
+   "example": ""
+  },
+  {
+   "name": "has_attache",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Has attaché from any other country",
+   "example": ""
+  },
+  {
+   "name": "has_attache_from",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Has attaché from specified country",
+   "example": ""
+  },
+  {
+   "name": "has_autonomy_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country currently has an autonomy state, example:\nhas_autonomy_state = puppet",
+   "example": ""
+  },
+  {
+   "name": "has_available_idea_with_traits",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has available ideas with specific traits more than limit.",
+   "example": "has_available_idea_with_traits = { \n\tidea = head_of_intelligence # trait names. can be a list of traits in { } \n\tlimit = 1 \n\tcharacters = yes/no - only runs this trigger on characters \n\tignore = generic_head_of_intelligence # if specified, these ideas will be ignored. can be a list of ideas in { }\n}"
+  },
+  {
+   "name": "has_bombing_war_support",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check value of bombing malus to war support 0-1: Example has_bombing_war_support < 0.1",
+   "example": ""
+  },
+  {
+   "name": "has_border_war",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a there is any border wars for country/state",
+   "example": ""
+  },
+  {
+   "name": "has_border_war_between",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a there is a border war between two states",
+   "example": ""
+  },
+  {
+   "name": "has_border_war_with",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a there is a border against a state/country",
+   "example": ""
+  },
+  {
+   "name": "has_breakthrough_points",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country in scope has enough breakthroughs within a given specialization.\nspecialization = <specialization_token>\nvalue = <point>\nex: GER = {\n\t  has_breakthrough_points = {\n\t    specialization = specialization_nuclear\n\t\tvalue = 1\n      }\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_built",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks country has built a set number (at least) of a certain type of building since taking goal \nhas_built = { \n  type = building_type \n  value = 42 \n}",
+   "example": ""
+  },
+  {
+   "name": "has_capitulated",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks if the country has capitulated",
+   "example": ""
+  },
+  {
+   "name": "has_captured_operative",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if a country has a captured an operative ( supports scoped variables )\nhas_captured_operative = GER/yes/no",
+   "example": ""
+  },
+  {
+   "name": "has_carrier_airwings_in_own_combat",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check if carrier has airplanes that are part of the current combat",
+   "example": ""
+  },
+  {
+   "name": "has_carrier_airwings_on_mission",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has a career with air wings on a mission",
+   "example": ""
+  },
+  {
+   "name": "has_casualties_war_support",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check value of casualties malus to war support 0-1: Example has_casualties_war_support < 0.1",
+   "example": ""
+  },
+  {
+   "name": "has_cavalry_ratio",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check that ratio of cavalry battalions in the composition of a side of combating troops are over a certain level.\nFor example:\nhas_cavalry_ratio > 0.5",
+   "example": ""
+  },
+  {
+   "name": "has_character",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Returns true if scoped country has character.",
+   "example": "has_character = GER_erwin_rommel"
+  },
+  {
+   "name": "has_character_flag",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "has a character flag been setCheck flag val date set and days since set.",
+   "example": "has_unit_leader_flag = test_flag\nhas_character_flag = { \n\tflag = <name> (mandatory)\n\tvalue < <int> (optional)\n\tdate > <date> (optional)\n\tdays > <int> (optional)\n}"
+  },
+  {
+   "name": "has_civil_war",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if participant in civil war as revolter or target",
+   "example": ""
+  },
+  {
+   "name": "has_collaboration",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks the collaboration in a target country with our currently scoped country.",
+   "example": "has_collaboration = { \n target = GER\n value > 0.5\n} \n#or has_collaboration@GER as variable"
+  },
+  {
+   "name": "has_combat_modifier",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if combatant has modifier",
+   "example": ""
+  },
+  {
+   "name": "has_completed_custom_achievement",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Return true if the input achievement is found in currently loaded mods, and if this achievement has been completed (either in current game or in a previous one)",
+   "example": "has_completed_custom_achievement = {\n\tmod = my_mod_unique_id # set in common/achievements files\n\tachievement = my_achievement_token\n}"
+  },
+  {
+   "name": "has_completed_faction_goal",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_completed_faction_goal = goal_id\n}",
+   "example": ""
+  },
+  {
+   "name": "has_completed_focus",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has country completed focus",
+   "example": ""
+  },
+  {
+   "name": "has_completed_goal",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_completed_goal = goal_id\n}",
+   "example": ""
+  },
+  {
+   "name": "has_completed_subdoctrine",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_completed_subdoctrine = mobile_infantry\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_completed_track",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_completed_track = infantry\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_contested_owner",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "42 = {\n\thas_contested_owner = GER\n}\nGER = {\n\thas_contested_owner = 42\n}",
+   "example": ""
+  },
+  {
+   "name": "has_convoys_war_support",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check value of convoys sunk malus to war support 0-1: Example has_convoys_war_support < 0.1",
+   "example": ""
+  },
+  {
+   "name": "has_core_occupation_modifier",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "has an occupation modifier that applies to average resistance/compliance",
+   "example": "has_core_occupation_modifier = { \n occupied_country_tag = ITA \n modifier = token \n}"
+  },
+  {
+   "name": "has_cosmetic_tag",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has specific cosmetic tag set.",
+   "example": "INS = { has_cosmetic_tag = INS1 }"
+  },
+  {
+   "name": "has_country_custom_difficulty_setting",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Returns true if the game has any custom difficulty on the scope nation",
+   "example": ""
+  },
+  {
+   "name": "has_country_flag",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "has country flag been set.Check flag val date set and days since set.",
+   "example": "has_country_flag = test_flag\nhas_country_flag = { \n\tflag = <name> (mandatory)\n\tvalue < <int> (optional)\n\tdate > <date> (optional)\n\tdays > <int> (optional)\n}"
+  },
+  {
+   "name": "has_country_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has leader with specified ID. Don't localize this. Tooltip only for debug.\nhas_country_leader = {\n\truling_only = yes/no (default = yes)\n\tcharacter = <string> # recommended criteria\n\tname = <string> # alternative criteria\n\tid = <ID> # alternative criteria\n}",
+   "example": ""
+  },
+  {
+   "name": "has_country_leader_ideology",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the Ideology of the active country leader",
+   "example": ""
+  },
+  {
+   "name": "has_country_leader_with_trait",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if current country leader has specified trait.\nhas_country_leader_with_trait = big_fat_idiot",
+   "example": ""
+  },
+  {
+   "name": "has_custom_difficulty_setting",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Returns true if the game has the specified custom difficulty on:",
+   "example": "has_custom_difficulty_setting = TheAxisIndustry"
+  },
+  {
+   "name": "has_damaged_buildings",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check for damaged buildings of nation",
+   "example": ""
+  },
+  {
+   "name": "has_decision",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has active selected decision",
+   "example": ""
+  },
+  {
+   "name": "has_defensive_war",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is country at defensive war",
+   "example": ""
+  },
+  {
+   "name": "has_defensive_war_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "One country has defensive war against other country.",
+   "example": ""
+  },
+  {
+   "name": "has_deployed_air_force_size",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of aircrafts, additionally of a specified type",
+   "example": ""
+  },
+  {
+   "name": "has_design_based_on",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has a buildable non-obsolete design based on an archetype",
+   "example": ""
+  },
+  {
+   "name": "has_dlc",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Checks if player has a DLC.",
+   "example": "has_dlc = \"name of the dlc\""
+  },
+  {
+   "name": "has_doctrine",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_doctrine = mobile_warfare # Grand doctrine\n\t}\n\tTAG = {\n\t\thas_doctrine = mobile_infantry # Subdoctrine\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_done_agency_upgrade",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has country done this intelligence agency upgrade (to its highest level)",
+   "example": ""
+  },
+  {
+   "name": "has_dynamic_modifier",
+   "scopes": [
+    "STATE",
+    "COUNTRY",
+    "CHARACTER"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "has_dynamic_modifier = dynamic_modifier_name",
+   "example": ""
+  },
+  {
+   "name": "has_elections",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks the country's politics on allowing elections. has_elections = yes",
+   "example": ""
+  },
+  {
+   "name": "has_enemy_naval_control",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "TAG = {\n\thas_enemy_naval_control = REGION_ID\n}",
+   "example": ""
+  },
+  {
+   "name": "has_enough_influence_for_leadership",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_enough_influence_for_leadership = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_equipment",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of equipment stored",
+   "example": ""
+  },
+  {
+   "name": "has_event_target",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if current scope or global scope has the specified event target saved",
+   "example": ""
+  },
+  {
+   "name": "has_facility_specialization",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country in scope has a facility with specialization.\nex:\nSOV = {\n\thas_facility_specialization = specialization_nuclear\n}",
+   "example": ""
+  },
+  {
+   "name": "has_faction_goal",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_faction_goal = goal_id\n}",
+   "example": ""
+  },
+  {
+   "name": "has_faction_military_unlocked",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_faction_military_unlocked = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_faction_research_unlocked",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_faction_research_unlocked = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_faction_template",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_faction_template = template_id\n}",
+   "example": ""
+  },
+  {
+   "name": "has_finished_collecting_for_operation",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if finished collecting of resources for an operation.",
+   "example": "has_finished_collecting_for_operation = { \n target = ITA \n operation = operation_infiltrate_armed_forces_navy}"
+  },
+  {
+   "name": "has_flanked_opponent",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has flanked their opponent",
+   "example": ""
+  },
+  {
+   "name": "has_focus_tree",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Does current country have the specified focus tree.",
+   "example": ""
+  },
+  {
+   "name": "has_fuel",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of fuel\nexample:\nhas_fuel > 500",
+   "example": ""
+  },
+  {
+   "name": "has_full_control_of_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "CAPITAL"
+   ],
+   "desc": "check controller for state(s)",
+   "example": ""
+  },
+  {
+   "name": "has_game_rule",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Checks if a game rule is set to a particular option.",
+   "example": "has_game_rule = {\n\trule = GER_can_remilitarize_rhineland\n\toption = yes\n}"
+  },
+  {
+   "name": "has_global_flag",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "has global flag been set.Check flag val date set and days since set.",
+   "example": "has_global_flag = test_flag\nhas_global_flag = { \n\tflag = <name> (mandatory)\n\tvalue < <int> (optional)\n\tdate > <date> (optional)\n\tdays > <int> (optional)\n}"
+  },
+  {
+   "name": "has_government",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "does country government (ruling party) belong to ideology group",
+   "example": ""
+  },
+  {
+   "name": "has_guaranteed",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if country has guaranteed specified country",
+   "example": ""
+  },
+  {
+   "name": "has_id",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "check unit leader has specified ID. Don't localize this. Tooltip only for debug.",
+   "example": ""
+  },
+  {
+   "name": "has_idea",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has idea",
+   "example": ""
+  },
+  {
+   "name": "has_idea_with_trait",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has idea with specified trait",
+   "example": ""
+  },
+  {
+   "name": "has_ideology",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_ideology = stalinism - Checks if the current character has a country leader role matching the sub-ideology",
+   "example": ""
+  },
+  {
+   "name": "has_ideology_group",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_ideology_group = communism - Checks if the current character has a country leader role matching the ideology group",
+   "example": ""
+  },
+  {
+   "name": "has_industry_to_become_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_industry_to_become_leader = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_intelligence_agency",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "has country created an Intelligence Agency",
+   "example": ""
+  },
+  {
+   "name": "has_legitimacy",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check scope country legitimacy 0-100: Example has_legitimacy < 60",
+   "example": ""
+  },
+  {
+   "name": "has_license",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Country has specific active license",
+   "example": "has_license = {\n\tfrom = TAG # has license from this country, optional\n\t #if archetype is specified equipment should not be specified\n\tarchetype = light_tank_chassis #any light tank chassis license\n\tequipment = { # classical equipment reference\n\t\ttype = light_tank_equipment_2\n\t\tversion = 0 # optional: omit to match any version of the type\n\t}\n}"
+  },
+  {
+   "name": "has_manpower",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of manpower",
+   "example": ""
+  },
+  {
+   "name": "has_manpower_for_recruit_change_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if manpower is enough to switch recruitment laws not to be negative",
+   "example": ""
+  },
+  {
+   "name": "has_manpower_to_become_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "TAG = {\n\thas_manpower_to_become_leader = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "has_market_access_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if the country has market access with another country.",
+   "example": "has_market_access_with = GER"
+  },
+  {
+   "name": "has_mastery",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_mastery = {\n\t\t\tamount = 200\n\t\t\ttrack = infantry\n\t\t}\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_mastery_level",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_mastery_level = {\n\t\t\tamount = 2\n\t\t\tsub_doctrine = mobile_infantry\n\t\t}\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_max_planning",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has maximal planning bonus",
+   "example": ""
+  },
+  {
+   "name": "has_military_access_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check country has military access to specified country",
+   "example": ""
+  },
+  {
+   "name": "has_military_industrial_organization",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the Country in scope has a  Military Industrial Organisation matching the input token.\nCan use variable as input.\nex: \nGER = { \n  has_military_industrial_organization = infantry_mio_token\n  has_military_industrial_organization = var:my_mio_var\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mined",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks the mines planted by the country of the parent scope on the coastline of the target countryE.g. true if Germany has more than 1000 mines around Poland coast:\nGER = {\n  has_mined = {\n    target = POL\n    value > 1000\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mines",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if a region has amount of mines.\nhas_mines = {\n    region = region_id\n    amount = amount_of_mines\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_equipment_type",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has the input equipment type.\n(possible values can be found in script_enum_equipment_bonus_type and in common/equipment_groups)\nex:\nmio:my_mio = {\n\thas_mio_equipment_type = my_equipment_type_token\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_flag",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Check if flag has been set within the military industrial organization in scope.\nMay checks on the value or date/days since last modified date.\nExamples:\nhas_mio_flag = my_flag\nhas_mio_flag = {\n\tflag = my_flag (mandatory)\n\tvalue < 12 (optional)\n\tdate > 1936.3.25 (optional, compare with the date where the flag was last modified )\n\tdays > 365 (optional, compare with the number of days since the flag was last modified )\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_number_of_completed_traits",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Make comparaison on the number of unlocked traits of the military industrial organization in the scope.\nCan use < or > to compare the value with either a fixed value or from a variable.\nex:\nvar:my_mio_var = {\n\thas_mio_number_of_completed_traits > 5\n\thas_mio_number_of_completed_traits < 2\n\thas_mio_number_of_completed_traits > var:my_number_var\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_policy",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has an allowed policy matching the input token.\nex:\nmio:my_mio = {\n\thas_mio_policy = my_policy_token\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_policy_active",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has an allowed matching the input token, which is currently attached to the MIO.\nex:\nmio:my_mio = {\n\thas_mio_policy_active = my_policy_token\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_research_category",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has the input research category.\nex:\nmio:my_mio = {\n\thas_mio_research_category = my_research_category_token\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_size",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Make comparaison on the size of the military industrial organization in the scope.\nCan use < or > to compare the value with either a fixed value or with a variable.\nex:\nvar:my_mio_var = {\n\thas_mio_size > 5\n\thas_mio_size < 2\n\thas_mio_size > var:my_number_var\n}",
+   "example": ""
+  },
+  {
+   "name": "has_mio_trait",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has a trait matching the input token.\nex:\nmio:my_mio = {\n\thas_mio_trait = my_trait_token\n\thas_mio_trait = {\n\t\ttrait = my_trait_token\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "has_nationality",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks whether the operative has the specified nationality.\nNOTE: this is invalid on non-operatives.\nExamples:\nhas_nationality = GER",
+   "example": ""
+  },
+  {
+   "name": "has_naval_control",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "TAG = {\n\thas_naval_control = REGION_ID\n}",
+   "example": ""
+  },
+  {
+   "name": "has_naval_invasion_against_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if the scoped country has a naval invasion against the specified state.\nExample 1:\nhas_naval_invasion_against_state = <STATE_ID>\nExample 2:\n has_naval_invasion_against_state = {\n   state = <STATE_ID>\n   preparation > 0.0  # (optional: preparation percentage, with a default value of 0.0)\n   activated = no   # (optional: if set, also check if invasion is activated or not)\n}",
+   "example": ""
+  },
+  {
+   "name": "has_navy_experience",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares current country's navy experience with right side value.\n has_navy_experience < <value>",
+   "example": ""
+  },
+  {
+   "name": "has_navy_ledger",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "has_navy_ledger = yes/no - Checks if the current character has a navy ledger",
+   "example": ""
+  },
+  {
+   "name": "has_navy_size",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks for amount of ships, additionally of a specified type, archetype, or sub unit definition.\n\nExamples:\n\thas_navy_size = { size > 10 type = convoy } # Must have more than 10 convoys.\n\thas_navy_size = { size < 1 archetype = ship_hull_light } # Must not have any ships with light hulls.\n\thas_navy_size = { size > 39 unit = heavy_cruiser } # Must have 40 or more heavy cruisers.\n\thas_navy_size = { size < 100 } # Must have fewer than 100 ships of any type.",
+   "example": ""
+  },
+  {
+   "name": "has_non_aggression_pact_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if country has non aggression pact with the specified country",
+   "example": ""
+  },
+  {
+   "name": "has_occupation_modifier",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "compares occupied country that creates resistance to a tag.",
+   "example": "has_occupation_modifier = modifier_name"
+  },
+  {
+   "name": "has_offensive_war",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is country at offensive war",
+   "example": ""
+  },
+  {
+   "name": "has_offensive_war_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "One country has offensive war against other country.",
+   "example": ""
+  },
+  {
+   "name": "has_offensive_war_without_friend",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is country at offensive war without specific ally present",
+   "example": ""
+  },
+  {
+   "name": "has_officer_name",
+   "scopes": [],
+   "targets": [],
+   "desc": "checks if division has an officer with the provided name key.\nExamples:\n\thas_officer_name = FIN_nikke_parmi",
+   "example": ""
+  },
+  {
+   "name": "has_operation_token",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if a country has a specific token against another country\nhas_operation_token = {\n\ttag = GER\n\ttoken = some_token_id\n}",
+   "example": ""
+  },
+  {
+   "name": "has_opinion",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check what opinion the country has towards a specified country",
+   "example": ""
+  },
+  {
+   "name": "has_opinion_modifier",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if a country has the opinion modifier",
+   "example": ""
+  },
+  {
+   "name": "has_political_power",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of political power",
+   "example": ""
+  },
+  {
+   "name": "has_power_balance",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks if power balance is active for country",
+   "example": "has_power_balance = {\n\tid = power_balance_id\n}"
+  },
+  {
+   "name": "has_power_balance_modifier",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "checks if the power balance has a modifier added to it",
+   "example": "has_power_balance_modifier = {\n\tid = power_balance_id\n\tmodifier = static_modifier_id\n}"
+  },
+  {
+   "name": "has_project_flag",
+   "scopes": [
+    "SPECIAL_PROJECT"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Check if flag has been set within the special project in scope.\nMay checks on the value or date/days since last modified date.\nExamples:\nhas_project_flag = my_flag\nhas_project_flag = {\n\tflag = my_flag (mandatory)\n\tvalue < 12 (optional)\n\tdate > 1936.3.25 (optional, compare with the date where the flag was last modified )\n\tdays > 365 (optional, compare with the number of days since the flag was last modified )\n}",
+   "example": ""
+  },
+  {
+   "name": "has_railway_connection",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks for an existing rail connection. Uses same params as can_build_railway.",
+   "example": "has_railway_connection = {\n  build_only_on_allied = yes # No by default. If yes and the effect scope is country, it will only build on allied territories for the country\n\n  # The following options are used for picking a path. You can specify multiple options and it will pick in following order:\n  fallback = yes # Default no. If yes, each option will try to fallback to next one.\n  # option 1: List of provinces to draw railways. If fallback = yes uses start and end provinces of the path as fallback in option 2.\n  path = { 10 20 30 40 }\n  # option 2: Specify start & end province IDs. It will pick the shortest path. If provinces are not valid and if fallback = yes it will use states of those provs and use in option 3.\n  start_province = 42\n  target_province = 84\n  # option 3: Specify start & end state IDs. It will pick provinces with the best node (capital > nodes > naval )\n  start_state = 50\n  target_state = 100\n}"
+  },
+  {
+   "name": "has_railway_level",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a state contains a railway at or above the specified level.",
+   "example": "has_railway_level = {\n  level = 3\n  state = 1234\n}"
+  },
+  {
+   "name": "has_relation_modifier",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Country has specified relation modifier when dealing with _target_ county",
+   "example": "has_relation_modifier = {\n\ttarget = TAG # has license from this country, optional\n\tmodifier = static_modifier_here\n\t}\n}"
+  },
+  {
+   "name": "has_reserves",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has reserves waiting",
+   "example": ""
+  },
+  {
+   "name": "has_resistance",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "returns true if state has a resistance",
+   "example": ""
+  },
+  {
+   "name": "has_resources_amount",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "checks for amount of resources in state",
+   "example": "has_resources_amount = {\n\tresource = chromium\n\tamount > 10\n\tstate = 31 (optional - can be used in state scope instead)\n\tdelivered = no # (optional, default: no) check the actual delivered amount from the state to its controller, with all modifiers applied"
+  },
+  {
+   "name": "has_resources_in_collection",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has_resources_in_collection = {\n\t\tcollection = {\n\t\t\t\tgame:scope\n\t\t\t\toperators =  { country_and_all_subjects }\n\t\t}\n\t\tresource = chromium\n\t\tamount > 10\n\t\textracted = yes # (optional, default: no) checks extracted amount instead of country balance\n\t\tbuildings = no # (optional, default: no) checks only amount from local buildings instead of country balance\n\t\tNote: extracted and buildings are mutually exclusive\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_resources_in_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has_resources_in_country = {\n\t\tresource = chromium\n\t\tamount > 10\n\t\tonly_imported = no # (optional, default: no) checks only imported resources instead of country balance\n\t\textracted = no # (optional, default: no) checks extracted amount instead of country balance\n\t\tbuildings = no # (optional, default: no) checks only amount from local buildings instead of country balance\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_resources_rights",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks for resources rights in state.Warning! this always returns false if the state has no resource.",
+   "example": "has_resources_rights = {\n\tstate = 60 # optional - can be used in state scope instead\n\treceiver = GER # optional - can be used in country scope instead\n\tresources = {steel oil} # optional - if not provided checks all resources."
+  },
+  {
+   "name": "has_rule",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Checks if a rule set for a country.",
+   "example": "has_rule = can_puppet"
+  },
+  {
+   "name": "has_scientist_level",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks if the scientist of the character in scope matches the skill level condition for a specialization. Supports < > = operators.\nlevel = <int>\nspecialization = <specialization_token>\nex: my_character = {\n\t  has_scientist_level = {\n\t    level > 2\n\t    specialization = specialization_nuclear\n      }\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_scientist_specialization",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country in scope has a scientist with a skill level of at least 1 in specialization.\nex:\nSOV = {\n\thas_scientist_specialization = specialization_nuclear\n}",
+   "example": ""
+  },
+  {
+   "name": "has_shine_effect_on_focus",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "has_shine_effect_on_focus = GER_prioritize_economic_growth",
+   "example": ""
+  },
+  {
+   "name": "has_stability",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check value of stability 0-1: Example has_stability < 0.6",
+   "example": ""
+  },
+  {
+   "name": "has_start_date",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Compare the initial start date of current game.",
+   "example": ""
+  },
+  {
+   "name": "has_state_category",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Check if state has a specific state category",
+   "example": ""
+  },
+  {
+   "name": "has_state_flag",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "has state flag been setCheck flag val date set and days since set.",
+   "example": "has_state_flag = test_flag\nhas_state_flag = { \n\tflag = <name> (mandatory)\n\tvalue < <int> (optional)\n\tdate > <date> (optional)\n\tdays > <int> (optional)\n}"
+  },
+  {
+   "name": "has_subdoctrine_in_track",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_subdoctrine_in_track = infantry\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_subject",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if the country has for subject the given country",
+   "example": ""
+  },
+  {
+   "name": "has_tactic",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "TAG = {\n\t\thas_tactic = tactic_masterful_blitz\n\t}",
+   "example": ""
+  },
+  {
+   "name": "has_tech",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has technology",
+   "example": ""
+  },
+  {
+   "name": "has_tech_bonus",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if the country has a bonus for the specified technology or category",
+   "example": "has_tech_bonus = {\n\ttechnology =  <tech>\n\tcategory = <tech cat>\n\t}"
+  },
+  {
+   "name": "has_template",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check if country has a division template of specific name",
+   "example": ""
+  },
+  {
+   "name": "has_template_ai_majority_unit",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has a division template that is majority of specific unit using AI's priorities rather than visual",
+   "example": ""
+  },
+  {
+   "name": "has_template_containing_unit",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has a division template that contains a specific unit",
+   "example": ""
+  },
+  {
+   "name": "has_template_majority_unit",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has a division template that is majority of specific unit",
+   "example": ""
+  },
+  {
+   "name": "has_terrain",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if a country has any province of the specified terrain type.",
+   "example": "has_terrain = mountain"
+  },
+  {
+   "name": "has_trait",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if sides leader has trait",
+   "example": ""
+  },
+  {
+   "name": "has_truce_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "has_truce_with = yes/no - Checks if the country has truce with the specified country",
+   "example": ""
+  },
+  {
+   "name": "has_unit_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country has unit leader with specified ID. Don't localize this. Tooltip only for debug.",
+   "example": ""
+  },
+  {
+   "name": "has_unit_leader_flag",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "This trigger is deprecated in favor of has_character_flag (which does the same)has a character flag been setCheck flag val date set and days since set.",
+   "example": "has_unit_leader_flag = test_flag\nhas_unit_leader_flag = { \n\tflag = <name> (mandatory)\n\tvalue < <int> (optional)\n\tdate > <date> (optional)\n\tdays > <int> (optional)\n}"
+  },
+  {
+   "name": "has_unit_type",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check if the combatant has at least one of the provided unit types.\nFor example:\nhas_unit_type = amphibious_mechanized",
+   "example": ""
+  },
+  {
+   "name": "has_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a variable exists in a scope",
+   "example": ""
+  },
+  {
+   "name": "has_volunteers_amount_from",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares number of volunteers from the country.",
+   "example": "has_volunteers_amount_from = { tag = ITA count > 1 }"
+  },
+  {
+   "name": "has_war",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is country at war",
+   "example": ""
+  },
+  {
+   "name": "has_war_support",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check value of war_support 0-1: Example has_war_support < 0.6",
+   "example": ""
+  },
+  {
+   "name": "has_war_together_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Are the countries fighting on the same side of a war",
+   "example": ""
+  },
+  {
+   "name": "has_war_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is countries at war",
+   "example": ""
+  },
+  {
+   "name": "has_war_with_major",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is country at war with a major",
+   "example": ""
+  },
+  {
+   "name": "has_war_with_wargoal_against",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country has a war started with a wargoal against the target.\nExample 1:\nhas_war_with_wargoal_against = {\n  target = GER\n  type = take_state  # (optional: if not specified any wargoal will do)\n}\nExample 2:\nhas_war_with_wargoal_against = GER  # (any wargoal will do)",
+   "example": ""
+  },
+  {
+   "name": "has_wargoal_against",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country has a wargoal against the target.\nExample 1:\nENG = { has_wargoal_against = GER }\nExample 2:\nENG = {\n  has_wargoal_against = {\n    target = GER\n    type = take_state  # (optional: if not specified any wargoal will do)\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "hidden_trigger",
+   "scopes": [
+    "STATE",
+    "COUNTRY",
+    "CHARACTER",
+    "COMBATANT",
+    "ACE",
+    "STRATEGIC_REGION",
+    "OPERATION",
+    "INDUSTRIAL_ORG",
+    "PURCHASE_CONTRACT",
+    "RAID_INSTANCE",
+    "SPECIAL_PROJECT",
+    "FACTION"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "hidden_trigger = {\n\ttooltip_evaluation = eval\n\tset_temp_variable = { unlock_compare = 0 }\t\t\t\n\tall_collection_elements = {\n\t\tcollection = {\n\t\t\tinput = game:scope\n\t\t\toperators =  { faction_members }\n\t\t}\n\t\tadd_to_temp_variable = { unlock_compare = num_armies }\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "ic_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the ratio of total industrial capacity between the scope country and the one set with 'tag'",
+   "example": ""
+  },
+  {
+   "name": "ideology_support_trigger",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if the current scope has the specified ideology above the specified amount.\nUsage: <Ideology> < <float>\nSupported Ideologies: democratic, communism, fascism, neutrality.",
+   "example": ""
+  },
+  {
+   "name": "if",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "if_, CIfTrigger, A conditional trigger\nif = { limit = { <triggers> } <trigger> }",
+   "example": ""
+  },
+  {
+   "name": "impassable",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if a state is impassable",
+   "example": ""
+  },
+  {
+   "name": "intel_level_over",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compare the absolute, percentage based, intel level the scoped country has over\nthe specified one:\nGER = {\n  # is true if all predicates are satisfied\n  intel_level_over = { \n    target = POL\n    civilian_intel > 0.5  # GER has more than 50% civ. intel over POL\n    army_intel = 0  # GER has no army intel over POL\n    navy_intel > 0  # GER has at least some navy intel over POL\n    # airforce_intel is not specified and thus ignored in the comparison\n\n    # NOTE: since we are comparing the intel level of a country over another,\n    # checking for values less than 0 does not make sense\n    # NOTE: since we are comparing percentages, using values greater than 1\n    # does not make sense.\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "is_active_decryption_bonuses_enabled",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if the country activated their active cipher decryption bonuses. Example is_active_decryption_bonuses_enabled = GER",
+   "example": ""
+  },
+  {
+   "name": "is_active_scientist",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the scientist of the character in scope is assigned to a project\nis_scientist_active = <bool>\nex: my_character = {\n        is_scientist_active = yes\n        is_scientist_active = no\n\t}",
+   "example": ""
+  },
+  {
+   "name": "is_advisor",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_advisor = yes/no - Checks if the current character is an advisor",
+   "example": ""
+  },
+  {
+   "name": "is_ai",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is AI controlled.",
+   "example": ""
+  },
+  {
+   "name": "is_air_chief",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "_is_air_chief = yes/no - Checks if the character in scope is hired as an air chief",
+   "example": ""
+  },
+  {
+   "name": "is_ally_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if a country is ally with another country. will check if two countries are same/in same faction/has subject master relation",
+   "example": "is_ally_with = ITA"
+  },
+  {
+   "name": "is_amphibious_invasion",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if combat is at night",
+   "example": ""
+  },
+  {
+   "name": "is_army_chief",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_army_chief = yes/no - Checks if the character in scope is hired as an army chief",
+   "example": ""
+  },
+  {
+   "name": "is_army_leader",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_army_leader = yes/no - Checks if the current character is a army leader",
+   "example": ""
+  },
+  {
+   "name": "is_assigned",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_assigned = yes/no - Checks if the current unit leader is assigned to command an army/navy",
+   "example": ""
+  },
+  {
+   "name": "is_attacker",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if attacker side in combat",
+   "example": ""
+  },
+  {
+   "name": "is_border_conflict",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if a state is in border conflict",
+   "example": ""
+  },
+  {
+   "name": "is_border_war",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if a the combatant or leader has a border war",
+   "example": ""
+  },
+  {
+   "name": "is_capital",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Is scope state a capital. 169 = { is_capital = yes }",
+   "example": ""
+  },
+  {
+   "name": "is_character",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks whether the character in scope matches the character in input",
+   "example": ""
+  },
+  {
+   "name": "is_character_slot",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "alias of has_advisor_role",
+   "example": ""
+  },
+  {
+   "name": "is_claimed_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if state is claimed by country",
+   "example": ""
+  },
+  {
+   "name": "is_coastal",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check if state is coastal",
+   "example": ""
+  },
+  {
+   "name": "is_controlled_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if state is controlled by",
+   "example": ""
+  },
+  {
+   "name": "is_core_of",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if state is core of country",
+   "example": ""
+  },
+  {
+   "name": "is_corps_commander",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_corps_commander = yes/no - Checks if the current character is a corps commander",
+   "example": ""
+  },
+  {
+   "name": "is_country_leader",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_country_leader = yes/no - Checks if the current character is a country leader",
+   "example": ""
+  },
+  {
+   "name": "is_cryptology_department_active",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "has country an active cryptology department",
+   "example": ""
+  },
+  {
+   "name": "is_debug",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "returns true if game is in debug mode (launched with -debug argument)",
+   "example": ""
+  },
+  {
+   "name": "is_decrypting",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if is currently decrypting a cipher. Example is_decrypting = GER",
+   "example": ""
+  },
+  {
+   "name": "is_defender",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if defender side in combat",
+   "example": ""
+  },
+  {
+   "name": "is_demilitarized_zone",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if a state is a demilitarized zone",
+   "example": ""
+  },
+  {
+   "name": "is_dynamic_country",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "returns true if the country is a dynamic country (tag is D01-D50)",
+   "example": ""
+  },
+  {
+   "name": "is_embargoed_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if embargoed by specified country",
+   "example": ""
+  },
+  {
+   "name": "is_embargoing",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if country is embargoing specified country",
+   "example": ""
+  },
+  {
+   "name": "is_exile_host",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if scope country is hosting an exile. is_exile_host = yes",
+   "example": ""
+  },
+  {
+   "name": "is_exiled_in",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if scope country is a government in exile in target tag. is_exiled_in = ENG",
+   "example": ""
+  },
+  {
+   "name": "is_exiled_leader",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks if scope leader is from an exiled government. is_exiled_leader = yes",
+   "example": ""
+  },
+  {
+   "name": "is_exiled_leader_from",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if scope leader is from specified exiled government. is_exiled_leader_from = FRA",
+   "example": ""
+  },
+  {
+   "name": "is_faction_leader",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country leads a faction",
+   "example": ""
+  },
+  {
+   "name": "is_female",
+   "scopes": [
+    "COUNTRY",
+    "CHARACTER",
+    "ACE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if scoped unit leader, ace or country is female",
+   "example": ""
+  },
+  {
+   "name": "is_field_marshal",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_field_marshal = yes/no - Checks if the current unit leader is a field marshall",
+   "example": ""
+  },
+  {
+   "name": "is_fighting_air_units",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side is fighting air units",
+   "example": ""
+  },
+  {
+   "name": "is_fighting_in_terrain",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check what terrain is in combat",
+   "example": ""
+  },
+  {
+   "name": "is_fighting_in_weather",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks the weather on a combat",
+   "example": "# true if weather is artic water\nis_fighting_in_weather = artic_water\n# true if weather is either artic_water or snow\nis_fighting_in_weather = { artic_water snow }"
+  },
+  {
+   "name": "is_fully_controlled_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if state is fully controlled by specified tag",
+   "example": ""
+  },
+  {
+   "name": "is_fully_decrypted",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks if fully decrypted a cipher. Example is_fully_decrypted = GER",
+   "example": ""
+  },
+  {
+   "name": "is_general_captured",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "my_character = {\n\tis_general_captured = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "is_government_in_exile",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if scope country an exiled government. is_government_in_exile = yes",
+   "example": ""
+  },
+  {
+   "name": "is_guaranteed_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if guaranteed by specified country",
+   "example": ""
+  },
+  {
+   "name": "is_high_command",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "_is_high_command_ = yes/no - Checks if the character in scope is hired as high command",
+   "example": ""
+  },
+  {
+   "name": "is_hired_as_advisor",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_hired_as_advisor = yes/no - Checks if the current character has at least one advisor role for which they are hired",
+   "example": ""
+  },
+  {
+   "name": "is_historical_focus_on",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "check if the historical focus is active",
+   "example": ""
+  },
+  {
+   "name": "is_hosting_exile",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if scope country is hosting target tag as an exile. is_hosting_exile = FRA",
+   "example": ""
+  },
+  {
+   "name": "is_in_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Checks if an element is in array",
+   "example": "is_in_array = {\n\tarray = array_name\n\tvalue = 42\n}\n#shorter usage: is_in_array = { array_name = 42 }"
+  },
+  {
+   "name": "is_in_faction",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if member of any faction",
+   "example": ""
+  },
+  {
+   "name": "is_in_faction_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if member of same faction as specified country",
+   "example": ""
+  },
+  {
+   "name": "is_in_home_area",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the first province in the state is connected to the capital of its owner",
+   "example": ""
+  },
+  {
+   "name": "is_in_peace_conference",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country is currently in a peaceconference",
+   "example": ""
+  },
+  {
+   "name": "is_in_state",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "CAPITAL"
+   ],
+   "desc": "# Check if a general is in a specific state\nany_unit_leader = {\n\tis_in_state = 64 # Brandenburg\n}\n\n# Check if any scientist is in the capital\nevery_character = {\n\tlimit = { is_active_scientist = yes }\n\tis_in_state = root.capital\n}",
+   "example": ""
+  },
+  {
+   "name": "is_in_tech_sharing_group",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is member specified technology sharing group.",
+   "example": "is_in_technology_sharing_group = commonwealth_research"
+  },
+  {
+   "name": "is_ironman",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Check if current game is ironman.",
+   "example": ""
+  },
+  {
+   "name": "is_island_state",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "return true if the state is composed exclusively of one-province-islands.\nMore precisly, all provinces in the state have no land neighbor.\nOr if they do they are connected by a strait.\n(cf. is_one_state_island for checking if the state itself is an island)\nex: 145 = {\n\tis_island_state = yes\n\tis_island_state = no\n}",
+   "example": ""
+  },
+  {
+   "name": "is_justifying_wargoal_against",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country is justifying a wargoal against the target.",
+   "example": "ENG = { is_justifying_wargoal_against = GER }"
+  },
+  {
+   "name": "is_leader_visible",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the leader is visible to its owner (is_visible trigger in the leader's script)",
+   "example": ""
+  },
+  {
+   "name": "is_leading_army",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_leading_army = yes/no - Checks if the current unit leader is leading a single army (not army group)",
+   "example": ""
+  },
+  {
+   "name": "is_leading_army_group",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_leading_army_group = yes/no - Checks if the current unit leader is leading an army group (not single army)",
+   "example": ""
+  },
+  {
+   "name": "is_leading_army_in_province",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_leading_army_in_province = province_id # checks if the current unit leader is leading an army that has any division in a specific province. Block form { province = X include_field_marshal = yes } also counts a field marshal whose subordinate generals have a division in the province",
+   "example": ""
+  },
+  {
+   "name": "is_leading_volunteer_group",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is_leading_volunteer_group = FRA",
+   "example": ""
+  },
+  {
+   "name": "is_leading_volunteer_group_with_original_country",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is_leading_volunteer_group_with_original_country = FRA",
+   "example": ""
+  },
+  {
+   "name": "is_lend_leasing",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "is lend-leasing country",
+   "example": ""
+  },
+  {
+   "name": "is_licensing_any_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Current country is licensing something to target country",
+   "example": "is_licensing_any_to = ENG"
+  },
+  {
+   "name": "is_licensing_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Country is licensing specific equipment to target. License is active",
+   "example": "is_licensing_to = {\n\ttarget = TAG # licensing to this country\n\t #if archetype is specified equipment should not be specified\n\tarchetype = light_tank_chassis #any light tank chassis license\n\tequipment = { # classical equipment reference\n\t\ttype = light_tank_equipment_2\n\t\tversion = 0 # optional: omit to match any version of the type\n\t}\n}"
+  },
+  {
+   "name": "is_major",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if country is a major",
+   "example": ""
+  },
+  {
+   "name": "is_military_industrial_organization",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope matches the input token\nex:\nvar:my_mio_var = {\n  is_military_industrial_organization = my_mio_token\n}",
+   "example": ""
+  },
+  {
+   "name": "is_mio_assigned_to_task",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope is assigned to at least 1 task.\nex:\nmio:my_mio = {\n\tis_mio_assigned_to_task = yes\n\tis_mio_assigned_to_task = no\n}",
+   "example": ""
+  },
+  {
+   "name": "is_mio_available",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the available AND visible triggers in the Military Industrial Organisation in scope return true.\nex:\nmio:my_mio = {\n\tis_mio_available = yes\n\tis_mio_available = no\n}",
+   "example": ""
+  },
+  {
+   "name": "is_mio_trait_available",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has a trait matching the input token, which is also available.\nex:\nmio:my_mio = {\n\tis_mio_trait_available = my_trait_token\n\tis_mio_trait_available = {\n\t\ttrait = my_trait_token\n\t\tcheck_mio_parent_completed = no # Optional, yes by default\n        check_mio_mutually_exclusive = no # Optional, yes by default\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "is_mio_trait_completed",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the Military Industrial Organisation in scope has a trait matching the input token, which is also completed.\nex:\nmio:my_mio = {\n\tis_mio_trait_completed = my_trait_token\n\tis_mio_trait_completed = {\n\t\ttrait = my_trait_token\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "is_mio_visible",
+   "scopes": [
+    "INDUSTRIAL_ORG"
+   ],
+   "targets": [],
+   "desc": "Checks if the visible trigger in the Military Industrial Organisation in scope returns true.\nex:\nmio:my_mio = {\n\tis_mio_visible = yes\n\tis_mio_visible = no\n}",
+   "example": ""
+  },
+  {
+   "name": "is_navy_chief",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "_is_navy_chief_ = yes/no - Checks if the character in scope is hired as a navy chief",
+   "example": ""
+  },
+  {
+   "name": "is_navy_leader",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_navy_leader = yes/no - Checks if the current character is a navy leader",
+   "example": ""
+  },
+  {
+   "name": "is_neighbor_of",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if neighbor ( controlled territory ) with specified country",
+   "example": ""
+  },
+  {
+   "name": "is_on_continent",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "is state located on continent",
+   "example": ""
+  },
+  {
+   "name": "is_on_same_continent_as",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "FROM = {\n\tis_on_same_continent_as = 111\n}",
+   "example": ""
+  },
+  {
+   "name": "is_one_state_island",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "return true if the state is a one-state-island.\nMore precisely, all provinces in the state have no land neighbor.\nOr if they do they are connected by a strait or the neighbor is inside the state.\nex: 145 = {\n\tis_one_state_island = yes\n\tis_one_state_island = no\n}",
+   "example": ""
+  },
+  {
+   "name": "is_operation_type",
+   "scopes": [
+    "OPERATION"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "checks the type of operation",
+   "example": ""
+  },
+  {
+   "name": "is_operative",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_operative = yes/no - Checks if the current character is an operative",
+   "example": ""
+  },
+  {
+   "name": "is_operative_captured",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks whether the operative has the matching captured status",
+   "example": ""
+  },
+  {
+   "name": "is_owned_and_controlled_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if state is owned by",
+   "example": ""
+  },
+  {
+   "name": "is_owned_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if state is owned by",
+   "example": ""
+  },
+  {
+   "name": "is_owner_neighbor_of",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if neighbor ( owned territory ) with specified country",
+   "example": ""
+  },
+  {
+   "name": "is_political_advisor",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_political_advisor = yes/no - Checks if the character in scope is hired as a political advisor",
+   "example": ""
+  },
+  {
+   "name": "is_power_balance_in_range",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "checks if current value power balance is within a certain range",
+   "example": "is_power_balance_in_range = {\n\tid = power_balance_id\n\trange = power_balance_range_id\n}"
+  },
+  {
+   "name": "is_power_balance_side_active",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "checks if specified side is currently active",
+   "example": "is_power_balance_side_active = {\n\tid = power_balance_id\n\tside = side_id\n}"
+  },
+  {
+   "name": "is_preparing_operation",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if preparing a specific operation.",
+   "example": "is_preparing_operation = { \n target = ITA \n operation = operation_infiltrate_armed_forces_navy}"
+  },
+  {
+   "name": "is_promoted_from_unit",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "any_unit_leader = {\n\tis_promoted_from_unit = yes\n}",
+   "example": ""
+  },
+  {
+   "name": "is_puppet",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the country is puppet of any other country",
+   "example": ""
+  },
+  {
+   "name": "is_puppet_of",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if the country is puppet of specified country",
+   "example": ""
+  },
+  {
+   "name": "is_researching_technology",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country is currently researching a specific technology.",
+   "example": "is_researching_technology = mechanised_infantry"
+  },
+  {
+   "name": "is_running_operation",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "checks if running a specific operation. operation can be ommitted to check for any operation",
+   "example": "is_running_operation = { \n target = ITA \n operation = operation_infiltrate_armed_forces_navy}"
+  },
+  {
+   "name": "is_scientist_injured",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the scientist of the character in scope is injured\nis_scientist_injured = <bool>\nex: my_character = {\n        is_scientist_active = yes\n\t}",
+   "example": ""
+  },
+  {
+   "name": "is_special_project_being_researched",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country in scope is currently researching the special project in input.\nex:\nSOV = {\n\tis_special_project_being_researched = sp:my_project\n\tis_special_project_being_researched = var:my_project_var\n\tis_special_project_being_researched = PREV # accepts variables and keywords\n}",
+   "example": ""
+  },
+  {
+   "name": "is_special_project_completed",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the country in scope has completed the special project in input.\nex:\nSOV = {\n\tis_special_project_completed = sp:my_project\n\tis_special_project_completed = var:my_project_var\n\tis_special_project_completed = PREV # accepts variables and keywords\n}",
+   "example": ""
+  },
+  {
+   "name": "is_spymaster",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check if country is Spy Master",
+   "example": ""
+  },
+  {
+   "name": "is_staging_coup",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "is_staging_coup = yes - Returns true if current country is staging a coup in another any country.",
+   "example": ""
+  },
+  {
+   "name": "is_subject",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks if the country is subject of any other country",
+   "example": ""
+  },
+  {
+   "name": "is_subject_of",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if the country is subject of specified country",
+   "example": ""
+  },
+  {
+   "name": "is_target_of_coup",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "is_target_of_coup = yes - Returns true if current country is being targeted by a coup from any country.",
+   "example": ""
+  },
+  {
+   "name": "is_theorist",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_theorist = yes/no - Checks if the character in scope is hired as a theorist",
+   "example": ""
+  },
+  {
+   "name": "is_tutorial",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "check if the tutorial is active",
+   "example": ""
+  },
+  {
+   "name": "is_unit_leader",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "is_unit_leader = yes/no - Checks if the current character is a unit leader",
+   "example": ""
+  },
+  {
+   "name": "is_unit_template_reserves",
+   "scopes": [],
+   "targets": [
+    "any"
+   ],
+   "desc": "returns true if this unit's template has the reserves priority",
+   "example": ""
+  },
+  {
+   "name": "is_winning",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if defender side in combat",
+   "example": ""
+  },
+  {
+   "name": "land_doctrine_level",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks researched land doctrine level",
+   "example": ""
+  },
+  {
+   "name": "less_combat_width_than_opponent",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has more combat width than their opponent",
+   "example": ""
+  },
+  {
+   "name": "log",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Print message to game.log - Can be localized",
+   "example": ""
+  },
+  {
+   "name": "logistics_skill_level",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Compares logistics skill level of a unit leader.",
+   "example": "logistics_skill_level > 5"
+  },
+  {
+   "name": "longest_war_length",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check number of months the country has been at war",
+   "example": ""
+  },
+  {
+   "name": "manpower_per_military_factory",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Number of available manpower per factory the country has. Excluding dockyards.\nmanpower_per_military_factory < 1000",
+   "example": ""
+  },
+  {
+   "name": "meta_trigger",
+   "scopes": [
+    "STATE",
+    "COUNTRY",
+    "CHARACTER",
+    "COMBATANT",
+    "ACE",
+    "STRATEGIC_REGION",
+    "OPERATION",
+    "INDUSTRIAL_ORG",
+    "PURCHASE_CONTRACT",
+    "RAID_INSTANCE",
+    "SPECIAL_PROJECT",
+    "FACTION"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "meta triggers can be used for building triggers from strings and running them. following example will test if Germany has 42 pp:\nmeta_trigger = {\n    text = {\n        [COUNTRY] = {\n            political_power > [POW]\n        }\n    }\n    COUNTRY = \"GER\"\n    POW = 42\n    debug = no #set to yes if you want to see what game actually executes\n}",
+   "example": ""
+  },
+  {
+   "name": "min_planning",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if side has maximal planning bonus",
+   "example": ""
+  },
+  {
+   "name": "mine_threat",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "A trigger to check how dangerous enemy mines are for a country. Controlled by NAVAL_MINE_DANGER defines. Returns a value between 0 and 1. Example mine_threat > 0.5",
+   "example": ""
+  },
+  {
+   "name": "modulo_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "modulos a temp variable with another.",
+   "example": "modulo_temp_variable = { \n  var = variable_to_modulo \n  value = divisior \n}"
+  },
+  {
+   "name": "multiply_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "multiply_temp_variable = { num_dogs = 2 }\nmultiply_temp_variable = {\n\tnum_dogs = { value = num_cats  add = 1 }\n}",
+   "example": ""
+  },
+  {
+   "name": "naval_strength_comparison",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares navies of two sides.\nnaval_strength_comparison = {\n\tother = GER # by default compares to the from scope\n  tooltip = 'key' #tooltip is 'navy strength' by default, the key can be overridden if wanted \n\tratio > 1.5   # default is 1\n\tsub_unit_def_weights = { # if not specified, it will weigh all ships as 1. otherwise only specified sub unit types will be counted\n\t\tcarrier = 1\n\t\tbattleship = 2\n\t}\n}",
+   "example": ""
+  },
+  {
+   "name": "naval_strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the estimated navy strength between the scope country and the one set with 'tag' \nnaval_strength_ratio = { \n  tag = GER \n  ratio > 0.5 \n}",
+   "example": ""
+  },
+  {
+   "name": "network_national_coverage",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks network national coverage you have over a country.",
+   "example": "network_national_coverage = { \n target = GER\n value > 0.5\n}"
+  },
+  {
+   "name": "network_strength",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks network strength you have in a country. Examples: \n# country has a network strength greater than 50% over germany\nnetwork_strength = { \n target = GER\n value > 50\n}\n\n# country has a network strength greater than 50% over germany in state 53\nnetwork_strength = { \n target = GER\n state = 53 value > 50\n}\n\n# country has a network strength greater than 50% in state 53, regardless of the target\nnetwork_strength = { \n state = 53\n value > 50\n}",
+   "example": ""
+  },
+  {
+   "name": "night",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if combat is at night",
+   "example": ""
+  },
+  {
+   "name": "non_damaged_building_level",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check if a state has enough non damaged buildings",
+   "example": "non_damaged_building_level = {\n\tbuilding = arms_factory\n\tlevel = 5\n}"
+  },
+  {
+   "name": "not",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "negates content of trigger",
+   "example": ""
+  },
+  {
+   "name": "not_already_hired_except_as",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "not_already_hired_except_as = <slot> - For characters with several advisor roles, checks if the current character is already assigned in another advisor slot.\nexample: let's say a character can be a political advisor and a theorist. But they should only be hired in one role, never both at the same time.\nthen you may set in the advisor available trigger :\n\tadvisor = {\n\t\tslot = political_advisor\n\t\tavailable = { not_already_hired_except_as = political_advisor } \n\t\t...\n\t}\n\tadvisor = {\n\t\tslot = theorist\n\t\tavailable = { not_already_hired_except_as = theorist } \n\t\t...\n\t}",
+   "example": ""
+  },
+  {
+   "name": "num_battalions_in_states",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks number of battalions in states (optionally filtering on battalion types). Using a custom tooltip is highly recommended since the default tooltip leaves out some information for the sake of readability.",
+   "example": "num_battalions_in_states = {\n\tcount > 5 (or <, =)\n\tstates = { 550 559 }\n\ttypes = { infantry cavalry } [optional - will count all except excluded if not specified]\n\texclude = { light_armor } [optional - will count all (included) if not specified]\n}"
+  },
+  {
+   "name": "num_divisions",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Will compare towards the amount of divisions a country has control over, if strength matters use has_army_size.",
+   "example": ""
+  },
+  {
+   "name": "num_divisions_in_states",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks number of divisions in states (optionally filtering on majority division types). Using a custom tooltip is highly recommended since the default tooltip leaves out some information for the sake of readability.",
+   "example": "num_divisions_in_states = {\n\tcount > 5 (or <, =)\n\tstates = { 550 559 }\n\ttypes = { infantry cavalry } [optional - will count all except excluded if not specified]\n\texclude = { light_armor } [optional - will count all (included) if not specified]\n}"
+  },
+  {
+   "name": "num_faction_members",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the number of members in the faction for the current country.",
+   "example": "num_faction_members > 10"
+  },
+  {
+   "name": "num_fake_intel_divisions",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Will compare towards the amount of fake intel divisions a country has control over. .",
+   "example": ""
+  },
+  {
+   "name": "num_finished_operations",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares number of completed operations.",
+   "example": "num_finished_operations = { \n target = ITA \n operation = operation_infiltrate_armed_forces_navy value > 35 \n}"
+  },
+  {
+   "name": "num_free_operative_slots",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the number of operative a country can recruit right now.\nNote that this is not necessarily greater than zero if num_operative_slots returned a number greater than the number of operative.",
+   "example": ""
+  },
+  {
+   "name": "num_nukes_being_dropped",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "total number of nukes that are currently ready to be dropped",
+   "example": ""
+  },
+  {
+   "name": "num_nukes_left_to_drop",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "number of nukes left to drop during this game tick (only useful in-between nuke drops, like in on_nuke_drop on-action, for example)",
+   "example": ""
+  },
+  {
+   "name": "num_occupied_states",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check the number of states occupied by nation",
+   "example": ""
+  },
+  {
+   "name": "num_of_available_civilian_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of available civilian factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_available_military_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of available military factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_available_naval_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of available naval factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_career_profile_points",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "check amount of gained career points",
+   "example": ""
+  },
+  {
+   "name": "num_of_civilian_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of civilian factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_civilian_factories_available_for_projects",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of civilian factories available for a new project to use",
+   "example": ""
+  },
+  {
+   "name": "num_of_controlled_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check the number of factories in controlled states excluding any gained or lost through trade, relations, modifiers etc.",
+   "example": ""
+  },
+  {
+   "name": "num_of_controlled_states",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of controlled stats",
+   "example": ""
+  },
+  {
+   "name": "num_of_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check amount of available factories (excluding temporary sources like trade and lend-lease)",
+   "example": "GER = { num_of_factories < 50 }"
+  },
+  {
+   "name": "num_of_military_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of military factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_naval_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of naval factories",
+   "example": ""
+  },
+  {
+   "name": "num_of_nukes",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of nukes",
+   "example": ""
+  },
+  {
+   "name": "num_of_operatives",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the number of operatives the country controls",
+   "example": ""
+  },
+  {
+   "name": "num_of_owned_factories",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check the number of factories in owned states excluding any gained or lost through trade, relations, modifiers etc.",
+   "example": ""
+  },
+  {
+   "name": "num_of_supply_nodes",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of supply nodes",
+   "example": ""
+  },
+  {
+   "name": "num_operative_slots",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the number of available operative slots a country has.\nIf this differs from the number of operative, this does not mean the country can recruit an operative, but that it will eventually be able to.",
+   "example": ""
+  },
+  {
+   "name": "num_owned_neighbour_states",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if a country owns the amount of states neighbouring the scoped state",
+   "example": ""
+  },
+  {
+   "name": "num_planes_stationed_in_regions",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Will compare the number of planes which have bases in the specified regions. Supports < > =",
+   "example": "num_planes_stationed_in_regions = {\nvalue < 100\nregions = { 18 47 }\n}"
+  },
+  {
+   "name": "num_researched_technologies",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Number of researched technologies",
+   "example": ""
+  },
+  {
+   "name": "num_subjects",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check the number of subjects of nation",
+   "example": ""
+  },
+  {
+   "name": "num_tech_sharing_groups",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks how many groups a nation is a member of",
+   "example": ""
+  },
+  {
+   "name": "num_units",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Check number of units commanded by the unit leader \n num_units > 2",
+   "example": ""
+  },
+  {
+   "name": "occupation_law",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Checks the occupation law for an occupied country, occupied state, or the default occupation law of an occupying country.\n\n- If THIS is a country and it's the same as the PREV country, then THIS's default law is checked.\n- If THIS is a country and it's different from the PREV country, then PREV's country law for THIS is checked.\n- If THIS is a state, then the occupier's state law is checked.",
+   "example": "GER = { occupation_law = autonomous_occupation }\nGER = { POL = { occupation_law = foreign_civilian_oversight } }\n123 = { occupation_law = local_police_force_garrison }"
+  },
+  {
+   "name": "occupied_country_tag",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "compares occupied country that creates resistance to a tag.",
+   "example": "occupied_country_tag = ITA"
+  },
+  {
+   "name": "operative_leader_mission",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks whether the operative is performing the given mission:\noperative_leader_mission = build_intel_network",
+   "example": ""
+  },
+  {
+   "name": "operative_leader_operation",
+   "scopes": [
+    "CHARACTER"
+   ],
+   "targets": [],
+   "desc": "Checks whether the operative is performing the given operation:\noperative_leader_operation = operation_rescue_operative",
+   "example": ""
+  },
+  {
+   "name": "or",
+   "scopes": [
+    "any"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "at least one entry inside trigger must be true",
+   "example": ""
+  },
+  {
+   "name": "original_research_slots",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check number of research slots at start of game",
+   "example": ""
+  },
+  {
+   "name": "original_tag",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "original tag is ( for civil wars checks )",
+   "example": ""
+  },
+  {
+   "name": "owns_any_state_of",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check if the country owns any of the states in the list.",
+   "example": ""
+  },
+  {
+   "name": "owns_state",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "CAPITAL"
+   ],
+   "desc": "check owner for state(s)",
+   "example": ""
+  },
+  {
+   "name": "pc_current_score",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks country's total peace conference score. Only usable if the country is on the winning side.",
+   "example": "CZE = { pc_current_score > 400 }"
+  },
+  {
+   "name": "pc_does_state_stack_demilitarized",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Checks if state got demilitarized stacked on it in the peace conference.",
+   "example": "FROM.FROM.FROM = { pc_does_state_stack_demilitarized = yes }"
+  },
+  {
+   "name": "pc_does_state_stack_dismantled",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Checks if state got dismantled stacked on it in the peace conference.",
+   "example": "FROM.FROM.FROM = { pc_does_state_stack_dismantled = yes }"
+  },
+  {
+   "name": "pc_is_forced_government",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has had their government force-changed in the peace conference.",
+   "example": "CZE = { pc_is_forced_government = yes }"
+  },
+  {
+   "name": "pc_is_forced_government_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country has had their government force-changed by a certain country in the peace conference.",
+   "example": "CZE = { pc_is_forced_government_by = GER }"
+  },
+  {
+   "name": "pc_is_forced_government_to",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has had their government force-changed to a certain ideology in the peace conference.",
+   "example": "CZE = { pc_is_forced_government_to = communism }"
+  },
+  {
+   "name": "pc_is_liberated",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country has been liberated in the peace conference.",
+   "example": "CZE = { pc_is_liberated = yes }"
+  },
+  {
+   "name": "pc_is_loser",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is a loser in the peace conference.",
+   "example": "ENG = { pc_is_loser = yes }"
+  },
+  {
+   "name": "pc_is_on_same_side_as",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country is on same side (winning or losing side) as another country in the peace conference.",
+   "example": "POL = { pc_is_on_same_side_as = ENG }"
+  },
+  {
+   "name": "pc_is_on_winning_side",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is on the winning side in the peace conference.",
+   "example": "CZE = { pc_is_on_winning_side = yes }"
+  },
+  {
+   "name": "pc_is_puppeted",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is a puppet, or has been released as a puppet in the peace conference.",
+   "example": "CZE = { pc_is_puppeted = yes }"
+  },
+  {
+   "name": "pc_is_puppeted_by",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks if country is a puppet of a certain country, or has been released as a puppet by a certain country in the peace conference.",
+   "example": "CZE = { pc_is_puppeted_by = GER }"
+  },
+  {
+   "name": "pc_is_state_claimed",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Check if state is claimed (and uncontested) in conference",
+   "example": "pc_is_state_claimed = yes/no"
+  },
+  {
+   "name": "pc_is_state_claimed_and_taken_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if state is claimed with a take_states action in conference for TAG",
+   "example": "pc_is_state_claimed_and_taken_by = SOV/ROOT/ROOT.FROM"
+  },
+  {
+   "name": "pc_is_state_claimed_by",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if state is claimed in conference by TAG",
+   "example": "pc_is_state_claimed_by = SOV/ROOT/ROOT.FROM"
+  },
+  {
+   "name": "pc_is_state_outside_influence_for_winner",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check if state is outside valid influence range for winner TAG in the current peace conference",
+   "example": "pc_is_state_outside_influence_for_winner = SOV/ROOT/ROOT.FROM"
+  },
+  {
+   "name": "pc_is_winner",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if country is a winner in the peace conference.",
+   "example": "ENG = { pc_is_winner = yes }"
+  },
+  {
+   "name": "pc_total_score",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks country's total peace conference score. Only usable if the country is on the winning side.",
+   "example": "CZE = { pc_total_score > 400 }"
+  },
+  {
+   "name": "pc_turn",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Checks turn number in PC.",
+   "example": "pc_turn > 20"
+  },
+  {
+   "name": "phase",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check if we are in this combat phase",
+   "example": ""
+  },
+  {
+   "name": "planning_skill_level",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Compares planning skill level of a unit leader.",
+   "example": "planning_skill_level > 5"
+  },
+  {
+   "name": "political_power_daily",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if daily political power increase is more or less that specified value \n political_power_daily > 1.5",
+   "example": ""
+  },
+  {
+   "name": "political_power_growth",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check the value of political power daily growth.Exacmple: political_power_growth > 0",
+   "example": ""
+  },
+  {
+   "name": "power_balance_daily_change",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "compares current total daily change of a power balance",
+   "example": "power_balance_daily_change = {\n\tid = power_balance_id\n\tvalue > 0.5 # supported operators are: >, < and =\n}"
+  },
+  {
+   "name": "power_balance_value",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "compares current value of a power balance",
+   "example": "power_balance_value = {\n\tid = power_balance_id\n\tvalue > 0.5 # supported operators are: >, < and =\n}"
+  },
+  {
+   "name": "power_balance_weekly_change",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "compares current total weekly change of a power balance",
+   "example": "power_balance_weekly_change = {\n\tid = power_balance_id\n\tvalue > 0.5 # supported operators are: >, < and =\n}"
+  },
+  {
+   "name": "print_variables",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "prints all variables in scope and temp variables to a file",
+   "example": "print_variables = {\nfile = log_file\ntext = header_text\nappend = yes\nprint_global = yes\nvar_list = { a b c } #optional\n}"
+  },
+  {
+   "name": "province_vp",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "Check if the victory points of the combatants province is larger or less than the provinded amount.\nFor example:\nprovince_vp > 2\nprovince_vp < 3",
+   "example": ""
+  },
+  {
+   "name": "received_expeditionary_forces",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Checks that the country in scope has received the specified amount of expeditionary forces from the specified country\nE.g. true if Germany is commaning more than 100 expeditionary forces from Poland:\nGER = {\n  received_expeditionary_forces = {\n    sender = POL\n    value > 100\n  }\n}",
+   "example": ""
+  },
+  {
+   "name": "recon_advantage",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "checks if side has an advantage in recon level",
+   "example": ""
+  },
+  {
+   "name": "region",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check state's strategic area id",
+   "example": ""
+  },
+  {
+   "name": "remove_from_temp_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Removes an element from a temporary array using value or index",
+   "example": "remove_from_temp_array = {\n\tarray = array_name\n\tvalue = 42 #optional, use index or this. if neither it removes last element\n\tindex = 3 #optional, use value or this. if neither it removes last element\n}\n#shorter usage: remove_from_temp_array = { array_name = 42 }"
+  },
+  {
+   "name": "reserves",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "check amount of reserves",
+   "example": ""
+  },
+  {
+   "name": "resistance",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the current resistance level of a state to a value.",
+   "example": "resistance > 50"
+  },
+  {
+   "name": "resistance_speed",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the current resistance speed of a state to a value.",
+   "example": "resistance_speed > 50"
+  },
+  {
+   "name": "resistance_target",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "any"
+   ],
+   "desc": "Compares the target resistance level of a state to a value.",
+   "example": "resistance_target > 50"
+  },
+  {
+   "name": "resize_temp_array",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Resizes a temp array",
+   "example": "resize_temp_array = {\n\tarray = array_name\n\tvalue = 42 #optional, if not specified and array grows the new elements are set to this (default 0)\n\tsize = 3 #if higher than old size, new elements are added to end. otherwise last elements are removed to match to new size\n}\n#shorter usage: resize_temp_array = { array_name = 3 }"
+  },
+  {
+   "name": "resource_count_trigger",
+   "scopes": [
+    "STATE",
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks if the current scope has the specified amount of the specified resource.\nUsage: <Resource> < <int>\nSupported Resources: oil, aluminium, rubber, tungsten, steel, chromium, coal.",
+   "example": ""
+  },
+  {
+   "name": "round_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Rounds a temporary variable",
+   "example": "round_temp_variable = num_dogs"
+  },
+  {
+   "name": "scope_exists",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "Check if the current scope exist.\nThis differ from for example exists that checks if the country of the scope exists.\nThis checks if the scope for the country exists and the other if the country itself exists in the game.\nNote that variable scopes are always valid scopes.",
+   "example": "DEN = { exists = yes } # Should always be true since DEN is always a valid scope\nsp:sp_land_flamethrower_tank = {\n\tcharacter = {\n\t\tscope_exists = yes\n\t}\n} # True if the project has an assigned scientist.\nvar:my_var = {\n\tscope_exists = yes # Always true since variables are always valid scopes\n}"
+  },
+  {
+   "name": "seller",
+   "scopes": [
+    "PURCHASE_CONTRACT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check the seller country.",
+   "example": "seller = GER"
+  },
+  {
+   "name": "set_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "set_temp_variable = { num_dogs = 42 }\nset_temp_variable = {\n\tvar = num_dogs\n\tvalue = 42\n\ttooltip = loc_str_id_with_LEFT_and_RIGHT\n}\nset_temp_variable = {\n\tnum_dogs = { value = num_cats  multiply = 2  add = 1 }\n}",
+   "example": ""
+  },
+  {
+   "name": "set_temp_variable_to_random",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "sets a temp variable to a random value. example \nset_temp_variable_to_random = num_dogs #sets num_dogs a random value between [0, 1) \nset_temp_variable_to_random = { \n\tvar = num_dogs #variable to set \n\tmin = 5 #default 0. value will be set in between [min, max) \n\tmax = 10 #default 1. value will be set in between [min, max) \n\tinteger = yes #default no. if yes the number value will be an integer \n}",
+   "example": ""
+  },
+  {
+   "name": "ships_in_area",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of ships in specified area",
+   "example": ""
+  },
+  {
+   "name": "ships_in_state_ports",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "checks for amount of ships in specified state's ports. \nships_in_state_ports = { \n  type = ship_category \n  state = state_id (or scopped variable) \n  size = 42 \n}",
+   "example": ""
+  },
+  {
+   "name": "skill",
+   "scopes": [
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "compare leader skill levels",
+   "example": ""
+  },
+  {
+   "name": "skill_advantage",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "compare leader skill levels",
+   "example": ""
+  },
+  {
+   "name": "state",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "CAPITAL"
+   ],
+   "desc": "check state id",
+   "example": ""
+  },
+  {
+   "name": "state_and_terrain_strategic_value",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Checks for state strategic value",
+   "example": ""
+  },
+  {
+   "name": "state_population",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check the population in the state",
+   "example": ""
+  },
+  {
+   "name": "state_population_k",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "check the population in the state in thousands (use to avoid variable overflows)",
+   "example": ""
+  },
+  {
+   "name": "state_strategic_value",
+   "scopes": [
+    "STATE"
+   ],
+   "targets": [],
+   "desc": "Checks for state strategic value",
+   "example": ""
+  },
+  {
+   "name": "stockpile_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Compares the ratio of equipment archetype in stockpile vs used. a value of 2 means we have double in stockpile of what is fielded or in training.",
+   "example": ""
+  },
+  {
+   "name": "strength_ratio",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Compares the estimated army strength between the scope country and the one set with 'tag'",
+   "example": ""
+  },
+  {
+   "name": "subtract_from_temp_variable",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "subtract_from_temp_variable = { num_dogs = 5 }\nsubtract_from_temp_variable = {\n\tnum_dogs = { value = num_cats  multiply = 2 }\n}",
+   "example": ""
+  },
+  {
+   "name": "surrender_progress",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "check if a country is close to surrendering",
+   "example": ""
+  },
+  {
+   "name": "tag",
+   "scopes": [
+    "COUNTRY",
+    "CHARACTER",
+    "COMBATANT"
+   ],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "country tag trigger",
+   "example": ""
+  },
+  {
+   "name": "target_conscription_amount",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Checks the target conscription amount of the country.",
+   "example": ""
+  },
+  {
+   "name": "temperature",
+   "scopes": [
+    "COMBATANT"
+   ],
+   "targets": [],
+   "desc": "check combat province temperature",
+   "example": ""
+  },
+  {
+   "name": "threat",
+   "scopes": [
+    "any"
+   ],
+   "targets": [],
+   "desc": "check the global threat value (world tension). 0-1 value",
+   "example": ""
+  },
+  {
+   "name": "unit_organization",
+   "scopes": [],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check scope unit organization status 0-1: Example unit_organization < 1",
+   "example": ""
+  },
+  {
+   "name": "unit_strength",
+   "scopes": [],
+   "targets": [
+    "THIS",
+    "ROOT",
+    "PREV",
+    "FROM",
+    "OWNER",
+    "CONTROLLER",
+    "OCCUPIED",
+    "CAPITAL"
+   ],
+   "desc": "Check scope unit strength status 0-1: Example unit_strength < 1",
+   "example": ""
+  },
+  {
+   "name": "war_length_with",
+   "scopes": [
+    "COUNTRY"
+   ],
+   "targets": [],
+   "desc": "Check number of months the country has been at war with X for Y months.\n war_length_with = { tag = X months > Y }",
+   "example": ""
+  }
+ ]
+}

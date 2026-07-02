@@ -16,6 +16,7 @@ from ..config.constants import GAME_DIRS, HOI4_LANGUAGES
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
+from ._fsutil import ensure_filename_case as _ensure_filename_case
 
 
 @dataclass
@@ -48,6 +49,8 @@ def _invert_condition(cond: str) -> str:
     if cond.startswith("notdlc:"):
         return "dlc:" + cond[7:]
     return cond
+
+
 
 
 class CountryService:
@@ -167,23 +170,32 @@ class CountryService:
         return tuple(int(n) for n in nums)  # type: ignore[return-value]
 
     def set_color(self, tag: str, rgb: tuple[int, int, int], ref: CountryRef | None = None) -> list[Path]:
-        """Write a tag's color to the mod's colors.txt and, when the country's
-        definition file lives in the mod, into that file too (the user asked for both).
-        For vanilla countries we only touch colors.txt (authoritative) to avoid copying
-        the whole definition file."""
-        written: list[Path] = [self._write_colors_txt(tag, rgb)]
-        if ref is not None:
-            def_file = ref.country_file
-            if self._is_in_mod(def_file) and def_file.exists():
-                block = parse_file(def_file)
-                block.set("color", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
-                dump_file(block, def_file)
-                written.append(def_file)
-        return written
+        """Set a country's map color.
+
+        For a mod-owned country the color lives in its *own* definition file, which HOI4
+        reads as the country's default — this keeps the mod fully independent of vanilla
+        (no ``colors.txt`` is created, nothing is copied from the base game).
+
+        Only a vanilla country whose color is overridden in the base game's ``colors.txt``
+        needs a mod ``colors.txt`` — and since that file *replaces* vanilla wholesale, we
+        seed it with all vanilla colors so other countries keep theirs.
+        """
+        rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
+        if ref is not None and self._is_in_mod(ref.country_file) and ref.country_file.exists():
+            block = parse_file(ref.country_file)
+            block.set("color", rgb_block)
+            dump_file(block, ref.country_file)
+            return [ref.country_file]
+        return [self._write_colors_txt(tag, rgb)]
 
     def _write_colors_txt(self, tag: str, rgb: tuple[int, int, int]) -> Path:
         path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COLORS
-        block = self._colors_block(self.ctx.mod.path) or Block()
+        # A mod's colors.txt *replaces* the vanilla one, so the first time we create it
+        # we must seed it with every vanilla color — otherwise all other countries would
+        # lose their colors. Once it exists in the mod we just keep extending it.
+        block = self._colors_block(self.ctx.mod.path)
+        if block is None:
+            block = self._colors_block(self.ctx.game_path) or Block()
         entry = block.get_block(tag)
         rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
         if entry is None:
@@ -348,6 +360,7 @@ class CountryService:
     def _write_history(self, tag: str, name: str, block: Block) -> Path:
         target = self._mod_history_path(tag, name)
         target.parent.mkdir(parents=True, exist_ok=True)
+        target = _ensure_filename_case(target)
         dump_file(block, target)
         return target
 
@@ -534,9 +547,8 @@ class CountryService:
         def_file.parent.mkdir(parents=True, exist_ok=True)
         dump_file(def_block, def_file)
         written["definition"] = def_file
-
-        # 3) colors.txt
-        written["colors"] = self._write_colors_txt(tag, rgb)
+        # The definition file's `color` is the country's default — no colors.txt needed,
+        # keeping new countries fully independent of vanilla.
 
         # 4) history file
         hist = Block()
@@ -686,12 +698,26 @@ class CountryService:
                 return matches[0]
         return None
 
+    def _game_history_file(self, tag: str) -> Path | None:
+        folder = self.ctx.game_path / GAME_DIRS.HISTORY_COUNTRIES
+        if not folder.is_dir():
+            return None
+        matches = list(folder.glob(f"{tag} - *.txt")) + list(folder.glob(f"{tag}.txt"))
+        return matches[0] if matches else None
+
     def _mod_history_path(self, tag: str, name: str) -> Path:
-        existing = self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES
-        if existing.is_dir():
-            for candidate in existing.glob(f"{tag} - *.txt"):
+        folder = self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES
+        # Overriding a vanilla country: mirror its EXACT filename (case included). The
+        # Clausewitz engine matches override paths case-sensitively, so "SOV - Soviet
+        # Union.txt" would NOT override the real "SOV - Soviet union.txt".
+        vanilla = self._game_history_file(tag)
+        if vanilla is not None:
+            return folder / vanilla.name
+        # Brand-new mod country: reuse an existing mod file or build one from the name.
+        if folder.is_dir():
+            for candidate in folder.glob(f"{tag} - *.txt"):
                 return candidate
-            simple = existing / f"{tag}.txt"
+            simple = folder / f"{tag}.txt"
             if simple.exists():
                 return simple
-        return existing / f"{tag} - {name}.txt"
+        return folder / f"{tag} - {name}.txt"

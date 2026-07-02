@@ -134,3 +134,17 @@ class SpriteResolver:
             self._map = self._build()
         path = self._map.get(sprite_name)
         return path if (path and path.exists()) else None
+
+    def add(self, name: str, texture: Path) -> None:
+        """Record a sprite created at runtime without a full rescan."""
+        if self._map is None:
+            self._map = self._build()
+        self._map[name] = Path(texture)
+
+    def names(self, prefixes: tuple[str, ...] = ()) -> list[str]:
+        """All known sprite names, optionally filtered by prefix (case-insensitive)."""
+        if self._map is None:
+            self._map = self._build()
+        lows = tuple(p.lower() for p in prefixes)
+        return sorted(n for n in self._map
+                      if not lows or n.lower().startswith(lows))

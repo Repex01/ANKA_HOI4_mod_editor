@@ -7,6 +7,7 @@ from .base import EditorModule, EditorRegistry, EditorServices
 
 # Importing the modules triggers @EditorRegistry.register side-effects.
 from .countries import CountriesEditor  # noqa: F401,E402
+from .focuses import FocusesEditor  # noqa: F401,E402
 from .characters import CharactersEditor  # noqa: F401,E402
 from . import _stubs  # noqa: F401,E402
 

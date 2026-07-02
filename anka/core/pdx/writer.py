@@ -25,7 +25,10 @@ def dumps(node: Block, *, top_level: bool = True) -> str:
     return text + "\n" if text and top_level else text
 
 
-def dump_file(node: Block, path: str | Path, encoding: str = "utf-8-sig") -> None:
+def dump_file(node: Block, path: str | Path, encoding: str = "utf-8") -> None:
+    """Write a script file (.txt/.gfx). HOI4 script must be UTF-8 **without** a BOM —
+    a leading BOM makes the engine choke on the first token (``Unexpected token: ﻿…``).
+    Localisation .yml is the opposite and is handled by `LocFile.save` (BOM required)."""
     Path(path).write_text(dumps(node), encoding=encoding)
 
 

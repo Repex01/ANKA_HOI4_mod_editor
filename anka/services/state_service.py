@@ -14,6 +14,7 @@ from pathlib import Path
 from ..config.constants import GAME_DIRS
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
+from ._fsutil import ensure_filename_case as _ensure_filename_case
 
 
 @dataclass
@@ -127,6 +128,7 @@ class StateService:
         history.set("owner", Scalar(tag))
         if not history.has("add_core_of"):
             history.add("add_core_of", Scalar(tag))
+        target = _ensure_filename_case(target)  # match vanilla casing for override
         dump_file(block, target)
 
         # Refresh cache entry.
