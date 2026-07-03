@@ -23,6 +23,7 @@ from ..core.gfx import SpriteResolver
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
+from ._locutil import find_loc_file_with_key, loc_write_target
 
 GENERAL_ROLES = ("field_marshal", "corps_commander")
 ROLE_KEYS = ("country_leader", "advisor", "field_marshal", "corps_commander", "navy_leader")
@@ -176,6 +177,32 @@ class CharacterService:
         self._names = names
         return names
 
+    def get_name_loc(self, name_key: str, language: str) -> str:
+        """The character's display name in `language` (mod wins over vanilla)."""
+        for root in (self.ctx.mod.path, self.ctx.game_path):
+            yml = find_loc_file_with_key(root, language, name_key,
+                                         name_hints=("character",) if root == self.ctx.game_path else ())
+            if yml is not None:
+                try:
+                    return LocFile.load(yml).get(name_key, "") or ""
+                except OSError:
+                    continue
+        return ""
+
+    def set_name_loc(self, name_key: str, language: str, value: str) -> Path:
+        """Write the display name for one language. Vanilla-defined keys are edited
+        in a mod-side copy of the original file (override, no loc collision)."""
+        path = loc_write_target(
+            self.ctx.mod.path, self.ctx.game_path, language, name_key,
+            f"{GAME_DIRS.LOCALISATION}/{language}/anka_characters_l_{language}.yml",
+            name_hints=("character",))
+        loc = LocFile.load(path) if path.exists() else LocFile(language)
+        loc.set(name_key, value)
+        loc.save(path)
+        if language == "english" and self._names is not None:
+            self._names[name_key] = value
+        return path
+
     # --- creation / editing ---------------------------------------------
     def create_or_update(
         self,
@@ -226,12 +253,8 @@ class CharacterService:
         file.parent.mkdir(parents=True, exist_ok=True)
         dump_file(root, file)
 
-        # localisation of the display name
-        loc_path = (self.ctx.mod.path / GAME_DIRS.LOCALISATION / "english"
-                    / "anka_characters_l_english.yml")
-        loc = LocFile.load(loc_path) if loc_path.exists() else LocFile("english")
-        loc.set(char_id, name)
-        loc.save(loc_path)
+        # localisation of the display name (collision-safe, see set_name_loc)
+        self.set_name_loc(char_id, "english", name)
 
         # Incremental cache update — no full rescan. Rebuild just this character's model.
         if self._names is not None:

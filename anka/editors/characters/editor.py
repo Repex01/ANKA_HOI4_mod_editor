@@ -125,6 +125,29 @@ class CharactersEditor(EditorModule):
         self._id_entry = self._row_entry(f, r, self.t("characters.id"), self._v_id); r += 1
         self._v_name = tk.StringVar()
         self._row_entry(f, r, self.t("characters.name"), self._v_name); r += 1
+
+        # Localised display name: language picker + entry, auto-saved as you type
+        # (debounced) for characters that already exist on disk.
+        ttk.Label(f, text=self.t("characters.name_loc"), style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", padx=16, pady=3)
+        loc_row = ttk.Frame(f, style="Card.TFrame")
+        loc_row.grid(row=r, column=1, sticky="w", padx=8, pady=3); r += 1
+        from ...config.constants import HOI4_LANGUAGES
+        self._v_loc_lang = tk.StringVar(
+            value={"ru": "russian"}.get(self.services.settings.current.language, "english"))
+        lang_combo = ttk.Combobox(loc_row, textvariable=self._v_loc_lang,
+                                  values=list(HOI4_LANGUAGES), state="readonly", width=12)
+        lang_combo.pack(side="left", padx=(0, 6))
+        lang_combo.bind("<<ComboboxSelected>>", lambda e: self._load_loc_name())
+        self._v_loc_name = tk.StringVar()
+        self._loc_entry = ttk.Entry(loc_row, textvariable=self._v_loc_name, width=24)
+        self._loc_entry.pack(side="left")
+        self._loc_loaded = ""
+        self._loc_key: str | None = None
+        self._loc_job: str | None = None
+        self._v_loc_name.trace_add("write", lambda *_: self._schedule_loc_save())
+        self._loc_entry.bind("<FocusOut>", lambda e: self._save_loc_name())
+
         self._v_tag = tk.StringVar()
         self._row_entry(f, r, self.t("characters.tag"), self._v_tag, width=8); r += 1
 
@@ -222,12 +245,58 @@ class CharactersEditor(EditorModule):
         self._editing_existing = True
         self._prefill(model)
 
+    # --- localised name ----------------------------------------------------
+    def _load_loc_name(self) -> None:
+        """Fill the localized-name entry for the selected character + language."""
+        if self._loc_job is not None:
+            self._loc_entry.after_cancel(self._loc_job)
+            self._loc_job = None
+        was_loading = self._loading
+        self._loading = True
+        try:
+            if self._loc_key is None:
+                self._v_loc_name.set("")
+                self._loc_loaded = ""
+            else:
+                value = self.service.get_name_loc(self._loc_key, self._v_loc_lang.get())
+                self._v_loc_name.set(value)
+                self._loc_loaded = value
+        finally:
+            self._loading = was_loading
+
+    def _schedule_loc_save(self) -> None:
+        """Debounced instant save: commits ~1s after the user stops typing."""
+        if self._loading or self._loc_key is None:
+            return
+        if self._loc_job is not None:
+            self._loc_entry.after_cancel(self._loc_job)
+        self._loc_job = self._loc_entry.after(900, self._save_loc_name)
+
+    def _save_loc_name(self) -> None:
+        if self._loc_job is not None:
+            self._loc_entry.after_cancel(self._loc_job)
+            self._loc_job = None
+        if self._loading or self._loc_key is None:
+            return
+        value = self._v_loc_name.get().strip()
+        if not value or value == self._loc_loaded:
+            return
+        self.service.set_name_loc(self._loc_key, self._v_loc_lang.get(), value)
+        self._loc_loaded = value
+        if self._v_loc_lang.get() == "english":
+            self._v_name.set(value)
+        self._status.configure(text=self.t("characters.name_loc_saved",
+                                           lang=self._v_loc_lang.get()),
+                               foreground=self.palette.text_muted)
+
     # --- form population -------------------------------------------------
     def _new(self) -> None:
         self._loading = True
         self._selected = None
         self._editing_existing = False
+        self._loc_key = None
         self._clear_form()
+        self._load_loc_name()
         self._id_entry.configure(state="normal")
         self._hint.configure(text=self.t("characters.new"))
         self._loading = False
@@ -255,6 +324,8 @@ class CharactersEditor(EditorModule):
         self._v_id.set(model.char_id)
         self._v_name.set(model.name)
         self._v_tag.set(model.tag)
+        self._loc_key = model.name_key
+        self._load_loc_name()
         # portraits preview
         for cat, sizes in model.portraits.items():
             if cat in self._zones:

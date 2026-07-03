@@ -50,6 +50,14 @@ class Trigger(ScriptItem):
         super().__init__(kind="trigger", **kw)
 
 
+class Modifier(ScriptItem):
+    """A static modifier (e.g. ``stability_factor``). `scopes` holds its categories
+    (country/army/air/...), `description` the value format ("Number with 1 …")."""
+
+    def __init__(self, **kw):
+        super().__init__(kind="modifier", **kw)
+
+
 def _load(filename: str, cls) -> dict[str, ScriptItem]:
     path = _DATA_DIR / filename
     if not path.exists():
@@ -85,10 +93,16 @@ class ScriptCatalog:
     def triggers() -> dict[str, Trigger]:
         return _load("triggers.json", Trigger)  # type: ignore[return-value]
 
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def modifiers() -> dict[str, Modifier]:
+        return _load("modifiers.json", Modifier)  # type: ignore[return-value]
+
     # --- queries ----------------------------------------------------------
     @classmethod
     def items(cls, kind: str) -> dict[str, ScriptItem]:
-        return cls.effects() if kind == "effect" else cls.triggers()
+        return {"effect": cls.effects, "trigger": cls.triggers,
+                "modifier": cls.modifiers}[kind]()
 
     @classmethod
     def find(cls, name: str) -> ScriptItem | None:

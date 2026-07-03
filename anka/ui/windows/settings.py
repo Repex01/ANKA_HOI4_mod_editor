@@ -48,6 +48,20 @@ class SettingsScreen(ttk.Frame):
         ttk.Combobox(row, textvariable=self._theme, values=list(self._theme_label_map.keys()),
                      state="readonly", width=12).grid(row=1, column=1, pady=4)
 
+        # API keys (masked; stored in settings.json — for future AI features)
+        keys = ttk.Frame(card, style="Card.TFrame")
+        keys.grid(row=4, column=0, sticky="ew", pady=(16, 0))
+        keys.columnconfigure(1, weight=1)
+        ttk.Label(keys, text=t("settings.api_keys"), style="Heading.TLabel").grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 6))
+        self._api_key_field(keys, 1, "openai_api_key", t("settings.openai_key"),
+                            s.openai_api_key)
+        self._api_key_field(keys, 2, "claude_api_key", t("settings.claude_key"),
+                            s.claude_api_key)
+        ttk.Label(keys, text=t("settings.api_keys_hint"), style="CardMuted.TLabel",
+                  wraplength=560, justify="left").grid(row=3, column=0, columnspan=3,
+                                                       sticky="w", pady=(4, 0))
+
         # Apply
         footer = ttk.Frame(self, style="TFrame")
         footer.pack(fill="x", padx=24, pady=8)
@@ -74,6 +88,22 @@ class SettingsScreen(ttk.Frame):
         status = ttk.Label(block, text="", style="CardMuted.TLabel")
         status.grid(row=2, column=0, sticky="w")
         self._status_labels[key] = status
+
+    def _api_key_field(self, parent, row: int, key: str, label: str, value: str) -> None:
+        ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=3, padx=(0, 10))
+        var = tk.StringVar(value=value)
+        self._vars[key] = var
+        entry = ttk.Entry(parent, textvariable=var, show="•")
+        entry.grid(row=row, column=1, sticky="ew", pady=3)
+        shown = tk.BooleanVar(value=False)
+
+        def toggle() -> None:
+            shown.set(not shown.get())
+            entry.configure(show="" if shown.get() else "•")
+
+        ttk.Button(parent, text="👁", width=3, command=toggle).grid(
+            row=row, column=2, padx=(6, 0))
 
     def _browse(self, var: tk.StringVar) -> None:
         path = filedialog.askdirectory(initialdir=var.get() or None)
@@ -111,6 +141,8 @@ class SettingsScreen(ttk.Frame):
             workshop_mods_path=self._vars["workshop_mods_path"].get().strip(),
             language=self._lang.get(),
             theme=self._theme_label_map.get(self._theme.get(), "dark"),
+            openai_api_key=self._vars["openai_api_key"].get().strip(),
+            claude_api_key=self._vars["claude_api_key"].get().strip(),
         )
 
     def _apply(self) -> None:

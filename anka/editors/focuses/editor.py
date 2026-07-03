@@ -49,6 +49,8 @@ class FocusesEditor(EditorModule):
         self._issues_by_focus: dict[str, str] = {}
         self._clipboard: tuple[str, dict[str, tuple[int, int]]] | None = None
         self._menu: tk.Menu | None = None
+        self._or_session: tuple[str, int] | None = None   # (source fid, group index)
+        self._value_options: dict[str, list[tuple[str, str]]] = {}
         # The sprite map (game + all DLC .gfx files) takes seconds to build; warm it
         # in the background so opening a tree never blocks on it.
         self._resolver_ready = threading.Event()
@@ -84,6 +86,13 @@ class FocusesEditor(EditorModule):
             on_create=self._on_create,
             on_link=self._on_link,
             on_context=self._on_context,
+            on_delete=self._delete_selected,
+            on_link_end=self._on_link_end,
+            link_hints={
+                "single": self.t("focuses.link_status.single"),
+                "or": self.t("focuses.link_status.or"),
+                "and": self.t("focuses.link_status.and"),
+            },
             icons_ready=self.resolver_ready,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
@@ -136,6 +145,10 @@ class FocusesEditor(EditorModule):
         self._branch_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(bar, text=self.t("focuses.move_branch"),
                         variable=self._branch_var).pack(side="right", padx=10)
+        self._grid_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bar, text=self.t("focuses.grid"), variable=self._grid_var,
+                        command=lambda: self.canvas.set_grid(self._grid_var.get())
+                        ).pack(side="right", padx=(10, 0))
 
     def _build_list_panel(self, root) -> None:
         panel = ttk.Frame(root, style="Card.TFrame", padding=10)
@@ -199,19 +212,23 @@ class FocusesEditor(EditorModule):
         self._problems_visible = False
 
     # ------------------------------------------------------------- panel toggles
+    # NB: explicit flags, not winfo_ismapped() — the latter lags behind grid()/
+    # grid_remove() until redraw, so fast toggling could get stuck collapsed.
     def _toggle_list(self) -> None:
-        if self._list_panel.winfo_ismapped():
-            self._list_panel.grid_remove()
-        else:
+        self._list_visible = not getattr(self, "_list_visible", True)
+        if self._list_visible:
             self._list_panel.grid()
+        else:
+            self._list_panel.grid_remove()
 
     def _toggle_inspector(self) -> None:
-        if self._inspector_panel.winfo_ismapped():
-            self._inspector_panel.grid_remove()
-            self._btn_inspector.configure(text="◂ " + self.t("focuses.panel.inspector"))
-        else:
+        self._inspector_visible = not getattr(self, "_inspector_visible", True)
+        if self._inspector_visible:
             self._inspector_panel.grid()
             self._btn_inspector.configure(text=self.t("focuses.panel.inspector") + " ▸")
+        else:
+            self._inspector_panel.grid_remove()
+            self._btn_inspector.configure(text="◂ " + self.t("focuses.panel.inspector"))
 
     def _toggle_problems(self) -> None:
         self._problems_visible = not self._problems_visible
@@ -514,11 +531,18 @@ class FocusesEditor(EditorModule):
         focus = self._doc.find(source)
         if focus is None:
             return
-        if kind == "prerequisite":
+        if kind in ("prerequisite", "prerequisite_or"):
             groups = focus.prerequisites
             if any(target in g for g in groups):
                 return
-            groups.append([target])
+            if kind == "prerequisite_or" and self._or_session is not None \
+                    and self._or_session[0] == source \
+                    and self._or_session[1] < len(groups):
+                groups[self._or_session[1]].append(target)   # extend the OR group
+            else:
+                groups.append([target])                       # new AND group
+                if kind == "prerequisite_or":
+                    self._or_session = (source, len(groups) - 1)
             focus.prerequisites = groups
         else:
             if target not in focus.mutually_exclusive:
@@ -531,6 +555,10 @@ class FocusesEditor(EditorModule):
         self._validate()
         if self.inspector.focus_obj is not None:
             self.inspector.show(self.inspector.focus_obj, self._editable)
+
+    def _on_link_end(self) -> None:
+        """Link mode left (modifier released / Esc / click-away): close the OR session."""
+        self._or_session = None
 
     # ---------------------------------------------------------------- context menu
     def _on_context(self, event, fid: str | None, cell: tuple[int, int]) -> None:
@@ -722,6 +750,26 @@ class FocusesEditor(EditorModule):
         self.refresh_canvas()
         self._validate()
 
+    def _delete_selected(self, fids: list[str]) -> None:
+        """Delete-key handler: remove every selected document focus (one confirm)."""
+        if self._doc is None or not self._editable:
+            return
+        focuses = [f for fid in fids if (f := self._doc.find(fid)) is not None]
+        if not focuses:
+            return
+        if len(focuses) == 1:
+            self.delete_focus(focuses[0])
+            return
+        if not messagebox.askyesno("ANKA", self.t(
+                "focuses.confirm_delete_many", count=len(focuses))):
+            return
+        for focus in focuses:
+            self.service.remove_focus(self._doc, focus)
+        self.mark_dirty()
+        self.inspector.show(None)
+        self.refresh_canvas()
+        self._validate()
+
     def set_mutex(self, focus: Focus, values: list[str]) -> None:
         before = set(focus.mutually_exclusive)
         after = set(values)
@@ -749,6 +797,33 @@ class FocusesEditor(EditorModule):
         self.resolver.add(sprite, dds)
         self.canvas.invalidate_icon(sprite)
         return sprite
+
+    def value_options(self, vtype: str) -> list[tuple[str, str]]:
+        """(display, value) choices for typed script fields; cached per session.
+        Displays include both id and human name, so search finds either."""
+        cached = self._value_options.get(vtype)
+        if cached is not None:
+            return cached
+        opts: list[tuple[str, str]] = []
+        if vtype == "country":
+            from ...services.country_service import CountryService
+            for ref in CountryService(self.context).list_tags(include_vanilla=True):
+                opts.append((f"{ref.tag} · {ref.name}", ref.tag))
+        elif vtype == "state":
+            from ...services.state_service import StateService
+            for st in StateService(self.context).list_states():
+                opts.append((f"{st.id} · {st.name}", str(st.id)))
+        elif vtype == "idea":
+            from ...services.idea_service import IdeaService
+            for idea in IdeaService(self.context).list_ideas():
+                opts.append((f"{idea.id} · {idea.category}", idea.id))
+        elif vtype == "modifier":
+            from ..effects import ScriptCatalog
+            for name, mod in sorted(ScriptCatalog.modifiers().items()):
+                scopes = ", ".join(mod.scopes)
+                opts.append((f"{name} · {scopes}" if scopes else name, name))
+        self._value_options[vtype] = opts
+        return opts
 
     # ---------------------------------------------------------------- validation
     def _validate(self) -> None:
@@ -797,4 +872,5 @@ class FocusesEditor(EditorModule):
             messagebox.showerror("ANKA", self.t("focuses.err.save", error=str(exc)))
 
     def on_leave(self) -> None:
+        self.inspector.flush_pending()   # typed-but-not-yet-committed edits
         self._save()

@@ -7,6 +7,6 @@ game's own ``documentation/effects_documentation.md`` / ``triggers_documentation
 ``triggers.json`` by ``generate.py`` and loaded at runtime into `Effect` / `Trigger`
 instances via `ScriptCatalog`.
 """
-from .catalog import Effect, ScriptCatalog, ScriptItem, Trigger
+from .catalog import Effect, Modifier, ScriptCatalog, ScriptItem, Trigger
 
-__all__ = ["Effect", "Trigger", "ScriptItem", "ScriptCatalog"]
+__all__ = ["Effect", "Trigger", "Modifier", "ScriptItem", "ScriptCatalog"]

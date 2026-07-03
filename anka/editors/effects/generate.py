@@ -18,10 +18,13 @@ from pathlib import Path
 _DATA_DIR = Path(__file__).parent
 
 # Section headers that are structure, not keyword entries.
-_NON_ENTRY = re.compile(r"^(table of content|effects for scope .*|triggers for scope .*)$", re.I)
+_NON_ENTRY = re.compile(
+    r"^(table of content|effects for scope .*|triggers for scope .*|modifiers for scope .*)$",
+    re.I)
 _HEADER = re.compile(r"^## +(.+?) *$")
 _SCOPES = re.compile(r"^\* +Supported Scopes: *(.*)$")
 _TARGETS = re.compile(r"^\* +Supported Targets: *(.*)$")
+_MOD_CATEGORIES = re.compile(r"^\* +\*\*Categories\*\*: *(.*)$")
 
 
 def _split_list(raw: str) -> list[str]:
@@ -93,12 +96,50 @@ def parse_documentation(md_text: str) -> list[dict]:
     return sorted(entries.values(), key=lambda e: e["name"])
 
 
+def parse_modifiers_documentation(md_text: str) -> list[dict]:
+    """Parse ``modifiers_documentation.md``. Entry layout::
+
+        ## modifier_name
+        * Number with 1 decimal places
+        * **Categories**: army, country
+
+    Stored in the common catalog row shape: categories -> ``scopes``, the value
+    format line -> ``desc`` (so the runtime loader is shared with effects/triggers).
+    """
+    entries: dict[str, dict] = {}
+    current: dict | None = None
+    for line in md_text.splitlines():
+        m = _HEADER.match(line)
+        if m:
+            name = m.group(1).strip()
+            if _NON_ENTRY.match(name) or not re.fullmatch(r"[a-zA-Z0-9_.]+", name):
+                current = None
+                continue
+            current = entries.setdefault(
+                name, {"name": name, "scopes": [], "targets": [], "desc": "", "example": ""})
+            continue
+        if current is None:
+            continue
+        m = _MOD_CATEGORIES.match(line)
+        if m:
+            for cat in _split_list(m.group(1)):
+                if cat not in current["scopes"]:
+                    current["scopes"].append(cat)
+            continue
+        stripped = line.strip()
+        if stripped.startswith("*") and not current["desc"]:
+            current["desc"] = stripped.lstrip("* ").strip()
+    return sorted(entries.values(), key=lambda e: e["name"])
+
+
 def generate(game_path: Path) -> None:
     docs = game_path / "documentation"
-    for src, dst in (("effects_documentation.md", "effects.json"),
-                     ("triggers_documentation.md", "triggers.json")):
+    for src, dst, parser in (
+            ("effects_documentation.md", "effects.json", parse_documentation),
+            ("triggers_documentation.md", "triggers.json", parse_documentation),
+            ("modifiers_documentation.md", "modifiers.json", parse_modifiers_documentation)):
         md = (docs / src).read_text(encoding="utf-8-sig", errors="replace")
-        items = parse_documentation(md)
+        items = parser(md)
         payload = {"source": src, "count": len(items), "items": items}
         (_DATA_DIR / dst).write_text(
             json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")

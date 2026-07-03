@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..config.constants import GAME_DIRS
+from ..config.constants import GAME_DIRS, HOI4_LANGUAGES
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
 from ..core.pdx import parse as pdx_parse
@@ -452,6 +452,7 @@ class FocusService:
         self._shared_index: dict[str, tuple[FocusTreeRef, Focus]] | None = None
         self._loc_cache: dict[str, dict[str, str]] = {}       # language -> key -> value
         self._loc_files: dict[str, dict[str, Path]] = {}      # language -> key -> mod file
+        self._loc_vanilla: dict[str, dict[str, Path]] = {}    # language -> key -> game file
         self._filters: list[str] | None = None
 
     # --- listing -----------------------------------------------------------
@@ -790,22 +791,53 @@ class FocusService:
     def has_name(self, fid: str, language: str) -> bool:
         return fid in self._loc_index(language)
 
+    def has_any_name(self, fid: str, preferred: str = "english") -> bool:
+        """Is the focus named in *any* game language? Checks the preferred language
+        and english first (cheapest, most likely hits), then the rest."""
+        order = [preferred, "english"] + [l for l in HOI4_LANGUAGES
+                                          if l not in (preferred, "english")]
+        return any(fid in self._loc_index(lang) for lang in order)
+
     def set_focus_loc(self, fid: str, language: str,
                       name: str | None, desc: str | None) -> None:
-        """Write name/desc into the mod: update the file already carrying the key,
-        otherwise append to ANKA's focus localisation file for that language."""
+        """Write name/desc into the mod. Priority for the target file:
+        a mod file already carrying the key; else — when the key is vanilla — a
+        mod-side copy of the *original* vanilla file (same relative path => override,
+        no loc key collision); else ANKA's own focus localisation file."""
         default = (self.ctx.mod.path / GAME_DIRS.LOCALISATION / language
                    / f"anka_focus_l_{language}.yml")
+        self._loc_index(language)                      # ensure maps are built
         files = self._loc_files.setdefault(language, {})
+        vanilla = self._loc_vanilla.setdefault(language, {})
         for key, value in ((fid, name), (f"{fid}_desc", desc)):
             if value is None:
                 continue
-            path = files.get(key, default)
+            path = files.get(key)
+            if path is None and key in vanilla:
+                path = self._override_vanilla_loc(vanilla[key], language)
+            if path is None:
+                path = default
             loc = LocFile.load(path) if path.exists() else LocFile(language)
             loc.set(key, value)
             loc.save(path)
             files[key] = path
             self._loc_index(language)[key] = value
+
+    def _override_vanilla_loc(self, source: Path, language: str) -> Path:
+        """Copy a vanilla .yml into the mod at the same relative path and remap every
+        key it defines to the copy (further edits go there, not to ANKA files)."""
+        rel = source.relative_to(self.ctx.game_path)
+        target = ensure_filename_case(self.ctx.mod.path / rel)
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+        files = self._loc_files.setdefault(language, {})
+        try:
+            for entry in LocFile.load(target).entries():
+                files.setdefault(entry.key, target)
+        except OSError:
+            pass
+        return target
 
     def rename_focus_loc(self, old: str, new: str) -> None:
         """Carry every mod-side localisation entry over to the renamed id."""
@@ -836,12 +868,16 @@ class FocusService:
         if cached is not None:
             return cached
         index: dict[str, str] = {}
+        vanilla_files = self._loc_vanilla.setdefault(language, {})
         game_dir = self.ctx.game_path / GAME_DIRS.LOCALISATION
         if game_dir.is_dir():
             for yml in game_dir.rglob(f"*_l_{language}.yml"):
                 if "focus" not in yml.name.lower():
                     continue
+                before = set(index)
                 self._read_loc(yml, index)
+                for key in set(index) - before:
+                    vanilla_files[key] = yml
         files = self._loc_files.setdefault(language, {})
         mod_dir = self.ctx.mod.path / GAME_DIRS.LOCALISATION
         if mod_dir.is_dir():
@@ -978,8 +1014,8 @@ class FocusService:
 
         if language:
             for f in local:
-                if f.id and not f.text and not self.has_name(f.id, language) \
-                        and not self.has_name(f.id, "english"):
+                key = f.text or f.id      # `text` overrides the localisation key
+                if f.id and not self.has_any_name(key, preferred=language):
                     issues.append(Issue("warning", "missing_loc", f.id))
 
         return issues

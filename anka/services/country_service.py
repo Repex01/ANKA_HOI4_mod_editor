@@ -17,6 +17,7 @@ from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case as _ensure_filename_case
+from ._locutil import loc_write_target as _loc_write_target
 
 
 @dataclass
@@ -294,11 +295,17 @@ class CountryService:
     def set_localisation(self, tag: str, language: str, ideology: str | None,
                          name: str, definite: str = "", adjective: str = "",
                          party: str = "", party_long: str = "", party_desc: str = "") -> Path:
-        """Write country name/DEF/ADJ to the countries loc file. Party name/long/desc
-        (all optional) go to a *separate* parties file, mirroring vanilla's layout."""
+        """Write country name/DEF/ADJ (and optional party names, in their own file,
+        mirroring vanilla's layout).
+
+        Keys that vanilla already defines are edited inside a mod-side *copy of the
+        original file* (same relative path => engine override, no loc key collision);
+        brand-new keys land in ANKA's files. See `_locutil.loc_write_target`."""
         base = self._loc_key(tag, ideology)
-        loc_root = self.ctx.mod.path / GAME_DIRS.LOCALISATION / language
-        country_path = loc_root / f"anka_countries_l_{language}.yml"
+        country_path = _loc_write_target(
+            self.ctx.mod.path, self.ctx.game_path, language, base,
+            f"{GAME_DIRS.LOCALISATION}/{language}/anka_countries_l_{language}.yml",
+            name_hints=("countries",))
         loc = LocFile.load(country_path) if country_path.exists() else LocFile(language)
         if name:
             loc.set(base, name)
@@ -311,7 +318,10 @@ class CountryService:
         # Party localisation — separate file, written only when something is provided.
         if ideology and (party or party_long or party_desc):
             party_key = f"{tag}_{ideology}_party"
-            party_path = loc_root / f"anka_parties_l_{language}.yml"
+            party_path = _loc_write_target(
+                self.ctx.mod.path, self.ctx.game_path, language, party_key,
+                f"{GAME_DIRS.LOCALISATION}/{language}/anka_parties_l_{language}.yml",
+                name_hints=("part",))
             ploc = LocFile.load(party_path) if party_path.exists() else LocFile(language)
             if party:
                 ploc.set(party_key, party)

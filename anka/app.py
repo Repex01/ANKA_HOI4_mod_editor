@@ -33,7 +33,8 @@ class AnkaApp:
         self.root = create_root()
         self.root.title(f"{__app_name__} {__version__}")
         self.root.minsize(*self.MIN_SIZE)
-        self._center(*self.MIN_SIZE)
+        self._center(*self.MIN_SIZE)      # sane restore-size before maximizing
+        self._maximize()
         self._icon_ref = None
         self._load_icon()
 
@@ -106,6 +107,16 @@ class AnkaApp:
     @property
     def palette(self):
         return self.theme.palette
+
+    def _maximize(self) -> None:
+        """Start maximized ("zoomed" on Windows; X11 uses the -zoomed attribute)."""
+        try:
+            self.root.state("zoomed")
+        except tk.TclError:
+            try:
+                self.root.attributes("-zoomed", True)
+            except tk.TclError:
+                pass                      # WM without maximize support: keep centered
 
     def _center(self, w: int, h: int) -> None:
         x = (self.root.winfo_screenwidth() - w) // 2

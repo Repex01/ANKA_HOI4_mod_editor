@@ -11,5 +11,7 @@
     "al",
     "2948642461",
     "Technoaura"
-  ]
+  ],
+  "openai_api_key": "",
+  "claude_api_key": ""
 }

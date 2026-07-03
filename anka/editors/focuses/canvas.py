@@ -58,11 +58,17 @@ class FocusCanvas(ttk.Frame):
                  on_link: Callable[[str, str, str], None],
                  on_context: Callable[[tk.Event, str | None, tuple[int, int]], None],
                  on_open: Callable[[str], None] | None = None,
+                 on_delete: Callable[[list[str]], None] | None = None,
+                 on_link_end: Callable[[], None] | None = None,
+                 link_hints: dict[str, str] | None = None,
                  icons_ready: Callable[[], bool] | None = None):
         super().__init__(master, style="TFrame")
         self.palette = palette
         self._resolve_icon = resolve_icon
         self._icons_ready = icons_ready
+        self._on_delete = on_delete
+        self._on_link_end = on_link_end
+        self._link_hints = link_hints or {}
         self._on_select = on_select
         self._on_move = on_move
         self._on_create = on_create
@@ -72,6 +78,7 @@ class FocusCanvas(ttk.Frame):
 
         self.model = CanvasModel()
         self.zoom = 1.0
+        self.show_grid = True
         self.selection: list[str] = []
         self._origin = (0, 0)              # cell offset so all coords are positive
         self._by_id: dict[str, CanvasNode] = {}
@@ -81,6 +88,7 @@ class FocusCanvas(ttk.Frame):
         self._queued: set[str] = set()
         self._pump_job: str | None = None
         self._link_mode: tuple[str, str] | None = None    # (source fid, kind)
+        self._link_multi: str | None = None               # None | "or" | "and"
         self._press: dict | None = None
         self._ghosts: list[int] = []
 
@@ -96,6 +104,11 @@ class FocusCanvas(ttk.Frame):
 
         self.minimap = _Minimap(self, palette)
 
+        # Bottom-left status pill, shown only while picking prerequisites.
+        self._link_status = tk.Label(self, bd=0, padx=10, pady=5,
+                                     bg=palette.accent, fg=palette.accent_text,
+                                     font=("Segoe UI", 9))
+
         c = self.canvas
         c.configure(takefocus=1)
         c.bind("<ButtonPress-1>", self._press_1)
@@ -110,6 +123,11 @@ class FocusCanvas(ttk.Frame):
         c.bind("<Shift-MouseWheel>", self._wheel_h)
         c.bind("<Control-MouseWheel>", self._wheel_zoom)
         c.bind("<Escape>", lambda e: self.cancel_link_mode())
+        c.bind("<Delete>", self._delete_key)
+        for key in ("Shift_L", "Shift_R"):
+            c.bind(f"<KeyRelease-{key}>", lambda e: self._end_multi("or"))
+        for key in ("Control_L", "Control_R"):
+            c.bind(f"<KeyRelease-{key}>", lambda e: self._end_multi("and"))
         c.bind("<Configure>", lambda e: self.minimap.refresh_viewport())
 
     def _on_xscroll(self, *args) -> None:
@@ -199,6 +217,8 @@ class FocusCanvas(ttk.Frame):
         height = (max_y - min_y + 2 * _MARGIN_CELLS + 1) * ch
         c.configure(scrollregion=(0, 0, width, height))
 
+        if self.show_grid:
+            self._draw_grid(width, height)
         for child, parent, is_or in self.model.prereqs:
             self._draw_prereq(child, parent, is_or)
         for a, b in self.model.mutexes:
@@ -208,6 +228,26 @@ class FocusCanvas(ttk.Frame):
         self._apply_selection()
         self.minimap.render(self)
         self._schedule_pump()
+
+    def set_grid(self, visible: bool) -> None:
+        if visible != self.show_grid:
+            self.show_grid = visible
+            self.render()
+
+    def _draw_grid(self, width: float, height: float) -> None:
+        """Faint cell borders under everything else."""
+        c = self.canvas
+        cw, ch = self._cell_px()
+        color = self.palette.surface_alt if self.palette.is_dark else self.palette.border
+        x = 0.0
+        while x <= width + 1:
+            c.create_line(x, 0, x, height, fill=color, width=1, tags="grid")
+            x += cw
+        y = 0.0
+        while y <= height + 1:
+            c.create_line(0, y, width, y, fill=color, width=1, tags="grid")
+            y += ch
+        c.tag_lower("grid")
 
     def _node_rect(self, node: CanvasNode) -> tuple[float, float, float, float]:
         px, py = self._cell_to_px(node.pos)
@@ -389,9 +429,23 @@ class FocusCanvas(ttk.Frame):
         fid = self._hit_node(event)
         if self._link_mode is not None:
             src, kind = self._link_mode
+            if fid is None or fid == src:
+                self.cancel_link_mode()          # clicked away: abort picking
+                return
+            shift = bool(event.state & 0x0001)
+            ctrl = bool(event.state & 0x0004)
+            if kind == "prerequisite" and (self._link_multi or shift or ctrl):
+                # Multi-pick: Shift accumulates one OR group, Ctrl adds AND groups;
+                # the mode ends when the modifier key is released (or Esc).
+                if self._link_multi is None:
+                    self._link_multi = "or" if shift else "and"
+                    self._show_link_status()
+                self._on_link(src, fid,
+                              "prerequisite_or" if self._link_multi == "or"
+                              else "prerequisite")
+                return
             self.cancel_link_mode()
-            if fid and fid != src:
-                self._on_link(src, fid, kind)
+            self._on_link(src, fid, kind)
             return
         if fid is None:
             self.set_selection([], notify=True)
@@ -421,9 +475,9 @@ class FocusCanvas(ttk.Frame):
         delta = self._drag_delta(event)
         self._show_ghosts(delta)
 
-    def _drag_delta(self, event) -> tuple[int, int]:
+    def _drag_delta(self, event, press: dict | None = None) -> tuple[int, int]:
         cell = self._event_cell(event)
-        start = self._press["cell"]
+        start = (press or self._press)["cell"]
         return cell[0] - start[0], cell[1] - start[1]
 
     def _show_ghosts(self, delta: tuple[int, int]) -> None:
@@ -448,7 +502,7 @@ class FocusCanvas(ttk.Frame):
         self._ghosts = []
         if not press or press.get("pan") or not press.get("dragging"):
             return
-        delta = self._drag_delta(event)
+        delta = self._drag_delta(event, press)   # self._press is already cleared
         if delta != (0, 0):
             ids = [f for f in (self.selection or [press["fid"]])
                    if (n := self._by_id.get(f)) and n.editable]
@@ -503,15 +557,41 @@ class FocusCanvas(ttk.Frame):
         c.yview_moveto(max(0.0, (wy * ch - sy) / max(sr[3], 1)))
         self.minimap.refresh_viewport()
 
+    def _delete_key(self, _event) -> None:
+        if self._on_delete is not None and self.selection:
+            self._on_delete(list(self.selection))
+
     # --------------------------------------------------------------- link mode
     def start_link_mode(self, source_fid: str, kind: str) -> None:
         """kind: 'prerequisite' | 'mutually_exclusive'"""
         self._link_mode = (source_fid, kind)
+        self._link_multi = None
         self.canvas.configure(cursor="crosshair")
+        if kind == "prerequisite":
+            self._show_link_status()
+        self.canvas.focus_set()      # so modifier KeyRelease events reach us
 
     def cancel_link_mode(self) -> None:
+        was_active = self._link_mode is not None
         self._link_mode = None
+        self._link_multi = None
         self.canvas.configure(cursor="")
+        self._link_status.place_forget()
+        if was_active and self._on_link_end is not None:
+            self._on_link_end()
+
+    def _end_multi(self, which: str) -> None:
+        """Releasing the modifier that started a multi-pick commits & exits."""
+        if self._link_mode is not None and self._link_multi == which:
+            self.cancel_link_mode()
+
+    def _show_link_status(self) -> None:
+        text = self._link_hints.get(self._link_multi or "single", "")
+        if not text:
+            return
+        self._link_status.configure(text=text)
+        self._link_status.place(in_=self.canvas, x=10, rely=1.0, y=-10, anchor="sw")
+        self._link_status.lift()
 
     @property
     def link_mode(self) -> tuple[str, str] | None:

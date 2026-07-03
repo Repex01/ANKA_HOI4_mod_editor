@@ -71,6 +71,20 @@ class SpriteRegistry:
             self._sprite_types().add("SpriteType", sprite)
         return self
 
+    def register_sprite(self, sprite: Block) -> "SpriteRegistry":
+        """Add a fully-built SpriteType block (replaces an existing one by name).
+        Used for complex sprites (shine animations) that `register` can't express."""
+        name = (sprite.get_scalar("name") or "").strip('"')
+        existing = self.find(name)
+        if existing is not None:
+            for pair in self._sprite_types().pairs():
+                if pair.value is existing:
+                    pair.value = sprite
+                    break
+        else:
+            self._sprite_types().add("SpriteType", sprite)
+        return self
+
     def save(self) -> Path:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         dump_file(self.root, self.path)

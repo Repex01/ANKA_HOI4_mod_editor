@@ -1,0 +1,6862 @@
+{
+ "source": "modifiers_documentation.md",
+ "count": 722,
+ "items": [
+  {
+   "name": "acclimatization_cold_climate_gain_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "acclimatization_hot_climate_gain_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ace_effectiveness_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "additional_brigade_column_size",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "agency_upgrade_time",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_badass_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_call_ally_desire_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_desired_divisions_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_aggressive_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_aviation_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_defense_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_military_advancements_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_military_equipment_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_naval_air_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_naval_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_peaceful_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_focus_war_production_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_get_ally_desire_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_join_ally_desire_factor",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ai_license_acceptance",
+   "scopes": [
+    "ai"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_accidents",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_accidents_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_ace_bonuses_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_ace_generation_chance_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_advisor_cost_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_agility_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_attack_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_bombing_targetting",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_carrier_night_penalty_reduction_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_cas_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_cas_present_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_close_air_support_org_damage_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_defence_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_detection",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_doctrine_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_equipment_upgrade_xp_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_escort_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_fuel_consumption_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_home_defence_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_intercept_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_interception_detect_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_invasion_division_cap",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_invasion_plan_cap",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_invasion_prep_days",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_invasion_preparation",
+   "scopes": [
+    "air",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_manpower_requirement_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_maximum_speed_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_mission_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_mission_xp_gain_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_nav_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_night_penalty",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_power_projection_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_range_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_strategic_bomber_bombing_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_strategic_bomber_defence_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_strategic_bomber_night_penalty",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_superiority_bonus_in_combat",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_superiority_detect_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_superiority_efficiency",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_training_xp_gain_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_untrained_pilots_penalty_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_volunteer_cap",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_weather_penalty",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "air_wing_xp_loss_when_killed_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "airforce_intel_decryption_bonus",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "airforce_intel_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "airforce_intel_to_others",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "amphibious_invasion",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "amphibious_invasion_against",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "amphibious_invasion_defence",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "annex_cost_factor",
+   "scopes": [
+    "peace",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "annex_subject_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "armor_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_advisor_cost_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_armor_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_armor_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_armor_speed_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_artillery_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_artillery_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_attack_against_major_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_attack_against_minor_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_attack_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_bonus_air_superiority_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_breakthrough_against_major_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_breakthrough_against_minor_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_claim_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_claim_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_core_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_core_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_defence_against_major_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_defence_against_minor_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_experience_from_volunteers",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_fuel_capacity_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_fuel_consumption_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_infantry_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_infantry_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_intel_decryption_bonus",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_intel_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_intel_to_others",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_cost_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_start_attack_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_start_defense_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_start_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_start_logistics_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_leader_start_planning_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_morale",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_morale_factor",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_non_core_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_non_core_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_org",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_org_factor",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_org_regain",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_retreat_speed_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_speed_factor_for_controller",
+   "scopes": [
+    "state",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "army_strength_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "assign_army_leader_cp_cost",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "assign_navy_leader_cp_cost",
+   "scopes": [
+    "naval",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "attack_bonus_against",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "attack_bonus_against_cores",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "attrition",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "attrition_for_controller",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "automatic_grant_medal_chance",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_global_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_ll_to_overlord",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_ll_to_overlord_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_ll_to_subject",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_ll_to_subject_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_trade",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_trade_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_warscore",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_gain_warscore_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_manpower_share",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "autonomy_manpower_share_from_subjects",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "base_fuel_gain",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "base_fuel_gain_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "boost_ideology_mission_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "boost_resistance_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "breakthrough_bonus_against",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "breakthrough_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "can_guarantee_other_ideologies",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "can_master_build_for_us",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "cannot_retreat_while_attacking",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "cannot_retreat_while_defending",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "cannot_use_abilities",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "carrier_capacity_penalty_reduction",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "carrier_night_traffic",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "carrier_sortie_hours_delay",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "carrier_traffic",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cas_damage_reduction",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "casualty_trickleback",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cavalry_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cavalry_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "choose_preferred_tactics_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cic_construction_boost",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cic_construction_boost_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cic_to_overlord_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "cic_to_target_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "civil_war_involvement_tension",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "civilian_factory_use",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "civilian_intel_decryption_bonus",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "civilian_intel_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "civilian_intel_to_others",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "coastal_bunker_effectiveness_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "combat_entrenchment",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "combat_width_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "command_abilities_cost_factor",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "command_power_gain",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "command_power_gain_mult",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "commando_trait_chance_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "compliance_gain",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 3 decimal places",
+   "example": ""
+  },
+  {
+   "name": "compliance_growth",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "compliance_growth_on_our_occupied_states",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "conscription",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "conscription_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "consumer_goods_expected_value",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "consumer_goods_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "control_trade_mission_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "conversion_cost_civ_to_mil_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "conversion_cost_mil_to_civ_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "convoy_escort_efficiency",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "convoy_raiding_efficiency_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "convoy_retreat_speed",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "coordination_bonus",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "critical_receive_chance",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "crypto_department_enabled",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "crypto_strength",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "decryption",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "decryption_factor",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "decryption_power",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "decryption_power_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "defence",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "defense_bonus_against",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "defense_impact_on_blueprint_stealing",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "defensive_war_stability_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "dig_in_speed",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "dig_in_speed_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "diplomatic_pressure_mission_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "disable_strategic_redeployment",
+   "scopes": [
+    "state",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "disable_strategic_redeployment_for_controller",
+   "scopes": [
+    "state",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "disabled_ideas",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "dockyard_donations",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "dont_lose_dig_in_on_attack",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "drift_defence_factor",
+   "scopes": [
+    "politics"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "embargo_cost_factor",
+   "scopes": [
+    "country",
+    "politics"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "embargo_threshold_factor",
+   "scopes": [
+    "country",
+    "politics"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "encryption",
+   "scopes": [
+    "country",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "encryption_factor",
+   "scopes": [
+    "country",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_army_bonus_air_superiority_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_army_speed_factor",
+   "scopes": [
+    "state",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_attrition",
+   "scopes": [
+    "state",
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_declare_war_tension",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_intel_network_gain_factor_over_occupied_tag",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_justify_war_goal_time",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_local_supplies",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_capture_chance_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_detection_chance",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_detection_chance_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_detection_chance_factor_over_occupied_tag",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_detection_chance_over_occupied_tag",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_forced_into_hiding_time_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_harmed_time_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_intel_extraction_rate",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_operative_recruitment_chance",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_spy_negative_status_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "enemy_truck_attrition_factor",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "energy_gain_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "energy_scale_per_trade_factory_export_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_capture",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_capture_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_capture_factor_for_controller",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_capture_for_controller",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_conversion_speed",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "equipment_upgrade_xp_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "exile_manpower_factor",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "exiled_divisions_attack_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "exiled_divisions_defense_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "exiled_government_weekly_manpower",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_air",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_air_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_army",
+   "scopes": [
+    "army",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_army_factor",
+   "scopes": [
+    "army",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_army_unit",
+   "scopes": [
+    "army",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_army_unit_factor",
+   "scopes": [
+    "army",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_factor",
+   "scopes": [
+    "unit_leader",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_navy",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_navy_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_navy_unit",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_gain_navy_unit_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "experience_loss_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "extra_marine_supply_grace",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "extra_paratrooper_supply_grace",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "extra_trade_to_overlord_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "extra_trade_to_target_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "faction_influence_contribution_factor",
+   "scopes": [
+    "faction"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "faction_influence_war_score_factor",
+   "scopes": [
+    "faction"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "faction_subject_contribution_gain",
+   "scopes": [
+    "faction"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "faction_trade_opinion_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "factory_energy_consumption",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_divisional_commander_chance",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_random_admiral_chance",
+   "scopes": [
+    "naval",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_random_army_leader_chance",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_random_country_leader_chance",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_random_operative_chance",
+   "scopes": [
+    "country",
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "female_random_scientist_chance",
+   "scopes": [
+    "country",
+    "scientist"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "field_officer_promotion_penalty",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fighter_sortie_efficiency",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "floating_harbor_duration",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "floating_harbor_range",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "floating_harbor_supply",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "forced_surrender_limit",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "foreign_subversive_activites",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fortification_collateral_chance",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fortification_damage",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fuel_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fuel_gain",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fuel_gain_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fuel_gain_factor_from_states",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "fuel_gain_from_states",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "generate_wargoal_tension",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "generate_wargoal_tension_against",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "global_building_slots",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "global_building_slots_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "grant_medal_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ground_attack",
+   "scopes": [
+    "air",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ground_attack_factor",
+   "scopes": [
+    "air",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "guarantee_cost",
+   "scopes": [
+    "country",
+    "politics"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "guarantee_tension",
+   "scopes": [
+    "country",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "headquarters_experience_gain_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "heat_attrition",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "heat_attrition_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "improve_relations_maintain_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industrial_capacity_dockyard",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industrial_capacity_dockyard_powered",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industrial_capacity_factory",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industrial_capacity_factory_powered",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industrial_factory_donations",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industry_air_damage_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industry_free_repair_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "industry_repair_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "initiative_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intel_from_combat_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intel_from_operatives_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intel_network_gain",
+   "scopes": [
+    "unit_leader",
+    "country",
+    "state",
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intel_network_gain_factor",
+   "scopes": [
+    "unit_leader",
+    "country",
+    "state",
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intelligence_agency_defense",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "intelligence_operation_speed",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "invasion_preparation",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "invasion_preparation_against",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "join_faction_tension",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "justify_war_goal_time",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "justify_war_goal_when_in_major_war_time",
+   "scopes": [
+    "country",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "land_bunker_effectiveness_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "land_doctrine_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "land_equipment_upgrade_xp_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "land_night_attack",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "land_reinforce_rate",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "legitimacy_daily",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "legitimacy_gain_factor",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "lend_lease_tension",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "lend_lease_tension_with_overlord",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_air_purchase_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_anti_tank_eq_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_anti_tank_eq_production_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_anti_tank_eq_tech_difference_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_armor_purchase_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_artillery_eq_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_artillery_eq_production_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_artillery_eq_tech_difference_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_infantry_eq_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_infantry_eq_production_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_infantry_eq_tech_difference_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_infantry_purchase_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_light_tank_eq_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_light_tank_eq_production_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_light_tank_eq_tech_difference_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_naval_purchase_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_production_speed",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_purchase_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_subject_master_purchase_cost",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "license_tech_difference_speed",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "line_change_production_efficiency_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_building_slots",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_building_slots_factor",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_factories",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_factory_energy_consumption",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_factory_energy_consumption_per_infrastructure",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_factory_sabotage",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_intel_to_enemies",
+   "scopes": [
+    "state",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_manpower",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_non_core_manpower",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_non_core_supply_impact_factor",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_org_regain",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_resource_gain_efficiency_per_infrastructure",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_resources",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_resources_factor",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_supplies",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_supplies_for_controller",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "local_supply_impact_factor",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "marines_special_forces_contribution_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "master_build_autonomy_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "master_ideology_drift",
+   "scopes": [
+    "politics"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_army_group_size",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_command_power",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_command_power_mult",
+   "scopes": [
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_commander_army_size",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_dig_in",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_dig_in_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_fuel",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_fuel_building",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_fuel_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_organisation",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_planning",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_planning_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_surrender_limit_offset",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "max_training",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mechanized_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mechanized_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mic_to_overlord_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mic_to_target_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_factory_donations",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_design_team_assign_cost",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_design_team_change_cost",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_funds_gain",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_industrial_manufacturer_assign_cost",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_policy_cooldown",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_policy_cost",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_research_bonus",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_size_up_requirement",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_industrial_organization_task_capacity",
+   "scopes": [
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "military_leader_cost_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "min_export",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mines_planting_by_air_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mines_planting_by_fleets_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mines_sweeping_by_air_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mines_sweeping_by_fleets_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "minimum_training_level",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mobilization_speed",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_recon_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_recon_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_recon_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_recon_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_armored_car_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_blackshirt_assault_battalion_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_blackshirt_assault_battalion_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_blackshirt_assault_battalion_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_blackshirt_assault_battalion_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_camelry_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_camelry_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_camelry_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_category_rocket_artillery_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_category_special_forces_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_cavalry_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_cavalry_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_cavalry_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_infantry_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_infantry_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_infantry_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_irregular_infantry_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_irregular_infantry_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_irregular_infantry_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_irregular_infantry_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_light_tank_recon_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_light_tank_recon_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_light_tank_recon_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_light_tank_recon_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_long_range_patrol_support_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_long_range_patrol_support_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_marine_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_marine_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_marine_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_marine_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_military_police_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_military_police_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_military_police_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_military_police_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_militia_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_militia_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_militia_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_militia_org_recovery_cap_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_militia_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_mountaineers_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_mountaineers_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_mountaineers_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_mountaineers_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_paratrooper_attack_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_paratrooper_defence_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_paratrooper_max_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "modifier_army_sub_unit_paratrooper_speed_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "monthly_population",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "motorized_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "motorized_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "mountaineers_special_forces_contribution_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_accidents_chance",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_attrition",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_commando_raid_distance",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_coordination",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_critical_effect_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_critical_score_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_critical_score_chance_factor_against",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_damage_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_defense_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_detection",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_doctrine_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_enemy_fleet_size_ratio_penalty_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_enemy_positioning_in_initial_attack",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_enemy_retreat_chance",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_equipment_upgrade_xp_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_has_potf_in_combat_attack",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_has_potf_in_combat_defense",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_heavy_gun_hit_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_hit_chance",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_hit_chance_against",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_capacity",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_division_cap",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_penalty",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_plan_cap",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_planning_bonus_speed",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_prep_days",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_invasion_prep_speed",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_light_gun_hit_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_mine_hit_chance",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_mines_damage_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_mines_effect_reduction",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_mission_xp_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 3 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_morale",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_morale_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_night_attack",
+   "scopes": [
+    "naval",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_retreat_chance",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_retreat_chance_after_initial_combat",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_retreat_speed",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_retreat_speed_after_initial_combat",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_ship_recovery_chance",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_ship_recovery_chance_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_speed_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_strike",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_strike_agility_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_strike_attack_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_strike_targetting_factor",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_supply_consumption_factor",
+   "scopes": [
+    "naval",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_cooldown_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_damage_reduction_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_enemy_critical_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_hit_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_reveal_chance_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "naval_torpedo_screen_penetration_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_advisor_cost_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_anti_air_attack",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_anti_air_attack_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_capital_ship_attack_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_capital_ship_attack_factor_against",
+   "scopes": [
+    "naval",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_capital_ship_defence_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_capital_ship_defence_factor_against",
+   "scopes": [
+    "naval",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_carrier_air_agility_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_carrier_air_attack_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_carrier_air_targetting_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_casualty_on_hit",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_casualty_on_sink",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_fuel_consumption_factor",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_intel_decryption_bonus",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_intel_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_intel_to_others",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_cost_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_start_attack_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_start_coordination_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_start_defense_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_start_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_leader_start_maneuvering_level",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_max_range",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_max_range_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_org",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_org_factor",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_screen_attack_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_screen_attack_factor_against",
+   "scopes": [
+    "naval",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_screen_defence_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_screen_defence_factor_against",
+   "scopes": [
+    "naval",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_submarine_attack_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_submarine_attack_factor_against",
+   "scopes": [
+    "naval",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_submarine_defence_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_submarine_defence_factor_against",
+   "scopes": [
+    "naval",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_submarine_detection_factor",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_visibility",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "navy_weather_penalty",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "new_operative_slot_bonus",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "night_spotting_chance",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "no_compliance_gain",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "no_supply_grace",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "non_core_manpower",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "nuclear_production",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "nuclear_production_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "occupied_operative_recruitment_chance",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "offence",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "offensive_war_stability_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "operation_cost",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "operation_infiltrate_outcome",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "operation_outcome",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "operative_death_on_capture_chance",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "operative_slot",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "opinion_gain_monthly",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "opinion_gain_monthly_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "opinion_gain_monthly_same_ideology",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "opinion_gain_monthly_same_ideology_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "org_damage_multiplier",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "org_loss_at_low_org_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "org_loss_when_moving",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "out_of_power_impact_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "out_of_supply_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "overlord_trade_cost_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_exiled_divisions_attack_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_exiled_divisions_defense_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_capture_chance_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_detection_chance",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_detection_chance_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_forced_into_hiding_time_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_harmed_time_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "own_operative_intel_extraction_rate",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "paradrop_organization_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "paratrooper_aa_defense",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "paratrooper_weight_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "paratroopers_special_forces_contribution_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "party_popularity_stability_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "peace_score_ratio_transferred_to_overlord",
+   "scopes": [
+    "peace"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "peace_score_ratio_transferred_to_players",
+   "scopes": [
+    "peace"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "planning_decay_rate_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "planning_speed",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "pocket_penalty",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "political_power_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "political_power_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "political_power_gain",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "port_strike",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "positioning",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "power_balance_daily",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "power_balance_weekly",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_factory_efficiency_gain_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_factory_max_efficiency_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_factory_start_efficiency_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_lack_of_resource_penalty_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_oil_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_speed_buildings_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_speed_buildings_powered_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "production_speed_facility_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "promote_cost_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "propaganda_mission_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "puppet_cost_factor",
+   "scopes": [
+    "peace",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "railway_gun_bombardment_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "rangers_special_forces_contribution_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "reassignment_duration_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "recon_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "recon_factor_while_entrenched",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "recruitable_population",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 3 decimal places",
+   "example": ""
+  },
+  {
+   "name": "recruitable_population_factor",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "refit_ic_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "refit_speed",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "repair_speed_factor",
+   "scopes": [
+    "naval",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "request_lease_tension",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "required_garrison_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "research_sharing_per_country_bonus",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "research_sharing_per_country_bonus_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "research_speed_factor",
+   "scopes": [
+    "country",
+    "military_advancements"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_activity",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_damage_to_garrison",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_damage_to_garrison_on_our_occupied_states",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_decay",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_decay_on_our_occupied_states",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_garrison_penetration_chance",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_growth",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_growth_on_our_occupied_states",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_target",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resistance_target_on_our_occupied_states",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resource_trade_cost_bonus_per_factory",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "resources_to_overlord_factor",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "river_crossing_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "river_crossing_factor_against",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "rocket_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "root_out_resistance_effectiveness_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "scientist_breakthrough_bonus_factor",
+   "scopes": [
+    "character"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "scientist_research_bonus_factor",
+   "scopes": [
+    "character"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "scientist_xp_gain_factor",
+   "scopes": [
+    "character"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "screening_efficiency",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "screening_without_screens",
+   "scopes": [
+    "naval",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "send_volunteer_divisions_required",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "send_volunteer_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "send_volunteer_size",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "send_volunteers_tension",
+   "scopes": [
+    "country",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "ships_at_battle_start",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "shore_bombardment_bonus",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "shore_bombardment_collateral_damage_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "sickness_chance",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "skill_bonus_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "sortie_efficiency",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_attack_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_cap",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_cap_flat",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_defence_factor",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_doctrine_cost_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_min",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_no_supply_grace",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_out_of_supply_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_forces_training_time_factor",
+   "scopes": [
+    "army",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_project_facility_supply_consumption_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "special_project_speed_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "spotting_chance",
+   "scopes": [
+    "naval",
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "spotting_chance_against",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "stability_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "stability_weekly",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "stability_weekly_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "starting_compliance",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "state_production_speed_buildings_factor",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "state_production_speed_facility_factor",
+   "scopes": [
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "state_resources_factor",
+   "scopes": [
+    "state",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "static_anti_air_damage_factor",
+   "scopes": [
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "static_anti_air_hit_chance_factor",
+   "scopes": [
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "str_damage_multiplier",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "strategic_bomb_visibility",
+   "scopes": [
+    "air"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "strike_force_movement_org_loss",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "sub_retreat_speed",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "subjects_autonomy_gain",
+   "scopes": [
+    "autonomy"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "submarine_attack",
+   "scopes": [
+    "naval",
+    "unit_leader",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "subversive_activites_upkeep",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "supply_combat_penalties_on_core_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "supply_consumption_factor",
+   "scopes": [
+    "army",
+    "defensive",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "supply_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "supply_node_range",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "surrender_limit",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "target_sabotage_factor",
+   "scopes": [
+    "intelligence_agency"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "targeted_legitimacy_daily",
+   "scopes": [
+    "government_in_exile"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "tech_air_damage_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "terrain_penalty_reduction",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "terrain_trait_xp_gain_factor",
+   "scopes": [
+    "naval",
+    "country",
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "thermonuclear_production",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Boolean",
+   "example": ""
+  },
+  {
+   "name": "thermonuclear_production_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "trade_cost_for_target_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "trade_opinion_factor",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "training_time_army",
+   "scopes": [
+    "army",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "training_time_army_factor",
+   "scopes": [
+    "army",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "training_time_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "transport_capacity",
+   "scopes": [
+    "naval"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "truck_attrition",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "truck_attrition_factor",
+   "scopes": [
+    "country",
+    "state"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "underway_replenishment_convoy_cost",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "underway_replenishment_range",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "unit_leader_as_advisor_cp_cost_factor",
+   "scopes": [
+    "unit_leader",
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "unit_medal_effectiveness",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "unit_upkeep_attrition_factor",
+   "scopes": [
+    "army"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "war_stability_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "war_support_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "war_support_reduction_on_damage",
+   "scopes": [
+    "army",
+    "defensive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "war_support_weekly",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "war_support_weekly_factor",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "weekly_bombing_war_support",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "weekly_casualties_war_support",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "weekly_convoys_war_support",
+   "scopes": [
+    "country"
+   ],
+   "targets": [],
+   "desc": "Number with 2 decimal places",
+   "example": ""
+  },
+  {
+   "name": "weekly_manpower",
+   "scopes": [
+    "country",
+    "war_production"
+   ],
+   "targets": [],
+   "desc": "Number with 0 decimal places",
+   "example": ""
+  },
+  {
+   "name": "winter_attrition",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "winter_attrition_factor",
+   "scopes": [
+    "army",
+    "aggressive"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  },
+  {
+   "name": "wounded_chance_factor",
+   "scopes": [
+    "unit_leader"
+   ],
+   "targets": [],
+   "desc": "Number with 1 decimal places",
+   "example": ""
+  }
+ ]
+}

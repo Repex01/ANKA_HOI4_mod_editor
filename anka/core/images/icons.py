@@ -17,7 +17,13 @@ from ...config.constants import (
     LEADER_PORTRAIT_SIZE,
 )
 from ..gfx import SpriteRegistry
+from ..pdx import Block, Pair, Scalar
 from .converter import ImageConverter
+
+# The animated overlay every focus "shine" uses; shipped by the base game, so a mod
+# .gfx may reference it by this path without bundling the texture.
+_SHINE_OVERLAY = "gfx/interface/goals/shine_overlay.dds"
+_SHINE_EFFECT = "gfx/FX/buttonstate.lua"
 
 
 class IconService:
@@ -32,10 +38,49 @@ class IconService:
         gfx_file: str = "anka_focuses.gfx",
         compressed: bool = False,
     ) -> tuple[Path, Path]:
-        """Generate ``GFX_focus_<focus_name>`` and register it. Returns (dds, gfx)."""
+        """Generate ``GFX_focus_<focus_name>`` and register it. Returns (dds, gfx).
+
+        Alongside the base sprite a ``GFX_focus_<name>_shine`` is registered in
+        ``anka_focuses_shine.gfx`` (mirroring vanilla ``goals_shine.gfx``) — without
+        it the in-game "focus available" glow animation is missing."""
         sprite = f"GFX_focus_{focus_name}"
         rel_texture = f"{GAME_DIRS.GFX_GOALS}/{focus_name}.dds"
-        return self._add_icon(source, sprite, rel_texture, gfx_file, FOCUS_ICON_SIZE, compressed)
+        result = self._add_icon(source, sprite, rel_texture, gfx_file,
+                                FOCUS_ICON_SIZE, compressed)
+        self._register_shine(sprite, rel_texture)
+        return result
+
+    def _register_shine(self, sprite: str, rel_texture: str,
+                        gfx_file: str = "anka_focuses_shine.gfx") -> Path:
+        """Write the two-pass scrolling shine animation for a focus icon."""
+        def animation(rotation: float) -> Block:
+            anim = Block()
+            anim.add("animationmaskfile", Scalar(rel_texture, quoted=True))
+            anim.add("animationtexturefile", Scalar(_SHINE_OVERLAY, quoted=True))
+            anim.add("animationrotation", Scalar(f"{rotation:.1f}"))
+            anim.add("animationlooping", Scalar("no"))
+            anim.add("animationtime", Scalar("0.75"))
+            anim.add("animationdelay", Scalar("0"))
+            anim.add("animationblendmode", Scalar("add", quoted=True))
+            anim.add("animationtype", Scalar("scrolling", quoted=True))
+            anim.add("animationrotationoffset",
+                     Block([Pair("x", Scalar("0.0")), Pair("y", Scalar("0.0"))]))
+            anim.add("animationtexturescale",
+                     Block([Pair("x", Scalar("1.0")), Pair("y", Scalar("1.0"))]))
+            return anim
+
+        shine = Block()
+        shine.add("name", Scalar(f"{sprite}_shine", quoted=True))
+        shine.add("texturefile", Scalar(rel_texture, quoted=True))
+        shine.add("effectFile", Scalar(_SHINE_EFFECT, quoted=True))
+        shine.add("animation", animation(-90.0))
+        shine.add("animation", animation(90.0))
+        shine.add("legacy_lazy_load", Scalar("no"))
+
+        gfx_path = self.mod_root / GAME_DIRS.INTERFACE / gfx_file
+        registry = SpriteRegistry(gfx_path)
+        registry.register_sprite(shine)
+        return registry.save()
 
     # --- ideas / national spirits ---------------------------------------
     def add_idea_icon(

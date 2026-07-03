@@ -21,6 +21,10 @@ class Settings:
     language: str = "ru"            # UI language code (matches locales/<code>.json)
     theme: str = "dark"             # "dark" | "light"
     recent_mods: list[str] = field(default_factory=list)
+    # AI integrations (reserved for future features). Stored as plain text in
+    # settings.json — keep that file out of any shared repository.
+    openai_api_key: str = ""
+    claude_api_key: str = ""
 
     @property
     def paths_configured(self) -> bool:
@@ -84,9 +88,20 @@ class SettingsService:
         self.save()
 
     # --- observer pattern: theme/language changes propagate to the UI ---
+    # Today the only subscriber is the AnkaApp instance, which lives as long as the
+    # process — so a missing unsubscribe cannot leak. Anything shorter-lived
+    # (screens, editors) MUST pair subscribe with unsubscribe, or the listener list
+    # would keep destroyed widgets (and their Tk trees) alive and _notify would
+    # touch dead widgets.
     def subscribe(self, listener: Callable[[Settings], None]) -> None:
         self._listeners.append(listener)
 
+    def unsubscribe(self, listener: Callable[[Settings], None]) -> None:
+        try:
+            self._listeners.remove(listener)
+        except ValueError:
+            pass
+
     def _notify(self) -> None:
-        for listener in self._listeners:
+        for listener in list(self._listeners):
             listener(self._settings)

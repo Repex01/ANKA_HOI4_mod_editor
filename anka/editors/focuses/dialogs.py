@@ -12,6 +12,7 @@ from typing import Callable
 
 from PIL import Image, ImageTk
 
+from ...core.pdx import Block, Pair, dumps
 from ...ui.widgets import ImageDropZone
 
 _ID_RE = re.compile(r"^\w+$")
@@ -25,12 +26,15 @@ class BaseDialog(tk.Toplevel):
         self.palette = editor.palette
         self.title(title)
         self.configure(bg=self.palette.bg)
-        self.transient(master.winfo_toplevel())
+        top = master.winfo_toplevel()
+        self.transient(top)
         w, h = size
         self.geometry(f"{w}x{h}")
         self.update_idletasks()
-        x = master.winfo_rootx() + (master.winfo_width() - w) // 2
-        y = master.winfo_rooty() + (master.winfo_height() - h) // 2
+        # Center over the application window, not over `master` (which may be a
+        # narrow side panel — that used to shove dialogs to the screen edge).
+        x = top.winfo_rootx() + (top.winfo_width() - w) // 2
+        y = top.winfo_rooty() + (top.winfo_height() - h) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         self.grab_set()
         self.bind("<Escape>", lambda e: self.destroy())
@@ -92,9 +96,11 @@ class TextPromptDialog(BaseDialog):
         if value in self._taken:
             self._error.configure(text=self.t("focuses.err.duplicate_id"))
             return
+        # Read widget state BEFORE destroy() — the combobox dies with the dialog.
+        choice = self._choices[self._combo.current()][0] if self._choices else None
         self.destroy()
-        if self._choices:
-            self._on_submit(value, self._choices[self._combo.current()][0])  # type: ignore[call-arg]
+        if choice is not None:
+            self._on_submit(value, choice)  # type: ignore[call-arg]
         else:
             self._on_submit(value)
 
@@ -152,6 +158,74 @@ class MultiPickDialog(BaseDialog):
         self._on_pick(picked)
 
 
+class SinglePickDialog(BaseDialog):
+    """Searchable single-select picker over (display, value) options.
+    The search matches the whole display string — so states are found both by id
+    and by name, countries by tag and name, etc."""
+
+    def __init__(self, master, editor, title: str,
+                 options: list[tuple[str, str]],
+                 on_pick: Callable[[str], None], current: str = ""):
+        super().__init__(master, editor, title, (440, 520))
+        self._options = options
+        self._on_pick = on_pick
+        self._shown: list[tuple[str, str]] = []
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=12)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.rowconfigure(1, weight=1)
+        body.columnconfigure(0, weight=1)
+
+        self._search = tk.StringVar()
+        self._search.trace_add("write", lambda *_: self._refresh())
+        entry = ttk.Entry(body, textvariable=self._search)
+        entry.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
+        entry.focus_set()
+        entry.bind("<Return>", lambda e: self._submit())
+
+        self._list = tk.Listbox(body, bg=self.palette.surface_alt, fg=self.palette.text,
+                                relief="flat", selectbackground=self.palette.accent,
+                                font=("Consolas", 10), exportselection=False)
+        self._list.grid(row=1, column=0, sticky="nsew")
+        sb = ttk.Scrollbar(body, orient="vertical", command=self._list.yview)
+        sb.grid(row=1, column=1, sticky="ns")
+        self._list.configure(yscrollcommand=sb.set)
+        self._list.bind("<Double-1>", lambda e: self._submit())
+
+        row = ttk.Frame(body, style="Card.TFrame")
+        row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        ttk.Button(row, text=self.t("common.cancel"),
+                   command=self.destroy).pack(side="right", padx=(6, 0))
+        ttk.Button(row, text=self.t("common.ok"), style="Accent.TButton",
+                   command=self._submit).pack(side="right")
+
+        self._current = current
+        self._refresh()
+
+    def _refresh(self) -> None:
+        q = self._search.get().strip().lower()
+        self._list.delete(0, "end")
+        self._shown = []
+        for display, value in self._options:
+            if q and q not in display.lower():
+                continue
+            if len(self._shown) >= 1000:
+                break
+            self._shown.append((display, value))
+            self._list.insert("end", display)
+            if value == self._current:
+                self._list.selection_set("end")
+                self._list.see("end")
+
+    def _submit(self) -> None:
+        sel = self._list.curselection()
+        if not sel:
+            return
+        value = self._shown[sel[0]][1]
+        self.destroy()
+        self._on_pick(value)
+
+
 class NewTreeDialog(BaseDialog):
     """Create a new focus-tree file: file name, tree id, country tag, default flag."""
 
@@ -177,8 +251,10 @@ class NewTreeDialog(BaseDialog):
 
         ttk.Label(body, text=self.t("focuses.country_tag"), style="CardMuted.TLabel").grid(
             row=2, column=0, sticky="w", pady=4)
+        self._all_tags = tags
         self._tag = ttk.Combobox(body, values=tags)
         self._tag.grid(row=2, column=1, sticky="ew", padx=(10, 0), pady=4)
+        self._tag.bind("<KeyRelease>", self._filter_tags)
 
         self._default = tk.BooleanVar(value=False)
         ttk.Checkbutton(body, text=self.t("focuses.default_tree"), style="Card.TCheckbutton",
@@ -192,6 +268,15 @@ class NewTreeDialog(BaseDialog):
         self._error.grid(row=5, column=0, columnspan=2, sticky="w")
         self.buttons_row(body, self.t("common.add")).grid(
             row=6, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+    def _filter_tags(self, event) -> None:
+        """Type-to-search: narrow the dropdown to tags starting with the typed text."""
+        if event.keysym in ("Up", "Down", "Return", "Escape", "Tab"):
+            return
+        typed = self._tag.get().strip().upper()
+        matches = ([t for t in self._all_tags if t.startswith(typed)]
+                   if typed else self._all_tags)
+        self._tag.configure(values=matches or self._all_tags)
 
     def _submit(self) -> None:
         tree_id = self._tree_id.get().strip()
@@ -332,6 +417,48 @@ class TreePropertiesDialog(BaseDialog):
         self._on_change()
 
 
+class FocusPreviewDialog(BaseDialog):
+    """Read-only serialized view of one focus — exactly what will be written to the
+    file — with one-click copy to clipboard."""
+
+    def __init__(self, master, editor, focus):
+        super().__init__(master, editor,
+                         editor.t("focuses.preview_title", id=focus.id), (640, 560))
+        self.resizable(True, True)
+        script = dumps(Block([Pair(focus.kind, focus.block)])).rstrip("\n")
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=10)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.rowconfigure(0, weight=1)
+        body.columnconfigure(0, weight=1)
+        text = tk.Text(body, wrap="none", bg=self.palette.surface_alt,
+                       fg=self.palette.text, relief="flat", font=("Consolas", 10),
+                       tabs="24")
+        text.grid(row=0, column=0, sticky="nsew")
+        ysb = ttk.Scrollbar(body, orient="vertical", command=text.yview)
+        ysb.grid(row=0, column=1, sticky="ns")
+        xsb = ttk.Scrollbar(body, orient="horizontal", command=text.xview)
+        xsb.grid(row=1, column=0, sticky="ew")
+        text.configure(yscrollcommand=ysb.set, xscrollcommand=xsb.set)
+        text.insert("1.0", script)
+        text.configure(state="disabled")
+
+        bar = ttk.Frame(body, style="Card.TFrame")
+        bar.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self._copied = ttk.Label(bar, text="", style="CardMuted.TLabel")
+        self._copied.pack(side="left")
+        ttk.Button(bar, text=self.t("common.close"),
+                   command=self.destroy).pack(side="right", padx=(6, 0))
+        ttk.Button(bar, text="📋 " + self.t("focuses.script.copy"),
+                   style="Accent.TButton",
+                   command=lambda: self._copy(script)).pack(side="right")
+
+    def _copy(self, script: str) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(script)
+        self._copied.configure(text="✓ " + self.t("focuses.script.copied"))
+
+
 class IconPickerDialog(BaseDialog):
     """Sprite gallery (game + DLC + mod focus icons) with search, plus custom import."""
 
@@ -345,8 +472,13 @@ class IconPickerDialog(BaseDialog):
         self._resolver = resolver
         self._on_pick = on_pick
         self._photos: dict[str, ImageTk.PhotoImage] = {}
-        self._names = resolver.names(prefixes=("GFX_focus_", "GFX_goal_"))
+        # Shine sprites duplicate their base icon (same texture, animation on top) —
+        # showing them would double every icon in the gallery.
+        self._names = [n for n in resolver.names(prefixes=("GFX_focus_", "GFX_goal_"))
+                       if not n.lower().endswith("_shine")]
+        self._matches: list[str] = []
         self._shown = 0
+        self._appending = False
 
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
@@ -369,9 +501,9 @@ class IconPickerDialog(BaseDialog):
         self._canvas = tk.Canvas(canvas_wrap, bg=self.palette.surface,
                                  highlightthickness=0, bd=0)
         self._canvas.grid(row=0, column=0, sticky="nsew")
-        sb = ttk.Scrollbar(canvas_wrap, orient="vertical", command=self._canvas.yview)
-        sb.grid(row=0, column=1, sticky="ns")
-        self._canvas.configure(yscrollcommand=sb.set)
+        self._sb = ttk.Scrollbar(canvas_wrap, orient="vertical", command=self._canvas.yview)
+        self._sb.grid(row=0, column=1, sticky="ns")
+        self._canvas.configure(yscrollcommand=self._on_scroll)
         self._grid = ttk.Frame(self._canvas, style="Card.TFrame")
         self._win = self._canvas.create_window((0, 0), window=self._grid, anchor="nw")
         self._grid.bind("<Configure>", lambda e: self._canvas.configure(
@@ -383,9 +515,8 @@ class IconPickerDialog(BaseDialog):
 
         bottom = ttk.Frame(body, style="Card.TFrame")
         bottom.grid(row=2, column=0, sticky="ew", pady=(8, 0))
-        self._more = ttk.Button(bottom, text=self.t("focuses.more_icons"),
-                                command=lambda: self._refresh(more=True))
-        self._more.pack(side="left")
+        self._counter = ttk.Label(bottom, text="", style="CardMuted.TLabel")
+        self._counter.pack(side="left")
         if on_import is not None:
             zone = ImageDropZone(bottom, on_import, prompt=self.t("focuses.import_icon"),
                                  preview_size=(88, 66), palette=self.palette)
@@ -394,27 +525,50 @@ class IconPickerDialog(BaseDialog):
                    command=self.destroy).pack(side="right", padx=8)
         self._refresh()
 
-    def _refresh(self, more: bool = False) -> None:
-        self._shown = self._shown + self.PAGE if more else self.PAGE
+    def _refresh(self) -> None:
+        """Search changed: rebuild the gallery from scratch (first page only —
+        further pages stream in as the user scrolls, see `_on_scroll`)."""
         for w in self._grid.winfo_children():
             w.destroy()
         self._photos.clear()
         q = self._search.get().strip().lower()
-        matches = [n for n in self._names if q in n.lower()] if q else self._names
-        cols = 6
-        for i, name in enumerate(matches[: self._shown]):
-            photo = self._thumb(name)
-            cell = ttk.Frame(self._grid, style="Card.TFrame", padding=4)
-            cell.grid(row=i // cols, column=i % cols, padx=3, pady=3)
-            btn = tk.Button(cell, image=photo, bd=0, bg=self.palette.surface,
-                            activebackground=self.palette.surface_alt, cursor="hand2",
-                            command=lambda n=name: self._pick(n))
-            btn.pack()
-            short = name.removeprefix("GFX_focus_").removeprefix("GFX_goal_")
-            tk.Label(cell, text=short[:14], bg=self.palette.surface,
-                     fg=self.palette.text_muted, font=("Segoe UI", 8)).pack()
-        self._more.configure(state="normal" if len(matches) > self._shown else "disabled")
+        self._matches = [n for n in self._names if q in n.lower()] if q else list(self._names)
+        self._shown = 0
         self._canvas.yview_moveto(0)
+        self._append_page()
+
+    def _append_page(self) -> None:
+        """Render the next batch of thumbnails (infinite scroll)."""
+        if self._appending or self._shown >= len(self._matches):
+            return
+        self._appending = True
+        try:
+            cols = 6
+            page = self._matches[self._shown: self._shown + self.PAGE]
+            for offset, name in enumerate(page):
+                i = self._shown + offset
+                photo = self._thumb(name)
+                cell = ttk.Frame(self._grid, style="Card.TFrame", padding=4)
+                cell.grid(row=i // cols, column=i % cols, padx=3, pady=3)
+                btn = tk.Button(cell, image=photo, bd=0, bg=self.palette.surface,
+                                activebackground=self.palette.surface_alt, cursor="hand2",
+                                command=lambda n=name: self._pick(n))
+                btn.pack()
+                short = name.removeprefix("GFX_focus_").removeprefix("GFX_goal_")
+                tk.Label(cell, text=short[:14], bg=self.palette.surface,
+                         fg=self.palette.text_muted, font=("Segoe UI", 8)).pack()
+            self._shown += len(page)
+            self._counter.configure(text=f"{self._shown} / {len(self._matches)}")
+        finally:
+            self._appending = False
+
+    def _on_scroll(self, first: str, last: str) -> None:
+        """Scrollbar proxy: when the view reaches the bottom, stream the next page.
+        Also self-feeds until the content overflows the viewport."""
+        self._sb.set(first, last)
+        if float(last) > 0.9 and self._shown < len(self._matches):
+            # Defer: appending mid-scroll-callback confuses the canvas geometry.
+            self.after_idle(self._append_page)
 
     def _thumb(self, name: str) -> ImageTk.PhotoImage:
         if name in self._photos:

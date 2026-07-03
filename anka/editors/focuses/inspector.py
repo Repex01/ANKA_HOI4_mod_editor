@@ -20,15 +20,21 @@ from ...services.focus_service import (
     Focus,
 )
 from ...ui.widgets import ScrollableFrame
-from .dialogs import IconPickerDialog, MultiPickDialog, TextPromptDialog
+from .dialogs import (
+    FocusPreviewDialog,
+    IconPickerDialog,
+    MultiPickDialog,
+    TextPromptDialog,
+)
 from .script_editor import ScriptEditorDialog
 
-# Which catalog tab a script field opens with.
-_SCRIPT_KIND = {
-    "available": "trigger", "bypass": "trigger", "cancel": "trigger",
-    "allow_branch": "trigger",
-    "select_effect": "effect", "completion_reward": "effect",
-    "complete_tooltip": "effect", "ai_will_do": "effect",
+# Which block kinds each script field accepts. Condition-only fields must never
+# offer effects — they are triggers by definition.
+_SCRIPT_KINDS = {
+    "available": ("trigger",), "bypass": ("trigger",), "cancel": ("trigger",),
+    "allow_branch": ("trigger",), "ai_will_do": ("trigger",),
+    "select_effect": ("effect", "trigger"), "completion_reward": ("effect", "trigger"),
+    "complete_tooltip": ("effect", "trigger"),
 }
 
 
@@ -43,7 +49,9 @@ class FocusInspector(ttk.Frame):
         self._icon_photo: ImageTk.PhotoImage | None = None
         self._loaded_name = ""
         self._loaded_desc = ""
+        self._commit_jobs: dict[str, tuple[str, object]] = {}   # key -> (after id, commit fn)
         self._build()
+        self._wire_instant_commits()
         self.show(None)
 
     # ------------------------------------------------------------------ build
@@ -206,8 +214,12 @@ class FocusInspector(ttk.Frame):
 
         # scripts ---------------------------------------------------------------------------
         ttk.Separator(f).grid(row=fr, column=0, columnspan=2, sticky="ew", pady=8); fr += 1
-        ttk.Label(f, text=self.t("focuses.inspector.scripts"), style="Card.TLabel").grid(
-            row=fr, column=0, columnspan=2, sticky="w", pady=(0, 4)); fr += 1
+        scripts_head = ttk.Frame(f, style="Card.TFrame")
+        scripts_head.grid(row=fr, column=0, columnspan=2, sticky="ew", pady=(0, 4)); fr += 1
+        ttk.Label(scripts_head, text=self.t("focuses.inspector.scripts"),
+                  style="Card.TLabel").pack(side="left")
+        ttk.Button(scripts_head, text="👁 " + self.t("focuses.preview"),
+                   command=self._preview).pack(side="right")
         self._script_status: dict[str, ttk.Label] = {}
         for field_name in FOCUS_SCRIPT_FIELDS:
             row = ttk.Frame(f, style="Card.TFrame")
@@ -228,8 +240,48 @@ class FocusInspector(ttk.Frame):
                                       command=lambda: self.owner.delete_focus(self.focus_obj))
         self._delete_btn.grid(row=fr, column=0, columnspan=2, sticky="ew")
 
+    def _wire_instant_commits(self) -> None:
+        """Commit edits as the user types (debounced) — no Enter/FocusOut required.
+        FocusOut/Return bindings stay as an immediate flush."""
+        wiring = (
+            ("pos", self._x, self._commit_position, 700),
+            ("pos", self._y, self._commit_position, 700),
+            ("cost", self._cost, self._commit_cost, 700),
+            ("war", self._war, self._commit_war, 700),
+            ("loc", self._name_var, self._commit_loc, 1200),
+        )
+        for job_key, var, commit, delay in wiring:
+            var.trace_add("write",
+                          lambda *_, k=job_key, c=commit, d=delay: self._debounce(k, c, d))
+        self._desc.bind("<KeyRelease>",
+                        lambda e: self._debounce("loc", self._commit_loc, 1200))
+
+    def _debounce(self, key: str, commit, delay: int) -> None:
+        if self._loading or self.focus_obj is None:
+            return
+        pending = self._commit_jobs.pop(key, None)
+        if pending is not None:
+            self.after_cancel(pending[0])
+        job = self.after(delay, lambda: (self._commit_jobs.pop(key, None), commit()))
+        self._commit_jobs[key] = (job, commit)
+
+    def flush_pending(self) -> None:
+        """Run pending debounced commits *now* — called before the inspector is
+        repointed at another focus (or the editor is left), so an edit made moments
+        before clicking elsewhere is saved, not dropped."""
+        for job, commit in list(self._commit_jobs.values()):
+            self.after_cancel(job)
+        pending = [commit for _job, commit in self._commit_jobs.values()]
+        self._commit_jobs.clear()
+        for commit in pending:
+            commit()
+
     # ------------------------------------------------------------------- show
     def show(self, focus: Focus | None, editable: bool = True) -> None:
+        # Pending debounced commits belong to the previous focus: the canvas press
+        # handler runs before the entry's FocusOut, so flush them here while the old
+        # focus and field values are still intact — otherwise the edit is lost.
+        self.flush_pending()
         self.focus_obj = focus
         self._editable = editable
         self._loading = True
@@ -551,9 +603,10 @@ class FocusInspector(ttk.Frame):
         focus = self.focus_obj
         if focus is None:
             return
+        kinds = _SCRIPT_KINDS.get(name, ("effect", "trigger"))
         if not self._editable:
             ScriptEditorDialog(self, self.owner, name, focus.get_script(name),
-                               lambda text: None, _SCRIPT_KIND.get(name, "effect"))
+                               lambda text: None, kinds, focus.id)
             return
 
         def submitted(text: str) -> None:
@@ -565,4 +618,8 @@ class FocusInspector(ttk.Frame):
             self._refresh_scripts()
 
         ScriptEditorDialog(self, self.owner, name, focus.get_script(name),
-                           submitted, _SCRIPT_KIND.get(name, "effect"))
+                           submitted, kinds, focus.id)
+
+    def _preview(self) -> None:
+        if self.focus_obj is not None:
+            FocusPreviewDialog(self, self.owner, self.focus_obj)

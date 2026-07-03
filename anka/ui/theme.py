@@ -109,6 +109,11 @@ class ThemeManager:
         s.configure("TCombobox", fieldbackground=p.surface, background=p.surface_alt,
                     foreground=p.text, arrowcolor=p.text, bordercolor=p.border, padding=5)
         s.map("TCombobox", fieldbackground=[("readonly", p.surface)])
+        s.configure("TSpinbox", fieldbackground=p.surface, background=p.surface_alt,
+                    foreground=p.text, arrowcolor=p.text, bordercolor=p.border,
+                    insertcolor=p.text, padding=5)
+        s.map("TSpinbox", fieldbackground=[("readonly", p.surface)],
+              foreground=[("disabled", p.text_muted)])
 
         s.configure("TCheckbutton", background=p.bg, foreground=p.text)
         s.map("TCheckbutton", background=[("active", p.bg)])
