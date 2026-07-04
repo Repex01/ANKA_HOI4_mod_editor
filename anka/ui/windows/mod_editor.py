@@ -34,6 +34,8 @@ class ModEditorScreen(ttk.Frame):
         ttk.Button(header, text="‹ " + t("common.back"), command=self.app.show_mod_list).pack(side="left")
         ttk.Label(header, text=t("editor.title", name=self.mod.name),
                   style="Title.TLabel").pack(side="left", padx=16)
+        ttk.Button(header, text="📂 " + t("editor.open_folder"),
+                   command=self._open_mod_folder).pack(side="right")
 
         body = ttk.Frame(self, style="TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=(4, 16))
@@ -59,6 +61,22 @@ class ModEditorScreen(ttk.Frame):
 
         if self._modules:
             self._select(self._modules[0])
+
+    def _open_mod_folder(self) -> None:
+        """Open the mod's content root in the system file manager."""
+        import os
+        import subprocess
+        import sys
+        path = str(self.mod.path)
+        try:
+            if sys.platform == "win32":
+                os.startfile(path)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except OSError:
+            pass
 
     def _active_module(self):
         return next((m for m in self._modules if m.id == self._active), None)

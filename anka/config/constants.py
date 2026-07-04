@@ -46,6 +46,7 @@ class GAME_DIRS:
     INTERFACE = "interface"
     GFX_FLAGS = "gfx/flags"
     GFX_GOALS = "gfx/interface/goals"        # focus icons
+    GFX_DECISIONS = "gfx/interface/decisions"  # decision icons
     GFX_IDEAS = "gfx/interface/ideas"
     GFX_EVENTS = "gfx/event_pictures"
     GFX_LEADERS = "gfx/leaders"              # country-leader portraits
@@ -58,9 +59,10 @@ FLAG_SIZES = {
     "small": (10, 7),
 }
 
-# Focus / idea icon canonical size for generated DDS sprites.
+# Focus / idea / decision icon canonical sizes for generated DDS sprites.
 FOCUS_ICON_SIZE = (100, 88)
 IDEA_ICON_SIZE = (63, 50)
+DECISION_ICON_SIZE = (33, 32)   # matches vanilla gfx/interface/decisions/*.dds
 LEADER_PORTRAIT_SIZE = (156, 210)   # large country-leader portrait
 
 SUPPORTED_IMPORT_FORMATS = (".png", ".jpg", ".jpeg", ".bmp", ".tga", ".dds", ".gif", ".webp")

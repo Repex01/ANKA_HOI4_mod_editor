@@ -41,14 +41,6 @@ class IdeasEditor(WipEditor):
 
 
 @EditorRegistry.register
-class DecisionsEditor(WipEditor):
-    id = "decisions"
-    name_key = "editors.decisions.name"
-    desc_key = "editors.decisions.desc"
-    order = 60
-
-
-@EditorRegistry.register
 class DynamicModifiersEditor(WipEditor):
     id = "dynamic_modifiers"
     name_key = "editors.dynamic_modifiers.name"

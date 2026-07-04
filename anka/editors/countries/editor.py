@@ -22,6 +22,7 @@ from ...ui.widgets import ImageDropZone, ScrollableFrame
 from ..base import EditorModule, EditorRegistry
 from .dialogs import (
     CharacterPickerDialog,
+    CoresEditDialog,
     ImportTechDialog,
     NewCountryDialog,
     StatePickerDialog,
@@ -280,14 +281,23 @@ class CountriesEditor(EditorModule):
         ttk.Button(head, text="➕ " + self.t("countries.add_state"),
                    command=self._add_state).pack(side="right")
 
-        self._states_tree = ttk.Treeview(tab, columns=("name",), show="headings", selectmode="browse")
+        self._states_tree = ttk.Treeview(tab, columns=("name", "cores", "provinces"),
+                                         show="headings", selectmode="extended")
         self._states_tree.heading("name", text=self.t("countries.owned_states"))
+        self._states_tree.heading("cores", text=self.t("countries.column_cores"))
+        self._states_tree.heading("provinces", text=self.t("countries.column_provinces"))
+        self._states_tree.column("name", width=190)
+        self._states_tree.column("cores", width=130)
+        self._states_tree.column("provinces", width=230)
         self._states_tree.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        self._states_tree.bind("<Double-1>", lambda e: self._edit_state_cores())
         sb = ttk.Scrollbar(tab, orient="vertical", command=self._states_tree.yview)
         sb.grid(row=2, column=2, sticky="ns")
         self._states_tree.configure(yscrollcommand=sb.set)
         self._terr_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
         self._terr_status.grid(row=3, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Label(tab, text=self.t("countries.cores_hint"), style="CardMuted.TLabel").grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(2, 0))
 
     # --- tab: politics ---------------------------------------------------
     def _build_tab_politics(self) -> None:
@@ -604,10 +614,13 @@ class CountriesEditor(EditorModule):
             return
         owned = [s for s in self.state_service.list_states() if s.owner == self._selected.tag]
         if not owned:
-            self._states_tree.insert("", "end", values=(self.t("countries.no_owned_states"),))
+            self._states_tree.insert("", "end", values=(self.t("countries.no_owned_states"), "", ""))
         for s in owned:
             label = f"{s.id} · {s.name}"
-            self._states_tree.insert("", "end", iid=str(s.id), values=(label,))
+            self._states_tree.insert(
+                "", "end", iid=str(s.id),
+                values=(label, " ".join(s.cores) or "—",
+                        ", ".join(str(p) for p in s.provinces) or "—"))
             self._capital_options[label] = s.id
 
         # Capital combobox: only owned states are selectable.
@@ -638,24 +651,59 @@ class CountriesEditor(EditorModule):
             return
         StatePickerDialog(self._nb, self, self._selected.tag)
 
-    def assign_state(self, state_id: int) -> None:
-        """Called by the picker dialog after a state is chosen."""
+    def _edit_state_cores(self) -> None:
+        """Double-click on owned states: chip editor of add_core_of for every
+        selected state at once (click a chip to remove, ➕ to add)."""
         if not self._selected:
             return
-        conflict = self.state_service.owner_conflict(state_id, self._selected.tag)
-        keep_capital = self._capital_options.get(self._capital.get())
-        try:
-            self.state_service.set_owner(state_id, self._selected.tag)
-        except Exception as exc:
-            self._terr_status.configure(text=f"{self.t('common.error')}: {exc}", foreground=self.palette.danger)
+        state_ids = [int(iid) for iid in self._states_tree.selection() if iid.isdigit()]
+        if not state_ids:
             return
+        CoresEditDialog(self._nb, self, state_ids)
+
+    def notify_cores_changed(self, state_ids: list[int]) -> None:
+        """Called by CoresEditDialog after each live edit: refresh table + status."""
+        keep_capital = self._capital_options.get(self._capital.get())
         self._refresh_owned_states(current_capital=keep_capital)
-        if conflict:
+        self._terr_status.configure(
+            text=self.t("countries.cores_saved",
+                        ids=", ".join(str(i) for i in state_ids)),
+            foreground=self.palette.text_muted)
+
+    def assign_state(self, state_id: int) -> None:
+        """Backwards-compatible single-state entry point."""
+        self.assign_states([state_id])
+
+    def assign_states(self, state_ids: list[int], core: bool = True,
+                      exclusive_core: bool = False) -> None:
+        """Called by the picker dialog after one or more states are chosen."""
+        if not self._selected:
+            return
+        keep_capital = self._capital_options.get(self._capital.get())
+        conflicts: list[str] = []
+        added: list[int] = []
+        for state_id in state_ids:
+            conflict = self.state_service.owner_conflict(state_id, self._selected.tag)
+            try:
+                self.state_service.set_owner(state_id, self._selected.tag,
+                                             core=core, exclusive_core=exclusive_core)
+            except Exception as exc:
+                self._terr_status.configure(text=f"{self.t('common.error')}: {exc}",
+                                            foreground=self.palette.danger)
+                return
+            added.append(state_id)
+            if conflict:
+                conflicts.append(f"{state_id}: {conflict}")
+        self._refresh_owned_states(current_capital=keep_capital)
+        if conflicts:
             self._terr_status.configure(
-                text=self.t("countries.state_conflict", owner=conflict), foreground=self.palette.danger)
+                text=self.t("countries.state_conflict", owner=", ".join(conflicts)),
+                foreground=self.palette.danger)
         else:
             self._terr_status.configure(
-                text=self.t("countries.state_added", id=state_id), foreground=self.palette.text_muted)
+                text=self.t("countries.state_added",
+                            id=", ".join(str(i) for i in added)),
+                foreground=self.palette.text_muted)
 
     # --- politics actions ------------------------------------------------
     def _save_politics(self) -> None:

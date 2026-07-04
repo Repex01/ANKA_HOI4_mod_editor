@@ -11,6 +11,7 @@ from pathlib import Path
 from PIL import Image
 
 from ...config.constants import (
+    DECISION_ICON_SIZE,
     FOCUS_ICON_SIZE,
     GAME_DIRS,
     IDEA_ICON_SIZE,
@@ -81,6 +82,21 @@ class IconService:
         registry = SpriteRegistry(gfx_path)
         registry.register_sprite(shine)
         return registry.save()
+
+    # --- decisions --------------------------------------------------------
+    def add_decision_icon(
+        self,
+        source: str | Path | Image.Image,
+        decision_name: str,
+        gfx_file: str = "anka_decisions.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_decision_<decision_name>`` and register it (no shine —
+        decisions have none). Returns (dds, gfx)."""
+        sprite = f"GFX_decision_{decision_name}"
+        rel_texture = f"{GAME_DIRS.GFX_DECISIONS}/{decision_name}.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              DECISION_ICON_SIZE, compressed)
 
     # --- ideas / national spirits ---------------------------------------
     def add_idea_icon(

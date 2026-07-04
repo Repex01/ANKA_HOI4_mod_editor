@@ -798,6 +798,14 @@ class FocusesEditor(EditorModule):
         self.canvas.invalidate_icon(sprite)
         return sprite
 
+    # owner protocol for the shared script editor (editors/common) -------------
+    def loc_get(self, key: str, language: str) -> str:
+        value = self.service.focus_name(key, language)
+        return "" if value == key else value
+
+    def loc_set(self, key: str, language: str, text: str) -> None:
+        self.service.set_focus_loc(key, language, text, None)
+
     def value_options(self, vtype: str) -> list[tuple[str, str]]:
         """(display, value) choices for typed script fields; cached per session.
         Displays include both id and human name, so search finds either."""

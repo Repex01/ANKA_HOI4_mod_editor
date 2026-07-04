@@ -92,9 +92,19 @@ class CountryService:
                 if _TAG_RE.match(f.stem):
                     tags.add(f.stem)
 
+        # colors.txt: the mod copy is seeded with EVERY vanilla entry (it replaces the
+        # vanilla file wholesale), so mere presence there means nothing. Only tags
+        # whose colors actually differ from vanilla count as edited.
         colors = self._colors_block(mod)
         if colors is not None:
-            tags.update(p.key for p in colors.pairs() if _TAG_RE.match(p.key))
+            vanilla_colors = self._colors_block(self.ctx.game_path)
+            for p in colors.pairs():
+                if not _TAG_RE.match(p.key) or not isinstance(p.value, Block):
+                    continue
+                ventry = (vanilla_colors.get_block(p.key)
+                          if vanilla_colors is not None else None)
+                if ventry is None or self._entry_colors(p.value) != self._entry_colors(ventry):
+                    tags.add(p.key)
 
         flags = mod / GAME_DIRS.GFX_FLAGS
         if flags.is_dir():
@@ -142,8 +152,9 @@ class CountryService:
             entry = block.get_block(ref.tag)
             if entry is None:
                 continue
-            # Prefer the UI color (always rgb), fall back to the map color (rgb or HSV).
-            rgb = self._color_from(entry.get_block("color_ui")) or self._color_from(entry.get_block("color"))
+            # The editor edits the *map* color, so show `color` first; `color_ui`
+            # is only a fallback (they differ for many vanilla countries).
+            rgb = self._color_from(entry.get_block("color")) or self._color_from(entry.get_block("color_ui"))
             return CountryColor(rgb=rgb)
         # Some countries store color directly in the country file.
         try:
@@ -151,6 +162,12 @@ class CountryService:
             return CountryColor(rgb=self._color_from(cblock.get_block("color")))
         except Exception:
             return CountryColor()
+
+    @classmethod
+    def _entry_colors(cls, entry: Block) -> tuple:
+        """Comparable (color, color_ui) pair of a colors.txt entry."""
+        return (cls._color_from(entry.get_block("color")),
+                cls._color_from(entry.get_block("color_ui")))
 
     @staticmethod
     def _color_from(node: Block | None) -> tuple[int, int, int] | None:
@@ -199,15 +216,17 @@ class CountryService:
             block = self._colors_block(self.ctx.game_path) or Block()
         entry = block.get_block(tag)
         rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
+        ui_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
         if entry is None:
             entry = Block()
             entry.add("color", rgb_block)
-            entry.add("color_ui", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+            entry.add("color_ui", ui_block)
             block.add(tag, entry)
         else:
+            # Update BOTH: a stale color_ui would keep the old color in the game UI
+            # (and in ANKA, which reads the entry back) — the edit looked lost.
             entry.set("color", rgb_block)
-            if entry.get_block("color_ui") is None:
-                entry.add("color_ui", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+            entry.set("color_ui", ui_block)
         path.parent.mkdir(parents=True, exist_ok=True)
         dump_file(block, path)
         return path

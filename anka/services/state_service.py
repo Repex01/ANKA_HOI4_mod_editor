@@ -25,6 +25,7 @@ class StateInfo:
     file: Path
     in_mod: bool
     provinces: list[int] = field(default_factory=list)
+    cores: list[str] = field(default_factory=list)   # add_core_of tags
 
 
 class StateService:
@@ -75,6 +76,8 @@ class StateService:
             return None
         history = state.get_block("history")
         owner = history.get_scalar("owner") if history else None
+        cores = ([v.raw for v in history.get_all("add_core_of") if isinstance(v, Scalar)]
+                 if history else [])
         prov_block = state.get_block("provinces")
         provinces = [int(v) for v in (prov_block.array_values() if prov_block else []) if v.isdigit()]
         return StateInfo(
@@ -84,6 +87,7 @@ class StateService:
             file=file,
             in_mod=in_mod,
             provinces=provinces,
+            cores=cores,
         )
 
     def _state_names(self) -> dict[int, str]:
@@ -109,8 +113,13 @@ class StateService:
         return names
 
     # --- mutation --------------------------------------------------------
-    def set_owner(self, state_id: int, tag: str) -> StateInfo:
-        """Set a state's owner, copying the vanilla file into the mod if needed."""
+    def set_owner(self, state_id: int, tag: str, *,
+                  core: bool = True, exclusive_core: bool = False) -> StateInfo:
+        """Set a state's owner, copying the vanilla file into the mod if needed.
+
+        `core` also adds ``add_core_of = tag`` (the state becomes national territory
+        of the owner); `exclusive_core` additionally strips every other country's
+        ``add_core_of`` from the state."""
         info = self.get(state_id)
         if info is None:
             raise KeyError(f"State {state_id} not found")
@@ -126,13 +135,58 @@ class StateService:
             history = Block()
             state.items.insert(0, Pair("history", history))
         history.set("owner", Scalar(tag))
-        if not history.has("add_core_of"):
-            history.add("add_core_of", Scalar(tag))
+        if core and exclusive_core:
+            history.items = [
+                it for it in history.items
+                if not (isinstance(it, Pair) and it.key == "add_core_of"
+                        and isinstance(it.value, Scalar) and it.value.raw != tag)
+            ]
+        if core:
+            cores = [v.raw for v in history.get_all("add_core_of")
+                     if isinstance(v, Scalar)]
+            if tag not in cores:
+                history.add("add_core_of", Scalar(tag))
         target = _ensure_filename_case(target)  # match vanilla casing for override
         dump_file(block, target)
 
         # Refresh cache entry.
-        updated = StateInfo(info.id, info.name, tag, target, True, info.provinces)
+        cores = [v.raw for v in history.get_all("add_core_of") if isinstance(v, Scalar)]
+        updated = StateInfo(info.id, info.name, tag, target, True, info.provinces, cores)
+        if self._cache is not None:
+            self._cache[state_id] = updated
+        return updated
+
+    def set_cores(self, state_id: int, tags: list[str]) -> StateInfo:
+        """Replace the state's ``add_core_of`` list (mod copy created if needed)."""
+        info = self.get(state_id)
+        if info is None:
+            raise KeyError(f"State {state_id} not found")
+        target = info.file
+        if not info.in_mod:
+            target = self.ctx.mod.path / GAME_DIRS.HISTORY_STATES / info.file.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+        block = parse_file(info.file)
+        state = block.get_block("state")
+        history = state.get_block("history")
+        if history is None:
+            history = Block()
+            state.items.insert(0, Pair("history", history))
+        # Replace in place: keep the position of the first add_core_of pair.
+        index = next((i for i, it in enumerate(history.items)
+                      if isinstance(it, Pair) and it.key == "add_core_of"), None)
+        history.items = [it for it in history.items
+                         if not (isinstance(it, Pair) and it.key == "add_core_of")]
+        pairs = [Pair("add_core_of", Scalar(t)) for t in tags]
+        if index is None:
+            history.items.extend(pairs)
+        else:
+            history.items[index:index] = pairs
+        target = _ensure_filename_case(target)
+        dump_file(block, target)
+
+        updated = StateInfo(info.id, info.name, info.owner, target, True,
+                            info.provinces, list(tags))
         if self._cache is not None:
             self._cache[state_id] = updated
         return updated
