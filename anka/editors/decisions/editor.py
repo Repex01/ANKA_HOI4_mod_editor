@@ -107,6 +107,7 @@ class DecisionsEditor(EditorModule):
         panel.columnconfigure(0, weight=1)
         self._list_panel = panel
         self._list_visible = True
+        self._grid_root = root
         root.columnconfigure(0, minsize=280)
 
         self._search = tk.StringVar()
@@ -126,6 +127,7 @@ class DecisionsEditor(EditorModule):
         self._tree.tag_configure("vanilla", foreground=self.palette.text_muted)
         self._tree.tag_configure("category", font=("Segoe UI Semibold", 10))
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
+        self._tree.bind("<Delete>", self._delete_selected)
 
     def _build_problems(self, center) -> None:
         panel = ttk.Frame(center, style="Card.TFrame", padding=(8, 6))
@@ -152,9 +154,13 @@ class DecisionsEditor(EditorModule):
     def _toggle_list(self) -> None:
         self._list_visible = not self._list_visible
         if self._list_visible:
+            self._grid_root.columnconfigure(0, minsize=280)
             self._list_panel.grid()
         else:
+            # Drop the reserved column width too, or a 280px dead strip stays and
+            # the inspector never claims the freed space.
             self._list_panel.grid_remove()
+            self._grid_root.columnconfigure(0, minsize=0)
 
     def _toggle_problems(self) -> None:
         self._problems_visible = not self._problems_visible
@@ -172,21 +178,37 @@ class DecisionsEditor(EditorModule):
                           for ref in self.service.list_docs(False, "decisions")]
         self._vanilla_refs = ([r for r in self.service.list_docs(True, "decisions")
                                if r.is_vanilla] if self._vanilla.get() else [])
+        # Defined categories must show up even with zero decisions in them —
+        # otherwise a freshly created category would be invisible/unselectable.
+        self._def_cats_mod = {name
+                              for ref in self.service.list_docs(False, "categories")
+                              for name in ref.categories}
+        self._def_cats_vanilla = ({name
+                                   for ref in self.service.list_docs(True, "categories")
+                                   if ref.is_vanilla for name in ref.categories}
+                                  if self._vanilla.get() else set())
         self._refresh_tree()
         if selected and self._tree.exists(selected[0]):
             self._tree.selection_set(selected[0])
 
     def _refresh_tree(self) -> None:
         query = self._search.get().strip().lower()
+        # Rebuilding must not collapse categories the user expanded.
+        open_cats = {iid for iid in self._tree.get_children("")
+                     if self._tree.item(iid, "open")}
         self._tree.delete(*self._tree.get_children())
         self._items.clear()
 
         # category -> [(payload, label, vanilla)], preserving mod-first order
         buckets: dict[str, list[tuple]] = {}
+        for name in getattr(self, "_def_cats_mod", set()):
+            buckets.setdefault(name, [])
         for doc in self._mod_docs:
             for d in doc.decisions():
                 buckets.setdefault(d.category, []).append(
                     (("decision", doc.ref, d.id), d.id, False))
+        for name in getattr(self, "_def_cats_vanilla", set()):
+            buckets.setdefault(name, [])
         for ref in getattr(self, "_vanilla_refs", []):
             for cat, ids in ref.categories.items():
                 for did in ids:
@@ -203,7 +225,8 @@ class DecisionsEditor(EditorModule):
             label = self.service.name_of(cat, self.loc_language)
             text = cat if label == cat else f"{cat}  ·  {label}"
             self._tree.insert("", "end", iid=cat_iid, text=text,
-                              open=bool(query), tags=("category",))
+                              open=bool(query) or cat_iid in open_cats,
+                              tags=("category",))
             self._items[cat_iid] = ("category", cat)
             for payload, label, is_vanilla in rows:
                 iid = f"d::{payload[1].rel_file}::{payload[2]}"
@@ -275,6 +298,10 @@ class DecisionsEditor(EditorModule):
         def submit(name: str) -> None:
             self.service.create_category(name)
             self.reload_tree()
+            iid = f"c::{name}"
+            if self._tree.exists(iid):
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
 
         TextPromptDialog(self._tree, self, self.t("decisions.new_category"),
                          self.t("decisions.category_id"), submit, taken=taken)
@@ -333,6 +360,7 @@ class DecisionsEditor(EditorModule):
         iid = f"d::{doc.ref.rel_file}::{new_id}"
         if self._tree.exists(iid):
             self._tree.selection_set(iid)
+            self._tree.see(iid)
 
     def duplicate_decision(self) -> None:
         insp = self.decision_inspector
@@ -348,6 +376,7 @@ class DecisionsEditor(EditorModule):
         iid = f"d::{insp.doc.ref.rel_file}::{new_id}"
         if self._tree.exists(iid):
             self._tree.selection_set(iid)
+            self._tree.see(iid)         # also expands the parent category
 
     def delete_decision(self) -> None:
         insp = self.decision_inspector
@@ -356,10 +385,49 @@ class DecisionsEditor(EditorModule):
         if not messagebox.askyesno("ANKA", self.t("decisions.confirm_delete",
                                                   name=insp.decision.id)):
             return
+        category = insp.decision.category
         self.service.remove_decision(insp.doc, insp.decision)
         self.mark_dirty(insp.doc)
         self._show_inspector(None)
         self.reload_tree()
+        # Keep the user's context: stay on the (still expanded) category.
+        cat_iid = f"c::{category}"
+        if self._tree.exists(cat_iid):
+            self._tree.selection_set(cat_iid)
+            self._tree.see(cat_iid)
+
+    def delete_category(self) -> None:
+        """Delete the selected category from the mod (definition + its mod decisions),
+        after explicit confirmation. Vanilla categories are refused."""
+        name = self.selected_category_name
+        if not name:
+            return
+        in_mod_defs = name in getattr(self, "_def_cats_mod", set())
+        count = self.service.count_mod_decisions(name)
+        if not in_mod_defs and count == 0:
+            messagebox.showinfo("ANKA", self.t("decisions.err.vanilla_category"))
+            return
+        if not messagebox.askyesno("ANKA", self.t("decisions.confirm_delete_category",
+                                                  name=name, count=count)):
+            return
+        self._flush_inspectors()
+        self.service.remove_category(name)   # saves every touched mod file itself
+        self._show_inspector(None)
+        self.reload_tree()
+        self._validate()
+
+    def _delete_selected(self, _event=None) -> None:
+        """Delete key in the tree: route to decision/category deletion (both confirm)."""
+        sel = self._tree.selection()
+        if not sel:
+            return
+        payload = self._items.get(sel[0])
+        if payload is None:
+            return
+        if payload[0] == "category":
+            self.delete_category()
+        else:
+            self.delete_decision()
 
     def import_icon(self, path, decision: Decision) -> str | None:
         try:

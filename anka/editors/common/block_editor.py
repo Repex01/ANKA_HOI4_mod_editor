@@ -416,7 +416,11 @@ class BlockPickerDialog(BaseDialog):
         kind, data = payload
         typed = self._query.get().strip()
         if kind == "container":
-            node = Pair(data, Block())
+            # `if` (and else_if) is meaningless without a `limit` holding the
+            # conditions — pre-create it so the structure is always valid.
+            inner = (Block([Pair("limit", Block())])
+                     if data in ("if", "else_if") else Block())
+            node = Pair(data, inner)
         elif kind == "tooltip":
             master = self.master
             fid = getattr(master, "focus_id", "") or "my_focus"

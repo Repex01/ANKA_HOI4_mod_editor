@@ -25,9 +25,11 @@ from ..common import (
     IconPickerDialog,
     PdxPreviewDialog,
     ScriptEditorDialog,
+    SinglePickDialog,
     TextPromptDialog,
 )
 from ...core.pdx import Block, Pair
+from ...ui.widgets.tooltip import attach_help
 
 # Block kinds each script field offers in the visual editor. Condition fields are
 # trigger-only; effect fields mix both; modifier fields get the modifiers section
@@ -38,8 +40,13 @@ def _script_kinds(name: str) -> tuple[str, ...]:
     return ("trigger",)
 
 
-_NUMERIC_FIELDS = ("cost", "days_remove", "days_re_enable",
-                   "days_mission_timeout", "priority")
+# Raw-value fields, grouped into inspector sections. `war_with_*` take country tags
+# (picker offered), the rest are numbers/variables/loc keys.
+_MAIN_FIELDS = ("cost", "custom_cost_text", "days_remove", "days_re_enable", "priority")
+_MISSION_FIELDS = ("days_mission_timeout", "ai_hint_pp_cost")
+_WAR_FIELDS = ("war_with_on_remove", "war_with_on_complete", "war_with_on_timeout")
+_MAIN_FLAGS = ("fire_only_once", "cancel_if_not_visible", "targets_dynamic")
+_MISSION_FLAGS = ("selectable_mission", "is_good", "fixed_random_seed")
 
 
 class _InspectorBase(ttk.Frame):
@@ -107,7 +114,10 @@ class _InspectorBase(ttk.Frame):
                 walk(child)
         walk(self.body)
 
-    def _icon_preview(self, sprite: str) -> ImageTk.PhotoImage:
+    def _icon_preview(self, sprite: str,
+                      size: tuple[int, int] = (48, 48)) -> ImageTk.PhotoImage:
+        """Thumbnail PhotoImage for a sprite. The CALLER must keep a reference
+        (assign to an attribute), or Tk garbage-collects the image."""
         img = None
         path = (self.owner.resolver.resolve(sprite)
                 if sprite and self.owner.resolver_ready() else None)
@@ -115,13 +125,12 @@ class _InspectorBase(ttk.Frame):
             try:
                 with Image.open(path) as im:
                     img = im.convert("RGBA")
-                img.thumbnail((48, 48), Image.LANCZOS)
+                img.thumbnail(size, Image.LANCZOS)
             except Exception:
                 img = None
         if img is None:
-            img = Image.new("RGBA", (48, 48), (0, 0, 0, 0))
-        self._icon_photo = ImageTk.PhotoImage(img)
-        return self._icon_photo
+            img = Image.new("RGBA", size, (0, 0, 0, 0))
+        return ImageTk.PhotoImage(img)
 
 
 class DecisionInspector(_InspectorBase):
@@ -194,23 +203,46 @@ class DecisionInspector(_InspectorBase):
         self._icon_name = ttk.Label(icon_row, text="", style="CardMuted.TLabel", wraplength=250)
         self._icon_name.pack(side="left", padx=(8, 0))
 
-        # numbers
+        # sections: main / mission / war (see module constants)
         self._num_vars: dict[str, tk.StringVar] = {}
-        for field_name in _NUMERIC_FIELDS:
-            self._num_vars[field_name] = self._entry_row(
-                r, field_name, f"num:{field_name}",
-                lambda n=field_name: self._commit_number(n))
-            r += 1
-
-        # flags
-        flag_box = ttk.Frame(b, style="Card.TFrame")
-        flag_box.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(6, 3)); r += 1
         self._flags: dict[str, tk.BooleanVar] = {}
-        for name in DECISION_FLAG_DEFAULTS:
-            var = tk.BooleanVar()
-            self._flags[name] = var
-            ttk.Checkbutton(flag_box, text=name, style="Card.TCheckbutton", variable=var,
-                            command=lambda n=name: self._commit_flag(n)).pack(anchor="w")
+
+        def fields_section(header_key: str, raw_fields, flags, war=False):
+            nonlocal r
+            ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=6); r += 1
+            head = ttk.Label(b, text=self.t(header_key), style="Card.TLabel")
+            head.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 3)); r += 1
+            attach_help(head, self.t, header_key.replace("decisions.section.",
+                                                         "decisions."), self.palette)
+            for field_name in raw_fields:
+                label = ttk.Label(b, text=field_name, style="CardMuted.TLabel")
+                label.grid(row=r, column=0, sticky="w", pady=3)
+                attach_help(label, self.t, f"script.{field_name}", self.palette)
+                row_frame = ttk.Frame(b, style="Card.TFrame")
+                row_frame.grid(row=r, column=1, sticky="w", padx=(8, 0), pady=3); r += 1
+                var = tk.StringVar()
+                entry = ttk.Entry(row_frame, textvariable=var, width=18)
+                entry.pack(side="left")
+                self._num_vars[field_name] = var
+                var.trace_add("write", lambda *_, n=field_name: self._debounce(
+                    f"num:{n}", lambda n=n: self._commit_number(n)))
+                entry.bind("<FocusOut>", lambda e, n=field_name: self._commit_number(n))
+                if war:
+                    ttk.Button(row_frame, text="…", width=2,
+                               command=lambda v=var: self._pick_country(v)).pack(
+                        side="left", padx=2)
+            for name in flags:
+                var = tk.BooleanVar()
+                self._flags[name] = var
+                cb = ttk.Checkbutton(b, text=name, style="Card.TCheckbutton",
+                                     variable=var,
+                                     command=lambda n=name: self._commit_flag(n))
+                cb.grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
+                attach_help(cb, self.t, f"script.{name}", self.palette)
+
+        fields_section("decisions.section.main", _MAIN_FIELDS, _MAIN_FLAGS)
+        fields_section("decisions.section.mission", _MISSION_FIELDS, _MISSION_FLAGS)
+        fields_section("decisions.section.war", _WAR_FIELDS, (), war=True)
 
         # scripts
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
@@ -224,15 +256,16 @@ class DecisionInspector(_InspectorBase):
         for field_name in DECISION_SCRIPT_FIELDS:
             row = ttk.Frame(b, style="Card.TFrame")
             row.grid(row=r, column=0, columnspan=2, sticky="ew", pady=1); r += 1
-            row.columnconfigure(1, weight=1)
             status = ttk.Label(row, text="○", style="CardMuted.TLabel", width=2)
-            status.grid(row=0, column=0)
+            status.pack(side="left")
+            label = ttk.Label(row, text=field_name, style="CardMuted.TLabel")
+            label.pack(side="left")
+            attach_help(label, self.t, f"script.{field_name}", self.palette)
             self._script_status[field_name] = status
-            ttk.Label(row, text=field_name, style="CardMuted.TLabel").grid(
-                row=0, column=1, sticky="w")
+            # the edit button hugs the label instead of the far-right edge
             ttk.Button(row, text="✎", width=3,
-                       command=lambda n=field_name: self._edit_script(n)).grid(
-                row=0, column=2, sticky="e")
+                       command=lambda n=field_name: self._edit_script(n)).pack(
+                side="left", padx=(6, 0))
 
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
         actions = ttk.Frame(b, style="Card.TFrame")
@@ -243,6 +276,13 @@ class DecisionInspector(_InspectorBase):
         ttk.Button(actions, text="🗑 " + self.t("decisions.delete"),
                    command=lambda: self.owner.delete_decision()).pack(
             side="left", fill="x", expand=True)
+
+    def _pick_country(self, var: tk.StringVar) -> None:
+        if not self._guard():
+            return
+        SinglePickDialog(self, self.owner, self.t("focuses.pick.country"),
+                         self.owner.value_options("country"),
+                         lambda value: var.set(value), current=var.get().strip())
 
     # --------------------------------------------------------------------- show
     def show(self, doc, decision: Decision | None, editable: bool = True) -> None:
@@ -287,7 +327,8 @@ class DecisionInspector(_InspectorBase):
     def _refresh_icon(self) -> None:
         d = self.decision
         sprite = d.sprite_name() if d else ""
-        self._icon_btn.configure(image=self._icon_preview(sprite))
+        self._icon_photo = self._icon_preview(sprite)
+        self._icon_btn.configure(image=self._icon_photo)
         self._icon_name.configure(text=(d.icon if d else "") or "—")
 
     def _refresh_scripts(self) -> None:
@@ -448,7 +489,22 @@ class CategoryInspector(_InspectorBase):
         self._icon_name = ttk.Label(icon_row, text="", style="CardMuted.TLabel", wraplength=250)
         self._icon_name.pack(side="left", padx=(8, 0))
 
-        self._picture_var = self._entry_row(r, "picture", "picture", self._commit_picture); r += 1
+        # picture: a selectable sprite (vanilla stores the full GFX name)
+        pic_label = ttk.Label(b, text="picture", style="CardMuted.TLabel")
+        pic_label.grid(row=r, column=0, sticky="w", pady=3)
+        attach_help(pic_label, self.t, "decisions.picture", self.palette)
+        pic_row = ttk.Frame(b, style="Card.TFrame")
+        pic_row.grid(row=r, column=1, sticky="ew", padx=(8, 0), pady=3); r += 1
+        self._picture_btn = tk.Button(pic_row, bd=0, bg=self.palette.surface_alt,
+                                      activebackground=self.palette.surface,
+                                      cursor="hand2", command=self._pick_picture)
+        self._picture_btn.pack(side="left")
+        self._picture_name = ttk.Label(pic_row, text="", style="CardMuted.TLabel",
+                                       wraplength=220)
+        self._picture_name.pack(side="left", padx=(8, 4))
+        ttk.Button(pic_row, text="✕", width=2,
+                   command=self._clear_picture).pack(side="left")
+
         self._priority_var = self._entry_row(r, "priority", "priority", self._commit_priority); r += 1
 
         # scripts
@@ -457,15 +513,20 @@ class CategoryInspector(_InspectorBase):
         for field_name in CATEGORY_SCRIPT_FIELDS:
             row = ttk.Frame(b, style="Card.TFrame")
             row.grid(row=r, column=0, columnspan=2, sticky="ew", pady=1); r += 1
-            row.columnconfigure(1, weight=1)
             status = ttk.Label(row, text="○", style="CardMuted.TLabel", width=2)
-            status.grid(row=0, column=0)
+            status.pack(side="left")
+            label = ttk.Label(row, text=field_name, style="CardMuted.TLabel")
+            label.pack(side="left")
+            attach_help(label, self.t, f"script.{field_name}", self.palette)
             self._script_status[field_name] = status
-            ttk.Label(row, text=field_name, style="CardMuted.TLabel").grid(
-                row=0, column=1, sticky="w")
             ttk.Button(row, text="✎", width=3,
-                       command=lambda n=field_name: self._edit_script(n)).grid(
-                row=0, column=2, sticky="e")
+                       command=lambda n=field_name: self._edit_script(n)).pack(
+                side="left", padx=(6, 0))
+
+        ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
+        ttk.Button(b, text="🗑 " + self.t("decisions.delete_category"),
+                   command=lambda: self.owner.delete_category()).grid(
+            row=r, column=0, columnspan=2, sticky="ew")
 
     def show(self, doc, category, editable: bool) -> None:
         self.flush_pending()
@@ -484,10 +545,11 @@ class CategoryInspector(_InspectorBase):
                     text=origin + ("" if editable else "  ·  🔒 " + self.t("focuses.readonly")))
             self._lang.set(self.owner.loc_language)
             self._reload_loc()
-            self._icon_btn.configure(image=self._icon_preview(
-                category.sprite_name() if category else ""))
+            self._icon_photo = self._icon_preview(
+                category.sprite_name() if category else "")
+            self._icon_btn.configure(image=self._icon_photo)
             self._icon_name.configure(text=(category.icon if category else "") or "—")
-            self._picture_var.set(category.get_raw("picture") if category else "")
+            self._refresh_picture()
             self._priority_var.set(category.get_raw("priority") if category else "")
             for fname, label in self._script_status.items():
                 filled = bool(category and category.get_script(fname).strip())
@@ -522,11 +584,32 @@ class CategoryInspector(_InspectorBase):
             self.owner.service.set_loc(name, self._lang.get(), text, None)
             self.owner.refresh_tree_labels()
 
-    def _commit_picture(self) -> None:
+    def _refresh_picture(self) -> None:
+        sprite = self.category.get_raw("picture") if self.category else ""
+        self._picture_photo = self._icon_preview(sprite, size=(140, 60))
+        self._picture_btn.configure(image=self._picture_photo)
+        self._picture_name.configure(text=sprite or "—")
+
+    def _pick_picture(self) -> None:
         if not self._guard() or self.category is None:
             return
-        self.category.set_raw("picture", self._picture_var.get())
+        category = self.category
+
+        def picked(sprite: str) -> None:
+            category.set_raw("picture", sprite)   # pictures keep the full GFX name
+            self.owner.mark_dirty(self.doc)
+            self._refresh_picture()
+
+        IconPickerDialog(self, self.owner, self.owner.resolver,
+                         category.get_raw("picture"), picked, None,
+                         prefixes=("GFX_decision_cat_",))
+
+    def _clear_picture(self) -> None:
+        if not self._guard() or self.category is None:
+            return
+        self.category.set_raw("picture", "")
         self.owner.mark_dirty(self.doc)
+        self._refresh_picture()
 
     def _commit_priority(self) -> None:
         if not self._guard() or self.category is None:

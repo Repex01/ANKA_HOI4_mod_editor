@@ -20,6 +20,7 @@ from ...services.focus_service import (
     Focus,
 )
 from ...ui.widgets import ScrollableFrame
+from ...ui.widgets.tooltip import attach_help
 from .dialogs import (
     FocusPreviewDialog,
     IconPickerDialog,
@@ -224,15 +225,16 @@ class FocusInspector(ttk.Frame):
         for field_name in FOCUS_SCRIPT_FIELDS:
             row = ttk.Frame(f, style="Card.TFrame")
             row.grid(row=fr, column=0, columnspan=2, sticky="ew", pady=1); fr += 1
-            row.columnconfigure(1, weight=1)
             status = ttk.Label(row, text="○", style="CardMuted.TLabel", width=2)
-            status.grid(row=0, column=0)
+            status.pack(side="left")
+            label = ttk.Label(row, text=field_name, style="CardMuted.TLabel")
+            label.pack(side="left")
+            attach_help(label, self.t, f"script.{field_name}", self.palette)
             self._script_status[field_name] = status
-            ttk.Label(row, text=field_name, style="CardMuted.TLabel").grid(
-                row=0, column=1, sticky="w")
+            # the edit button hugs the label instead of the far-right edge
             ttk.Button(row, text="✎", width=3,
-                       command=lambda n=field_name: self._edit_script(n)).grid(
-                row=0, column=2, sticky="e")
+                       command=lambda n=field_name: self._edit_script(n)).pack(
+                side="left", padx=(6, 0))
 
         # delete --------------------------------------------------------------------------------
         ttk.Separator(f).grid(row=fr, column=0, columnspan=2, sticky="ew", pady=8); fr += 1

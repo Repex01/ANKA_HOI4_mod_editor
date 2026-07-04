@@ -30,12 +30,14 @@ DECISION_FLAG_DEFAULTS = {
     "selectable_mission": False,
     "cancel_if_not_visible": False,
     "targets_dynamic": False,
+    "fixed_random_seed": True,     # missions: no = reroll random effects on restart
 }
 
 # Script fields grouped by what the visual editor should offer.
 DECISION_TRIGGER_FIELDS = ("allowed", "visible", "available", "activation",
                            "target_trigger", "target_root_trigger",
-                           "cancel_trigger", "custom_cost_trigger")
+                           "cancel_trigger", "remove_trigger",
+                           "custom_cost_trigger")
 DECISION_EFFECT_FIELDS = ("complete_effect", "remove_effect",
                           "timeout_effect", "cancel_effect")
 DECISION_MODIFIER_FIELDS = ("modifier", "targeted_modifier")
@@ -410,6 +412,37 @@ class DecisionService:
         return DecisionDocRef(rel_file=rel, source_root=self.ctx.mod.path,
                               is_vanilla=False, kind="categories",
                               categories={name: []})
+
+    def count_mod_decisions(self, category: str) -> int:
+        """How many mod decisions live in `category` (for delete confirmation)."""
+        return sum(len(ref.categories.get(category, ()))
+                   for ref in self.list_docs(False, kind="decisions"))
+
+    def remove_category(self, name: str) -> int:
+        """Delete a category from the mod: its definition(s) AND every mod decision
+        block under it. Returns the number of decisions removed. Vanilla files are
+        never touched — the category may still exist in the base game."""
+        removed = 0
+        for ref in self.list_docs(False, kind="categories"):
+            if name not in ref.categories:
+                continue
+            doc = self.load(ref)
+            before = len(doc.root.items)
+            doc.root.items = [it for it in doc.root.items
+                              if not (isinstance(it, Pair) and it.key == name)]
+            if len(doc.root.items) != before:
+                self.save(doc)
+        for ref in self.list_docs(False, kind="decisions"):
+            if name not in ref.categories:
+                continue
+            doc = self.load(ref)
+            for pair in list(doc.root.pairs()):
+                if pair.key == name and isinstance(pair.value, Block):
+                    removed += sum(1 for p in pair.value.pairs()
+                                   if isinstance(p.value, Block))
+                    doc.root.items.remove(pair)
+            self.save(doc)
+        return removed
 
     # --- decision CRUD --------------------------------------------------------
     def mod_target_doc(self, category: str) -> DecisionDocument:
