@@ -41,14 +41,6 @@ class TechnologiesEditor(WipEditor):
 
 
 @EditorRegistry.register
-class OobEditor(WipEditor):
-    id = "oob"
-    name_key = "editors.oob.name"
-    desc_key = "editors.oob.desc"
-    order = 100
-
-
-@EditorRegistry.register
 class MapEditor(WipEditor):
     id = "map"
     name_key = "editors.map.name"

@@ -1,0 +1,398 @@
+"""Inspectors of the OOB editor: the division-template grid and the file view.
+
+`TemplateInspector` is the game-like designer — 5 regiment columns (each a
+top-down stack, filled cells must touch) plus a support column of up to 5 unique
+companies. Add/remove are gated by the shape invariant (`can_add_regiment` /
+`can_remove_regiment` in the service), so the user can never create a hole.
+`FileInspector` lists the file's deployed divisions and the import action.
+"""
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import ttk
+
+from ...core.pdx import Block, Pair
+from ...services.oob_service import (
+    MAX_COLS,
+    MAX_ROWS,
+    MAX_SUPPORT,
+    DivisionTemplate,
+    can_add_regiment,
+    can_remove_regiment,
+)
+from ..common import InspectorBase, PdxPreviewDialog, SinglePickDialog, TextPromptDialog
+
+
+class TemplateInspector(InspectorBase):
+    def __init__(self, master, owner):
+        super().__init__(master, owner)
+        self.template: DivisionTemplate | None = None
+        self.doc = None
+        self._cols: list[list[str]] = []
+        self._support: list[str] = []
+        self._build()
+
+    def _build(self) -> None:
+        b = self.body
+        r = 0
+        self._title = ttk.Label(b, text="", style="Heading.TLabel")
+        self._title.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 2)); r += 1
+        self._subtitle = ttk.Label(b, text="", style="CardMuted.TLabel", wraplength=460)
+        self._subtitle.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 8)); r += 1
+
+        # name + rename
+        ttk.Label(b, text=self.t("oob.template_name"), style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", pady=3)
+        name_row = ttk.Frame(b, style="Card.TFrame")
+        name_row.grid(row=r, column=1, sticky="ew", padx=(8, 0)); r += 1
+        name_row.columnconfigure(0, weight=1)
+        self._name_entry = ttk.Entry(name_row, state="readonly")
+        self._name_entry.grid(row=0, column=0, sticky="ew")
+        ttk.Button(name_row, text="✎", width=3, command=self._rename).grid(
+            row=0, column=1, padx=(4, 0))
+
+        # grid host
+        ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
+        head = ttk.Frame(b, style="Card.TFrame")
+        head.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 4)); r += 1
+        ttk.Label(head, text=self.t("oob.regiments"), style="Card.TLabel").pack(side="left")
+        ttk.Label(head, text="   " + self.t("oob.support"),
+                  style="CardMuted.TLabel").pack(side="right")
+        self._grid_host = ttk.Frame(b, style="Card.TFrame")
+        self._grid_host.grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
+
+        self._status = ttk.Label(b, text="", style="CardMuted.TLabel")
+        self._status.grid(row=r, column=0, columnspan=2, sticky="w", pady=(6, 0)); r += 1
+
+        # actions
+        ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
+        actions = ttk.Frame(b, style="Card.TFrame")
+        actions.grid(row=r, column=0, columnspan=2, sticky="ew")
+        ttk.Button(actions, text="👁 " + self.t("focuses.preview"),
+                   command=self._preview).pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._dup_btn = ttk.Button(actions, text="⧉ " + self.t("focuses.duplicate"),
+                                   command=lambda: self.owner.duplicate_template())
+        self._dup_btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._del_btn = ttk.Button(actions, text="🗑 " + self.t("oob.delete_template"),
+                                   command=lambda: self.owner.delete_template())
+        self._del_btn.pack(side="left", fill="x", expand=True)
+
+    # --------------------------------------------------------------------- show
+    def show(self, doc, template: DivisionTemplate | None, editable: bool = True) -> None:
+        self.flush_pending()
+        self.doc = doc
+        self.template = template
+        self._editable = editable
+        self._loading = True
+        try:
+            if template is None:
+                return
+            self._title.configure(text=template.name or "—")
+            origin = doc.ref.rel_file if doc is not None else ""
+            self._subtitle.configure(
+                text=origin + ("" if editable else "  ·  🔒 " + self.t("focuses.readonly")))
+            self._name_entry.configure(state="normal")
+            self._name_entry.delete(0, "end")
+            self._name_entry.insert(0, template.name)
+            self._name_entry.configure(state="readonly")
+            self._cols = [list(c) for c in template.columns()]
+            self._support = list(template.support())
+            self._status.configure(text="")
+            self._dup_btn.configure(state="normal" if editable else "disabled")
+            self._del_btn.configure(state="normal" if editable else "disabled")
+        finally:
+            self._loading = False
+        self._render_grid()
+
+    # ------------------------------------------------------------------- grid
+    def _cell(self, parent, text, kind: str, command=None):
+        """A fixed-size grid cell. kind: filled | add | empty."""
+        colors = {
+            "filled": (self.palette.accent, self.palette.accent_text),
+            "add": (self.palette.surface_alt, self.palette.text_muted),
+            "empty": (self.palette.surface, self.palette.text_muted),
+        }
+        bg, fg = colors[kind]
+        state = "normal" if (command and self._editable) else "disabled"
+        btn = tk.Button(parent, text=text, width=9, height=2, bd=0,
+                        bg=bg, fg=fg, activebackground=self.palette.surface_alt,
+                        disabledforeground=fg, cursor=("hand2" if command else "arrow"),
+                        font=("Segoe UI", 8), command=command or (lambda: None),
+                        state=state, relief="flat", highlightthickness=1,
+                        highlightbackground=self.palette.border)
+        return btn
+
+    def _render_grid(self) -> None:
+        for w in self._grid_host.winfo_children():
+            w.destroy()
+        if self.template is None:
+            return
+        abbr = self._abbr
+        # regiment columns
+        for c in range(MAX_COLS):
+            col_frame = ttk.Frame(self._grid_host, style="Card.TFrame")
+            col_frame.grid(row=0, column=c, padx=2, pady=2, sticky="n")
+            col = self._cols[c] if c < len(self._cols) else []
+            for rr in range(MAX_ROWS):
+                if rr < len(col):
+                    removable = (rr == len(col) - 1
+                                 and can_remove_regiment(self._cols, c))
+                    cell = self._cell(col_frame, abbr(col[rr]), "filled",
+                                      command=(lambda cc=c: self._remove_regiment(cc))
+                                      if removable else None)
+                elif rr == len(col) and c <= len(self._cols) and \
+                        can_add_regiment(self._cols, c):
+                    cell = self._cell(col_frame, "＋", "add",
+                                      command=lambda cc=c: self._add_regiment(cc))
+                else:
+                    cell = self._cell(col_frame, "", "empty")
+                cell.pack(pady=1)
+        # spacer
+        ttk.Frame(self._grid_host, width=16, style="Card.TFrame").grid(row=0, column=MAX_COLS)
+        # support column
+        sup_frame = ttk.Frame(self._grid_host, style="Card.TFrame")
+        sup_frame.grid(row=0, column=MAX_COLS + 1, padx=2, pady=2, sticky="n")
+        for i in range(MAX_SUPPORT):
+            if i < len(self._support):
+                cell = self._cell(sup_frame, abbr(self._support[i]), "filled",
+                                  command=lambda ii=i: self._remove_support(ii))
+            elif i == len(self._support):
+                cell = self._cell(sup_frame, "＋", "add", command=self._add_support)
+            else:
+                cell = self._cell(sup_frame, "", "empty")
+            cell.pack(pady=1)
+
+    def _abbr(self, unit: str) -> str:
+        ut = self.owner.unit_service.get(unit)
+        return (ut.abbreviation if ut and ut.abbreviation else unit)[:9]
+
+    # ------------------------------------------------------------------ edits
+    def _commit(self) -> None:
+        if self.template is None:
+            return
+        self.template.set_columns(self._cols)
+        self.template.set_support(self._support)
+        self.owner.mark_dirty(self.doc)
+        self._render_grid()
+
+    def _add_regiment(self, col: int) -> None:
+        if not self._guard():
+            return
+        options = [(u.label, u.name) for u in self.owner.unit_service.land_regiments()]
+
+        def picked(unit: str) -> None:
+            if col == len(self._cols):
+                self._cols.append([unit])
+            else:
+                self._cols[col].append(unit)
+            self._commit()
+
+        SinglePickDialog(self, self.owner, self.t("oob.pick_regiment"), options, picked)
+
+    def _remove_regiment(self, col: int) -> None:
+        if not self._guard() or col >= len(self._cols):
+            return
+        self._cols[col].pop()
+        if not self._cols[col]:
+            self._cols.pop(col)
+        self._commit()
+
+    def _add_support(self) -> None:
+        if not self._guard() or len(self._support) >= MAX_SUPPORT:
+            return
+        used = set(self._support)
+        options = [(u.label, u.name) for u in self.owner.unit_service.land_support()
+                   if u.name not in used]
+        if not options:
+            self._status.configure(text=self.t("oob.no_support_left"))
+            return
+
+        def picked(unit: str) -> None:
+            if unit not in self._support:
+                self._support.append(unit)
+            self._commit()
+
+        SinglePickDialog(self, self.owner, self.t("oob.pick_support"), options, picked)
+
+    def _remove_support(self, idx: int) -> None:
+        if not self._guard() or idx >= len(self._support):
+            return
+        self._support.pop(idx)
+        self._commit()
+
+    # ------------------------------------------------------------------ actions
+    def _rename(self) -> None:
+        if not self._guard() or self.template is None:
+            return
+        template = self.template
+        taken = {t.name for t in self.doc.templates()} - {template.name}
+        TextPromptDialog(self, self.owner, self.t("oob.rename_template"),
+                         self.t("oob.template_name"),
+                         lambda new: self.owner.rename_template(template, new),
+                         initial=template.name, taken=taken, pattern=r"^.+$")
+
+    def _preview(self) -> None:
+        if self.template is not None:
+            PdxPreviewDialog(self, self.owner,
+                             self.t("focuses.preview_title", id=self.template.name),
+                             Block([self.template.pair]))
+
+
+class FileInspector(InspectorBase):
+    """OOB file view: deployed-division list + import action."""
+
+    def __init__(self, master, owner):
+        super().__init__(master, owner)
+        self.doc = None
+        self._division = None
+        self._build()
+
+    def _build(self) -> None:
+        b = self.body
+        b.rowconfigure(3, weight=1)
+        r = 0
+        self._title = ttk.Label(b, text="", style="Heading.TLabel")
+        self._title.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 2)); r += 1
+        self._subtitle = ttk.Label(b, text="", style="CardMuted.TLabel", wraplength=460)
+        self._subtitle.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 8)); r += 1
+
+        head = ttk.Frame(b, style="Card.TFrame")
+        head.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 4)); r += 1
+        ttk.Label(head, text=self.t("oob.divisions"), style="Card.TLabel").pack(side="left")
+        self._import_btn = ttk.Button(head, text="⬇ " + self.t("oob.import_from"),
+                                      command=self._import)
+        self._import_btn.pack(side="right")
+        self._add_btn = ttk.Button(head, text="➕ " + self.t("oob.add_division"),
+                                   command=self._add_division)
+        self._add_btn.pack(side="right", padx=6)
+
+        tree_wrap = ttk.Frame(b, style="Card.TFrame")
+        tree_wrap.grid(row=r, column=0, columnspan=2, sticky="nsew"); r += 1
+        tree_wrap.rowconfigure(0, weight=1)
+        tree_wrap.columnconfigure(0, weight=1)
+        self._tree = ttk.Treeview(tree_wrap, columns=("tmpl", "loc"),
+                                  show="tree headings", height=10, selectmode="browse")
+        self._tree.heading("#0", text=self.t("oob.division"))
+        self._tree.heading("tmpl", text=self.t("oob.template"))
+        self._tree.heading("loc", text=self.t("oob.location"))
+        self._tree.column("#0", width=120)
+        self._tree.column("tmpl", width=200)
+        self._tree.column("loc", width=90, anchor="e")
+        self._tree.grid(row=0, column=0, sticky="nsew")
+        sb = ttk.Scrollbar(tree_wrap, orient="vertical", command=self._tree.yview)
+        sb.grid(row=0, column=1, sticky="ns")
+        self._tree.configure(yscrollcommand=sb.set)
+        self._tree.bind("<<TreeviewSelect>>", self._on_div_select)
+
+        # per-division edit form
+        form = ttk.Frame(b, style="Card.TFrame")
+        form.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(8, 0)); r += 1
+        form.columnconfigure(1, weight=1)
+        ttk.Label(form, text=self.t("oob.template"), style="CardMuted.TLabel").grid(
+            row=0, column=0, sticky="w", pady=2)
+        self._tmpl_combo = ttk.Combobox(form, state="readonly")
+        self._tmpl_combo.grid(row=0, column=1, sticky="ew", padx=(8, 0), pady=2)
+        self._tmpl_combo.bind("<<ComboboxSelected>>", lambda e: self._commit_div())
+        ttk.Label(form, text=self.t("oob.location"), style="CardMuted.TLabel").grid(
+            row=1, column=0, sticky="w", pady=2)
+        self._loc_var = tk.StringVar()
+        loc_e = ttk.Entry(form, textvariable=self._loc_var, width=14)
+        loc_e.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=2)
+        self._loc_var.trace_add("write", lambda *_: self._debounce("loc", self._commit_div))
+        loc_e.bind("<FocusOut>", lambda e: self._commit_div())
+        ttk.Label(form, text=self.t("oob.custom_name"), style="CardMuted.TLabel").grid(
+            row=2, column=0, sticky="w", pady=2)
+        self._dname_var = tk.StringVar()
+        dn_e = ttk.Entry(form, textvariable=self._dname_var)
+        dn_e.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=2)
+        self._dname_var.trace_add("write", lambda *_: self._debounce("dname", self._commit_div))
+        dn_e.bind("<FocusOut>", lambda e: self._commit_div())
+        self._del_div_btn = ttk.Button(form, text="🗑 " + self.t("oob.remove_division"),
+                                       command=self._remove_division)
+        self._del_div_btn.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+    def show(self, doc, editable: bool) -> None:
+        self.flush_pending()
+        self.doc = doc
+        self._editable = editable
+        self._division = None
+        self._loading = True
+        try:
+            self._title.configure(text=doc.ref.name)
+            self._subtitle.configure(
+                text=doc.ref.rel_file
+                     + ("" if editable else "  ·  🔒 " + self.t("focuses.readonly")))
+            names = [t.name for t in doc.templates()]
+            self._tmpl_combo.configure(values=names)
+            self._refresh_divisions()
+            for w in (self._add_btn, self._import_btn):
+                w.configure(state="normal" if editable else "disabled")
+        finally:
+            self._loading = False
+
+    def _refresh_divisions(self) -> None:
+        self._tree.delete(*self._tree.get_children())
+        self._div_index = {}
+        for i, d in enumerate(self.doc.divisions()):
+            iid = str(i)
+            self._tree.insert("", "end", iid=iid,
+                              text=d.display_name(), values=(d.template, d.location))
+            self._div_index[iid] = d
+
+    def _on_div_select(self, _e=None) -> None:
+        sel = self._tree.selection()
+        if not sel:
+            return
+        self._division = self._div_index.get(sel[0])
+        if self._division is None:
+            return
+        self._loading = True
+        try:
+            self._tmpl_combo.set(self._division.template)
+            self._loc_var.set(self._division.location)
+            self._dname_var.set(self._division.custom_name)
+        finally:
+            self._loading = False
+
+    def _commit_div(self) -> None:
+        if not self._guard() or self._division is None:
+            return
+        self._division.template = self._tmpl_combo.get()
+        self._division.location = self._loc_var.get().strip()
+        self._division.custom_name = self._dname_var.get().strip()
+        self.owner.mark_dirty(self.doc)
+        # refresh just the row text/values
+        for iid, d in self._div_index.items():
+            if d is self._division:
+                self._tree.item(iid, text=d.display_name(),
+                                values=(d.template, d.location))
+                break
+
+    def _add_division(self) -> None:
+        if not self._guard():
+            return
+        names = [t.name for t in self.doc.templates()]
+        if not names:
+            self.owner._validate()
+            return
+        options = [(n, n) for n in names]
+
+        def picked(name: str) -> None:
+            self.owner.service.add_division(self.doc, name)
+            self.owner.mark_dirty(self.doc)
+            self._refresh_divisions()
+
+        SinglePickDialog(self, self.owner, self.t("oob.add_division"), options, picked)
+
+    def _remove_division(self) -> None:
+        if not self._guard() or self._division is None:
+            return
+        self.owner.service.remove_division(self.doc, self._division)
+        self.owner.mark_dirty(self.doc)
+        self._division = None
+        self._refresh_divisions()
+
+    def _import(self) -> None:
+        if not self._guard():
+            return
+        self.owner.import_from(self.doc)

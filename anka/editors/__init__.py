@@ -13,6 +13,7 @@ from .decisions import DecisionsEditor  # noqa: F401,E402
 from .events import EventsEditor  # noqa: F401,E402
 from .characters import CharactersEditor  # noqa: F401,E402
 from .ideas import IdeasEditor  # noqa: F401,E402
+from .oob import OobEditor  # noqa: F401,E402
 from . import _stubs  # noqa: F401,E402
 
 __all__ = ["EditorModule", "EditorRegistry", "EditorServices"]
