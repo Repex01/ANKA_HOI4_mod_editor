@@ -86,7 +86,17 @@ class ModListScreen(ttk.Frame):
         sb.grid(row=2, column=1, sticky="ns")
         self._tree.configure(yscrollcommand=sb.set)
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
-        self._tree.bind("<Double-1>", lambda e: self._open())
+        self._tree.bind("<Double-1>", self._on_double)
+
+    def _on_double(self, event) -> None:
+        """Open the row under the cursor, resolving its selection first so a
+        double-click on a not-yet-selected mod still opens the right one."""
+        row = self._tree.identify_row(event.y)
+        if not row:
+            return
+        self._tree.selection_set(row)
+        self._on_select()
+        self._open()
 
     def _build_details(self, body, t) -> None:
         right = ttk.Frame(body, style="Card.TFrame", padding=18)
