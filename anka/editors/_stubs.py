@@ -25,6 +25,38 @@ class WipEditor(EditorModule):
 
 
 @EditorRegistry.register
+class IdeologiesEditor(WipEditor):
+    id = "ideologies"
+    name_key = "editors.ideologies.name"
+    desc_key = "editors.ideologies.desc"
+    order = 90
+
+
+@EditorRegistry.register
+class TechnologiesEditor(WipEditor):
+    id = "technologies"
+    name_key = "editors.technologies.name"
+    desc_key = "editors.technologies.desc"
+    order = 95
+
+
+@EditorRegistry.register
+class OobEditor(WipEditor):
+    id = "oob"
+    name_key = "editors.oob.name"
+    desc_key = "editors.oob.desc"
+    order = 100
+
+
+@EditorRegistry.register
+class MapEditor(WipEditor):
+    id = "map"
+    name_key = "editors.map.name"
+    desc_key = "editors.map.desc"
+    order = 110
+
+
+@EditorRegistry.register
 class DynamicModifiersEditor(WipEditor):
     id = "dynamic_modifiers"
     name_key = "editors.dynamic_modifiers.name"

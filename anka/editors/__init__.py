@@ -6,6 +6,7 @@ references concrete editor classes, keeping the architecture open for extension.
 from .base import EditorModule, EditorRegistry, EditorServices
 
 # Importing the modules triggers @EditorRegistry.register side-effects.
+from .general import GeneralEditor  # noqa: F401,E402
 from .countries import CountriesEditor  # noqa: F401,E402
 from .focuses import FocusesEditor  # noqa: F401,E402
 from .decisions import DecisionsEditor  # noqa: F401,E402
