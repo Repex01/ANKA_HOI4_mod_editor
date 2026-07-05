@@ -63,6 +63,7 @@ _DEFAULT_PICTURE = "generic_production_bonus"
 
 _ID_RE = re.compile(r"^\w+$")
 _NEW_FILE = "anka_ideas.txt"
+_NEW_TAGS_FILE = "anka_idea_tags.txt"
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +499,111 @@ class IdeaService:
         for ref in self.list_docs(include_vanilla):
             keys.update(ref.categories)
         return keys
+
+    # --- category creation / removal ----------------------------------------
+    def create_category(self, name: str, *, kind: str = "", cost: str = "",
+                        removal_cost: str = "", ledger: str = "",
+                        hidden: bool = False, politics_tab: bool = True,
+                        slots: tuple[str, ...] = (),
+                        character_slots: tuple[str, ...] = (),
+                        law: bool = False, designer: bool = False,
+                        use_list_view: bool = False,
+                        icon_source: str | Path | None = None) -> str:
+        """Create a full idea category: the ``idea_tags`` definition, an empty
+        materialized category block in the mod's ideas file (so it shows in the
+        tree), and — for a politics-tab category — its GUI/GFX assets (empty-slot
+        sprites, an extra category-icon frame, a widened politics-view grid).
+
+        GUI artifacts are additive and are NOT rolled back on ``remove_category``.
+        """
+        slots = tuple(s.strip() for s in slots if s.strip())
+        character_slots = tuple(s.strip() for s in character_slots if s.strip())
+
+        # 1. idea_tags definition (repeating slot/character_slot pairs)
+        path = self.ctx.mod.path / GAME_DIRS.IDEA_TAGS / _NEW_TAGS_FILE
+        root = parse_file(path) if path.exists() else Block()
+        cats = root.get_block("idea_categories")
+        if cats is None:
+            cats = Block()
+            root.set("idea_categories", cats)
+        block = Block()
+        if kind:
+            block.set("type", Scalar(kind))
+        if cost != "":
+            block.set("cost", Scalar(str(cost)))
+        if removal_cost != "":
+            block.set("removal_cost", Scalar(str(removal_cost)))
+        if ledger:
+            block.set("ledger", Scalar(ledger))
+        if hidden:
+            block.set("hidden", Scalar("yes"))
+        if not politics_tab:                 # default is yes; only write the override
+            block.set("politics_tab", Scalar("no"))
+        for slot in slots:
+            block.add("slot", Scalar(slot))
+        for slot in character_slots:
+            block.add("character_slot", Scalar(slot))
+        cats.remove(name)                    # replace any prior mod definition
+        cats.add(name, block)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(root, path)
+        self._doc_cache.pop(path, None)
+        self._cat_defs_cache = None
+
+        # 2. materialize the category (+ file flags) in the mod ideas file
+        doc = self.mod_target_doc(name)
+        self.ensure_category(doc, name)
+        for flag, value in (("law", law), ("designer", designer),
+                            ("use_list_view", use_list_view)):
+            if value:
+                doc.set_category_flag(name, flag, True)
+        self.save(doc)
+
+        # 3. GUI / GFX assets
+        from ._ideagui import IdeaGuiAssets
+        assets = IdeaGuiAssets(self.ctx)
+        assets.add_slot_sprites(list(slots) + list(character_slots))
+        if politics_tab:
+            assets.add_category_frame(icon_source)
+            assets.widen_ideas_grid(len(slots) + len(character_slots))
+        return name
+
+    def count_mod_ideas(self, category: str) -> int:
+        """How many mod ideas live in `category` (for delete confirmation)."""
+        return sum(len(ref.categories.get(category, ()))
+                   for ref in self.list_docs(False))
+
+    def remove_category(self, name: str) -> int:
+        """Delete a category from the mod: its ``idea_tags`` definition AND every
+        mod idea block under it. Returns the number of ideas removed. Vanilla
+        files and GUI/GFX artifacts (frames, widened grid) are left untouched."""
+        removed = 0
+        for ref in self.list_category_docs(False):
+            try:
+                root = parse_file(ref.path)
+            except Exception:
+                continue
+            cats = root.get_block("idea_categories")
+            if cats is None or cats.get(name) is None:
+                continue
+            cats.remove(name)
+            dump_file(root, ensure_filename_case(ref.path))
+            self._doc_cache.pop(ref.path, None)
+        for ref in self.list_docs(False):
+            if name not in ref.categories:
+                continue
+            doc = self.load(ref)
+            ideas = doc.ideas_block()
+            if ideas is None:
+                continue
+            for pair in list(ideas.pairs()):
+                if pair.key == name and isinstance(pair.value, Block):
+                    removed += sum(1 for p in pair.value.pairs()
+                                   if isinstance(p.value, Block))
+                    ideas.items.remove(pair)
+            self.save(doc)
+        self._cat_defs_cache = None
+        return removed
 
     # --- localisation -------------------------------------------------------
     def name_of(self, key: str, language: str) -> str:
