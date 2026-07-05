@@ -75,6 +75,8 @@ class ThemeManager:
         s.configure("TLabel", background=p.bg, foreground=p.text)
         s.configure("Card.TLabel", background=p.surface, foreground=p.text)
         s.configure("Title.TLabel", background=p.bg, foreground=p.text, font=FONT_TITLE)
+        # Title on a card/panel surface (blends into Card.TFrame, no dark box).
+        s.configure("CardTitle.TLabel", background=p.surface, foreground=p.text, font=FONT_TITLE)
         s.configure("Heading.TLabel", background=p.surface, foreground=p.text, font=FONT_HEADING)
         s.configure("Muted.TLabel", background=p.bg, foreground=p.text_muted, font=FONT_SMALL)
         s.configure("CardMuted.TLabel", background=p.surface, foreground=p.text_muted, font=FONT_SMALL)

@@ -31,9 +31,9 @@ class GeneralEditor(EditorModule):
         mod = self.context.mod
         r = 0
 
-        ttk.Label(body, text=mod.name, style="Title.TLabel").grid(
+        ttk.Label(body, text=mod.name, style="CardTitle.TLabel").grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(0, 2)); r += 1
-        ttk.Label(body, text=t("general.subtitle"), style="Muted.TLabel").grid(
+        ttk.Label(body, text=t("general.subtitle"), style="CardMuted.TLabel").grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(0, 14)); r += 1
 
         # --- descriptor metadata -------------------------------------------

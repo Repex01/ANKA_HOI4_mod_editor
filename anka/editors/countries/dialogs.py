@@ -5,7 +5,9 @@ import re
 import tkinter as tk
 from tkinter import colorchooser, ttk
 
-_TAG_RE = re.compile(r"^[A-Z]{2,3}$")
+# HOI4 tags start with a letter and may contain digits afterwards (dynamic tags
+# like ``D01``); 2–3 characters, never leading with a digit.
+_TAG_RE = re.compile(r"^[A-Z][A-Z0-9]{1,2}$")
 
 
 class _Dialog(tk.Toplevel):

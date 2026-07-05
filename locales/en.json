@@ -139,7 +139,7 @@
   "countries.new.title": "New country",
   "countries.new.tag": "Tag (3 letters)",
   "countries.new.name": "Name",
-  "countries.new.invalid_tag": "Tag must be 2–3 uppercase Latin letters",
+  "countries.new.invalid_tag": "Tag: 2–3 chars, starts with a letter (A–Z), then letters or digits",
   "countries.new.exists": "That tag already exists",
   "countries.created": "Country created: {tag}",
 

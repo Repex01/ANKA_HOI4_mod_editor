@@ -139,7 +139,7 @@
   "countries.new.title": "Новая страна",
   "countries.new.tag": "Тег (3 буквы)",
   "countries.new.name": "Название",
-  "countries.new.invalid_tag": "Тег — 2–3 латинские заглавные буквы",
+  "countries.new.invalid_tag": "Тег: 2–3 символа, начинается с буквы (A–Z), далее буквы или цифры",
   "countries.new.exists": "Такой тег уже существует",
   "countries.created": "Страна создана: {tag}",
 
