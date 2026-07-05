@@ -42,9 +42,10 @@ anka/
 │   ├── focuses/            редактор деревьев фокусов (canvas, инспектор, скрипты, диалоги)
 │   ├── decisions/          редактор решений (дерево категорий, инспекторы, валидация)
 │   ├── events/             редактор событий (неймспейсы, условные варианты, опции)
+│   ├── ideas/              редактор идей / нац. духов (категории, создание с GUI-обвязкой)
 │   ├── characters/         редактор «Личности» (создание персонажей всех ролей)
 │   ├── effects/            каталог эффектов/триггеров/модификаторов игры (JSON + загрузчик)
-│   └── _stubs.py           заглушки: ideas, dynamic_modifiers, localisation
+│   └── _stubs.py           заглушки: dynamic_modifiers, localisation
 └── ui/                     tkinter: окна, темы, i18n, переиспользуемые виджеты
     ├── windows/            main_menu, settings, mod_list, mod_editor
     └── widgets/            ImageDropZone, ScrollableFrame, dnd (обёртка tkinterdnd2)
@@ -118,6 +119,34 @@ images/                     логотип и стандартные иконк�
 - Модель block-backed (`services/event_service.py`), quick-scan подсчётом глубины
   скобок, `LocCatalog(vanilla_filter="event")`; `LocCatalog.rename_key` переносит
   произвольные ключи (обобщение `rename` решений).
+
+### Редактор идей / нац. духов (`editors/ideas/`)
+Дерево «категория → идея» (мод + ванила read-only с «Копировать в мод»). Категории в
+дереве — это **ключи в файле** `ideas = { ... }`: имя категории (`country`,
+`hidden_ideas`) либо имя слота (`economy`, `tank_manufacturer`, `political_advisor`…) —
+у категории со слотами идеи группируются под слотами, а не под её именем. Одна категория
+собирается аддитивно из многих файлов; подпись категории — `ключ · loc · [law/designer ·
+N слотов]`. Инспектор идеи: id (переименование переносит loc-ключи `<id>`/`<id>_desc`,
+если нет `name`-override), категория-combobox (перенос), название/описание по языкам,
+`name`-override, иконка (`GFX_idea_*` галерея + импорт 63×50 DDS; пустой `picture` →
+дефолт `GFX_idea_<id>`), `cost`/`removal_cost`/`level`/`ledger`, tri-state флаги
+`default`/`cancel_if_invalid`, `traits` через MultiPick (trait_service), все скриптовые
+блоки (`allowed`/`available`/… — триггеры; `on_add`/`on_remove` — эффекты;
+`modifier`/`targeted_modifier` — с каталогом модификаторов; `equipment_bonus`/
+`research_bonus`/`rule` — свободные блоки). Инспектор категории показывает определение из
+`common/idea_tags` (read-only) и редактирует файловые флаги `law`/`designer`/
+`use_list_view`.
+
+**Создание категории** (`services/_ideagui.py`) — не только запись в `idea_tags`, но и
+полная GUI-обвязка политического экрана: материализация пустых блоков под слот-ключами,
+спрайты пустых слотов `GFX_idea_slot_<slot>` (копия ванильного DDS в мод), доп. кадр в
+`gfx/interface/idea_categories.dds` (Pillow) с override-спрайтом `GFX_idea_categories`
+(noOfFrames +1), расширение `max_slots.x` в мод-копии `countrypoliticsview.gui`. Ресурсы
+накапливаются на собственных копиях мода; GUI-артефакты при удалении категории не
+откатываются. Модель block-backed (`services/idea_service.py`), быстрый скан по подсчёту
+скобок (quick==parse на всех 213 ванильных файлах, 6483 идеи), `LocCatalog(vanilla_filter
+= "idea")`. Валидация: дубли id, неизвестный ключ категории, битые иконки/локализация,
+слот закона без `default = yes`, `removal_cost = -1` при `cost > 0`, неизвестные трейты.
 
 ### Каталог эффектов и триггеров (`editors/effects/`)
 Все эффекты (553) и триггеры (596) игры хранятся как данные: `effects.json` /
