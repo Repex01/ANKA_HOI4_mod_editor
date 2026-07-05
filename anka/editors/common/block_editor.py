@@ -83,7 +83,12 @@ def value_type_of(parent_key: str, key: str) -> str | None:
 
 def node_from_catalog(item) -> Pair:
     """Build an insertable Pair from a catalog entry — the documented example when it
-    parses (instant pre-filled form), otherwise an empty ``name = `` leaf."""
+    parses (instant pre-filled form), otherwise an empty ``name = `` leaf.
+
+    List-form effects (``add_ideas = { a b }`` and friends) insert as an empty
+    block so several items can be added, each an idea/state/tag list element."""
+    if item.name in _LIST_ITEM_TYPES:
+        return Pair(item.name, Block())
     if item.example:
         try:
             root = pdx_parse(item.example, recover=False)
@@ -300,6 +305,17 @@ class BlockTreeEditor(ttk.Frame):
         row.pack(fill="x", pady=1, anchor="w")
         ttk.Button(row, text="➕", width=3,
                    command=lambda: self._pick_new(block, parent_key)).pack(side="left")
+        # Inside a list-form effect (add_ideas = { a b }, prioritize = {...}, ...)
+        # offer a one-click "add item" that appends a bare value with a picker.
+        list_type = _LIST_ITEM_TYPES.get(parent_key)
+        if list_type is not None:
+            ttk.Button(row, text="➕ " + self.t(f"focuses.pick.{list_type}"),
+                       command=lambda: self._add_bare(block)).pack(side="left", padx=4)
+
+    def _add_bare(self, block: Block) -> None:
+        block.items.append(Scalar(""))
+        self.render()
+        self._on_change()
 
     # ------------------------------------------------------------------ picker
     def _pick_new(self, block: Block, parent_key: str = "") -> None:
