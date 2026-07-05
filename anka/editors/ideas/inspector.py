@@ -121,8 +121,9 @@ class IdeaInspector(InspectorBase):
                                    activebackground=self.palette.surface,
                                    cursor="hand2", command=self._pick_icon)
         self._icon_btn.pack(side="left")
-        self._icon_name = ttk.Label(icon_row, text="", style="CardMuted.TLabel", wraplength=250)
-        self._icon_name.pack(side="left", padx=(8, 0))
+        self._icon_name = ttk.Label(icon_row, text="", style="CardMuted.TLabel", wraplength=210)
+        self._icon_name.pack(side="left", padx=(8, 4))
+        ttk.Button(icon_row, text="✕", width=2, command=self._clear_icon).pack(side="left")
 
         # numeric fields + ledger + flags
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=6); r += 1
@@ -355,6 +356,15 @@ class IdeaInspector(InspectorBase):
         IconPickerDialog(self, self.owner, self.owner.resolver, idea.picture,
                          picked, imported, prefixes=(_ICON_PREFIX,))
 
+    def _clear_icon(self) -> None:
+        """Drop the ``picture`` key — an idea without an explicit icon is fine
+        (the engine falls back to GFX_idea_<id>)."""
+        if not self._guard() or self.idea is None:
+            return
+        self.idea.picture = ""
+        self.owner.mark_dirty(self.doc)
+        self._refresh_icon()
+
     def _pick_traits(self) -> None:
         if not self._guard() or self.idea is None:
             return
@@ -477,13 +487,10 @@ class IdeaCategoryInspector(InspectorBase):
                 text=self.t("ideas.cat.subtitle", owner=owner_name or key))
             self._lang.set(self.owner.loc_language)
             self._reload_loc()
-            # file flags: union across mod docs that hold this key
-            flags: dict[str, bool] = {}
-            for doc in self.owner._mod_docs:
-                for name, on in doc.category_flags(key).items():
-                    flags[name] = flags.get(name, False) or on
+            # file flags: union across all visible docs (mod + shown vanilla)
+            flags = self.owner.category_file_flags(key)
             for name, var in self._flags.items():
-                var.set(flags.get(name, False))
+                var.set(name in flags)
             # definition read-out
             if cdef is not None:
                 slots = cdef.slots()

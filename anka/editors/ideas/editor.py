@@ -192,13 +192,17 @@ class IdeasEditor(EditorModule):
         if selected and self._tree.exists(selected[0]):
             self._tree.selection_set(selected[0])
 
+    def category_file_flags(self, key: str) -> set:
+        """Union of file flags (law/designer/use_list_view) on a category key
+        across every visible doc (mod + shown vanilla) — from the quick scan."""
+        flags: set = set()
+        for ref in self._mod_refs + self._vanilla_refs:
+            flags |= ref.cat_flags.get(key, set())
+        return flags
+
     def _category_badge(self, key: str) -> str:
         """`[law/designer · N слотов]`-style badge for a category node."""
-        flags = set()
-        for doc in self._mod_docs:
-            for name, on in doc.category_flags(key).items():
-                if on:
-                    flags.add(name)
+        flags = self.category_file_flags(key)
         parts = [f for f in CATEGORY_FILE_FLAGS if f in flags]
         cdef = self.service.category_defs().get(key)
         if cdef is None:
@@ -596,7 +600,7 @@ class NewCategoryDialog(BaseDialog):
             r += 1
             return var
 
-        self._name = entry_row("ideas.category_id")
+        self._name_var = entry_row("ideas.category_id")
         self._cost = entry_row("ideas.cat.cost", "150")
         self._removal = entry_row("ideas.cat.removal_cost", "0")
 
@@ -664,7 +668,7 @@ class NewCategoryDialog(BaseDialog):
         self._icon_path = path
 
     def _submit(self) -> None:
-        name = self._name.get().strip()
+        name = self._name_var.get().strip()
         import re
         if not re.match(r"^\w+$", name):
             self._error.configure(text=self.t("focuses.err.bad_id"))

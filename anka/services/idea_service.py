@@ -206,6 +206,8 @@ class IdeaDocRef:
     is_vanilla: bool
     edited: bool = False              # vanilla file overridden by the mod
     categories: dict[str, list[str]] = field(default_factory=dict)   # quick scan
+    # category file-key -> set of file flags (law/designer/use_list_view) found
+    cat_flags: dict[str, set] = field(default_factory=dict)          # quick scan
 
     @property
     def path(self) -> Path:
@@ -300,6 +302,8 @@ class IdeaInfo:
 
 # idea ids may contain dots and hyphens (e.g. AST_vickers-ruwolt_organization).
 _KEY_OPEN_RE = re.compile(r"^\s*([\w.\-]+)\s*=\s*\{")
+# category-level scalar flags (``law = yes``) sit at depth 2, next to idea opens.
+_FLAG_RE = re.compile(r"^\s*(law|designer|use_list_view)\s*=\s*yes\b", re.IGNORECASE)
 
 
 class IdeaService:
@@ -337,19 +341,22 @@ class IdeaService:
                 text = file.read_text(encoding="utf-8-sig", errors="replace")
             except OSError:
                 continue
+            categories, cat_flags = self._scan_text(text)
             refs.append(IdeaDocRef(
                 rel_file=f"{GAME_DIRS.IDEAS}/{file.name}", source_root=root,
-                is_vanilla=is_vanilla, categories=self._quick_scan(text)))
+                is_vanilla=is_vanilla, categories=categories, cat_flags=cat_flags))
         return refs
 
     @staticmethod
-    def _quick_scan(text: str) -> dict[str, list[str]]:
-        """Cheap category -> idea-ids map for the tree/pickers (no full parse).
+    def _scan_text(text: str) -> tuple[dict[str, list[str]], dict[str, set]]:
+        """Cheap scan for the tree/pickers (no full parse): category -> idea-ids
+        and category -> file flags (law/designer/use_list_view).
 
         Depth 0 opens ``ideas``; depth 1 keys are categories; depth 2 keys are
-        ideas. Category-level scalar flags (``law = yes``) have no ``{`` and are
-        skipped. Depth is brace-counted — vanilla indentation is inconsistent."""
-        out: dict[str, list[str]] = {}
+        ideas, and depth-2 scalars ``law = yes`` etc. are the file flags. Depth is
+        brace-counted — vanilla indentation is inconsistent."""
+        cats: dict[str, list[str]] = {}
+        flags: dict[str, set] = {}
         depth = 0
         current: str | None = None
         for line in text.splitlines():
@@ -358,15 +365,24 @@ class IdeaService:
             if m:
                 if depth == 1:
                     current = m.group(1)
-                    out.setdefault(current, [])
+                    cats.setdefault(current, [])
                 elif depth == 2 and current is not None:
-                    out[current].append(m.group(1))
+                    cats[current].append(m.group(1))
+            elif depth == 2 and current is not None:
+                fm = _FLAG_RE.match(code)
+                if fm:
+                    flags.setdefault(current, set()).add(fm.group(1).lower())
             depth += code.count("{") - code.count("}")
             if depth < 0:
                 depth = 0
             if depth < 1:          # left the ideas block: forget the category
                 current = None
-        return out
+        return cats, flags
+
+    @staticmethod
+    def _quick_scan(text: str) -> dict[str, list[str]]:
+        """Category -> idea-ids map (see :meth:`_scan_text`)."""
+        return IdeaService._scan_text(text)[0]
 
     # --- load / save --------------------------------------------------------
     def load(self, ref: IdeaDocRef) -> IdeaDocument:
@@ -405,7 +421,8 @@ class IdeaService:
         target.write_bytes(ref.path.read_bytes())
         return IdeaDocRef(rel_file=ref.rel_file, source_root=self.ctx.mod.path,
                           is_vanilla=False, edited=True,
-                          categories={k: list(v) for k, v in ref.categories.items()})
+                          categories={k: list(v) for k, v in ref.categories.items()},
+                          cat_flags={k: set(v) for k, v in ref.cat_flags.items()})
 
     def delete(self, ref: IdeaDocRef) -> None:
         if ref.is_vanilla:
@@ -787,9 +804,11 @@ class IdeaService:
                 if idea.category not in known_keys:
                     issues.append(Issue("error", "unknown_category", iid,
                                         idea.category, rel_file=rel))
-                if sprite_exists is not None:
+                # only flag an explicitly-set picture; an idea with no picture is
+                # fine (the engine falls back to GFX_idea_<id>).
+                if sprite_exists is not None and idea.picture:
                     sprite = idea.sprite_name()
-                    if sprite and not sprite_exists(sprite):
+                    if not sprite_exists(sprite):
                         issues.append(Issue("warning", "missing_sprite", iid,
                                             sprite, rel_file=rel))
                 if language and not self.has_any_name(idea.name_key,
