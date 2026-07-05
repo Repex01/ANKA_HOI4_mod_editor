@@ -35,6 +35,7 @@ class GAME_DIRS:
     IDEOLOGIES = "common/ideologies"
     NATIONAL_FOCUS = "common/national_focus"
     IDEAS = "common/ideas"
+    IDEA_TAGS = "common/idea_tags"
     HISTORY_COUNTRIES = "history/countries"
     HISTORY_STATES = "history/states"
     CHARACTERS = "common/characters"
