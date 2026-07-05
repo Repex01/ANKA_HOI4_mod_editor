@@ -279,6 +279,8 @@ class Issue:
 
 _TEMPLATE_OPEN = re.compile(r"^\s*division_template\s*=\s*\{")
 _NAME_RE = re.compile(r'^\s*name\s*=\s*"?([^"\n]+?)"?\s*$')
+# air/naval OOB markers — used to keep those files out of the land editor.
+_AIR_NAVAL_RE = re.compile(r"^\s*(air_wings|fleet)\s*=\s*\{", re.MULTILINE)
 
 
 class OobService:
@@ -312,8 +314,13 @@ class OobService:
             except OSError:
                 continue
             templates = self._quick_scan(text)
-            if not templates:            # land OOB only (has division templates)
-                continue
+            if not templates:
+                # Land OOB only. Vanilla: require templates (skips air/naval and
+                # keeps the huge vanilla list clean). Mod: also show a template-less
+                # file (freshly created or deploy-only) unless it is an air/naval OOB
+                # — otherwise a new empty file the user just created stays invisible.
+                if is_vanilla or _AIR_NAVAL_RE.search(text):
+                    continue
             refs.append(OobDocRef(
                 rel_file=f"history/units/{file.name}", source_root=root,
                 is_vanilla=is_vanilla, templates=templates))
