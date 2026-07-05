@@ -550,13 +550,19 @@ class IdeaService:
         self._doc_cache.pop(path, None)
         self._cat_defs_cache = None
 
-        # 2. materialize the category (+ file flags) in the mod ideas file
-        doc = self.mod_target_doc(name)
-        self.ensure_category(doc, name)
-        for flag, value in (("law", law), ("designer", designer),
-                            ("use_list_view", use_list_view)):
-            if value:
-                doc.set_category_flag(name, flag, True)
+        # 2. materialize the category in the mod ideas file so it shows in the
+        #    tree. Ideas group under *file keys*: the slot names for a category
+        #    with slots, else the category name itself (country/hidden_ideas
+        #    style). File flags (law/designer/use_list_view) live on those same
+        #    blocks (vanilla puts ``law = yes`` on the ``economy`` slot block).
+        file_keys = list(slots) + list(character_slots) or [name]
+        doc = self.mod_target_doc(file_keys[0])
+        for key in file_keys:
+            self.ensure_category(doc, key)
+            for flag, value in (("law", law), ("designer", designer),
+                                ("use_list_view", use_list_view)):
+                if value:
+                    doc.set_category_flag(key, flag, True)
         self.save(doc)
 
         # 3. GUI / GFX assets
@@ -566,7 +572,7 @@ class IdeaService:
         if politics_tab:
             assets.add_category_frame(icon_source)
             assets.widen_ideas_grid(len(slots) + len(character_slots))
-        return name
+        return file_keys[0]
 
     def count_mod_ideas(self, category: str) -> int:
         """How many mod ideas live in `category` (for delete confirmation)."""
@@ -575,8 +581,14 @@ class IdeaService:
 
     def remove_category(self, name: str) -> int:
         """Delete a category from the mod: its ``idea_tags`` definition AND every
-        mod idea block under it. Returns the number of ideas removed. Vanilla
-        files and GUI/GFX artifacts (frames, widened grid) are left untouched."""
+        mod idea block under it — the category name and, for a slotted category,
+        each of its slot keys. Returns the number of ideas removed. Vanilla files
+        and GUI/GFX artifacts (frames, widened grid) are left untouched."""
+        cdef = self.category_defs(include_vanilla=False).get(name)
+        file_keys = {name}
+        if cdef is not None:
+            file_keys.update(cdef.slots())
+            file_keys.update(cdef.character_slots())
         removed = 0
         for ref in self.list_category_docs(False):
             try:
@@ -590,14 +602,14 @@ class IdeaService:
             dump_file(root, ensure_filename_case(ref.path))
             self._doc_cache.pop(ref.path, None)
         for ref in self.list_docs(False):
-            if name not in ref.categories:
+            if not (file_keys & set(ref.categories)):
                 continue
             doc = self.load(ref)
             ideas = doc.ideas_block()
             if ideas is None:
                 continue
             for pair in list(ideas.pairs()):
-                if pair.key == name and isinstance(pair.value, Block):
+                if pair.key in file_keys and isinstance(pair.value, Block):
                     removed += sum(1 for p in pair.value.pairs()
                                    if isinstance(p.value, Block))
                     ideas.items.remove(pair)
