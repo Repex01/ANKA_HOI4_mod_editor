@@ -61,6 +61,10 @@ class TemplateInspector(InspectorBase):
         self._grid_host = ttk.Frame(b, style="Card.TFrame")
         self._grid_host.grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
 
+        ttk.Label(b, text=self.t("oob.shift_hint"), style="CardMuted.TLabel",
+                  wraplength=460).grid(row=r, column=0, columnspan=2, sticky="w",
+                                       pady=(4, 0)); r += 1
+
         self._status = ttk.Label(b, text="", style="CardMuted.TLabel")
         self._status.grid(row=r, column=0, columnspan=2, sticky="w", pady=(6, 0)); r += 1
 
@@ -144,6 +148,12 @@ class TemplateInspector(InspectorBase):
                         can_add_regiment(self._cols, c):
                     cell = self._cell(col_frame, "＋", "add",
                                       command=lambda cc=c: self._add_regiment(cc))
+                    # Shift+click copies the top neighbour (or the left one if the
+                    # column is empty) into the cell — regiments only. "break"
+                    # suppresses the normal click (the unit picker).
+                    if self._editable:
+                        cell.bind("<Shift-Button-1>",
+                                  lambda e, cc=c: self._shift_copy(cc) or "break")
                 else:
                     cell = self._cell(col_frame, "", "empty")
                 cell.pack(pady=1)
@@ -195,6 +205,26 @@ class TemplateInspector(InspectorBase):
         self._cols[col].pop()
         if not self._cols[col]:
             self._cols.pop(col)
+        self._commit()
+
+    def _shift_copy(self, col: int) -> None:
+        """Fill the column's add cell with its top neighbour (the unit above),
+        or the left neighbour (row 0 of the previous column) when this column is
+        empty. Regiments only — support has no such adjacency."""
+        if not self._guard() or not can_add_regiment(self._cols, col):
+            return
+        col_list = self._cols[col] if col < len(self._cols) else []
+        if col_list:                              # top neighbour
+            unit = col_list[-1]
+        elif col > 0 and self._cols[col - 1]:     # no top -> left neighbour
+            unit = self._cols[col - 1][0]
+        else:
+            self._status.configure(text=self.t("oob.shift_copy_none"))
+            return
+        if col == len(self._cols):
+            self._cols.append([unit])
+        else:
+            self._cols[col].append(unit)
         self._commit()
 
     def _add_support(self) -> None:

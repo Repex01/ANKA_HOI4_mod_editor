@@ -629,5 +629,9 @@
   "oob.issue.bad_shape": "Invalid shape (a row has a gap between filled cells)",
   "oob.issue.duplicate_support": "A support company is used more than once",
   "oob.issue.unknown_unit": "Unknown unit: {detail}",
-  "oob.issue.division_bad_template": "Division references missing template: {detail}"
+  "oob.issue.division_bad_template": "Division references missing template: {detail}",
+
+  "oob.shift_hint": "Tip: Shift+click a ＋ to copy the unit above it (or the left column's top unit if the column is empty).",
+  "oob.shift_copy_none": "Nothing to copy into the first cell — add a unit with ＋.",
+  "focuses.pick.focus": "Pick a focus"
 }

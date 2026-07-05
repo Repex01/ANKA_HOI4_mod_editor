@@ -509,6 +509,10 @@ class IdeasEditor(EditorModule):
         elif vtype == "idea":
             for idea in self.service.list_ideas():
                 opts.append((f"{idea.id} · {idea.category}", idea.id))
+        elif vtype == "focus":
+            from ...services.focus_service import FocusService
+            for fid in FocusService(self.context).focus_ids():
+                opts.append((fid, fid))
         elif vtype == "modifier":
             from ..effects import ScriptCatalog
             for name, mod in sorted(ScriptCatalog.modifiers().items()):

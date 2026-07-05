@@ -455,6 +455,31 @@ class FocusService:
         self._loc_vanilla: dict[str, dict[str, Path]] = {}    # language -> key -> game file
         self._filters: list[str] | None = None
 
+    def focus_ids(self, include_vanilla: bool = True) -> list[str]:
+        """Every focus id across national_focus files (mod + game), cheap regex
+        scan — for the ``complete_national_focus`` / focus-id pickers."""
+        ids: list[str] = []
+        seen: set[str] = set()
+        roots = [self.ctx.mod.path]
+        if include_vanilla:
+            roots.append(self.ctx.game_path)
+        for root in roots:
+            folder = root / GAME_DIRS.NATIONAL_FOCUS
+            if not folder.is_dir():
+                continue
+            for file in sorted(folder.glob("*.txt")):
+                try:
+                    text = file.read_text(encoding="utf-8-sig", errors="replace")
+                except OSError:
+                    continue
+                for block_re in (_FOCUS_RE, _SHARED_DEF_RE, _JOINT_DEF_RE):
+                    for bm in block_re.finditer(text):
+                        idm = _ID_SCAN_RE.search(text, bm.end())
+                        if idm and idm.group(1) not in seen:
+                            seen.add(idm.group(1))
+                            ids.append(idm.group(1))
+        return sorted(ids)
+
     # --- listing -----------------------------------------------------------
     def list_trees(self, include_vanilla: bool = False) -> list[FocusTreeRef]:
         mod_refs = self._scan_dir(self.ctx.mod.path, is_vanilla=False)

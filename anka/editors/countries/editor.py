@@ -129,8 +129,8 @@ class CountriesEditor(EditorModule):
         self._build_tab_territory()
         self._build_tab_politics()
         self._build_tab_technology()
-        self._build_tab_effects()
         self._build_tab_characters()
+        self._build_tab_effects()
 
     # --- tab: general ----------------------------------------------------
     def _build_tab_general(self) -> None:
@@ -522,6 +522,10 @@ class CountriesEditor(EditorModule):
                 self._idea_service = IdeaService(self.context)
             for idea in self._idea_service.list_ideas():
                 opts.append((f"{idea.id} · {idea.category}", idea.id))
+        elif vtype == "focus":
+            from ...services.focus_service import FocusService
+            for fid in FocusService(self.context).focus_ids():
+                opts.append((fid, fid))
         elif vtype == "modifier":
             from ..effects import ScriptCatalog
             for name, mod in sorted(ScriptCatalog.modifiers().items()):

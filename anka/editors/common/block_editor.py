@@ -37,7 +37,7 @@ _TOOLTIP_KEYS = ("custom_effect_tooltip", "custom_trigger_tooltip")
 _KEY_TYPES = {                       # by parameter key inside blocks
     "tag": "country", "target": "country", "country": "country",
     "original_tag": "country", "exile": "country", "owner": "country",
-    "controller": "country",
+    "controller": "country", "targeted_alliance": "country", "enemy": "country",
     "state": "state",
     "idea": "idea",
 }
@@ -64,6 +64,8 @@ _VALUE_TYPES = {                     # by effect/trigger name in scalar form
     "has_full_control_of_state": "state",
     "add_ideas": "idea", "remove_ideas": "idea", "has_idea": "idea",
     "show_ideas_tooltip": "idea",
+    "complete_national_focus": "focus", "unlock_national_focus": "focus",
+    "focus": "focus", "has_completed_focus": "focus",
 }
 _LIST_ITEM_TYPES = {                 # bare scalars inside ``<key> = { a b c }``
     "add_ideas": "idea", "remove_ideas": "idea", "show_ideas_tooltip": "idea",
@@ -73,6 +75,35 @@ _LIST_ITEM_TYPES = {                 # bare scalars inside ``<key> = { a b c }``
 # picker *adds* a modifiers section there rather than replacing effects/triggers).
 _MODIFIER_PARENTS = ("modifier", "modifiers", "hidden_modifier", "targeted_modifier",
                      "state_modifier")
+
+
+# Effects that must be a block with specific sub-keys — the game docs are terse
+# and their catalog `example` is often empty, so a scalar fallback would be wrong.
+# Inserted pre-filled with sensible defaults; `target` gets a country picker
+# (see _KEY_TYPES). Keep these accurate to the HOI4 script API.
+_BLOCK_EFFECT_TEMPLATES = {
+    "declare_war_on": "declare_war_on = { target = FROM type = annex_everything }",
+    "annex_country": "annex_country = { target = FROM transfer_troops = yes }",
+    "create_wargoal": "create_wargoal = { type = annex_everything target = FROM }",
+    "start_civil_war": ("start_civil_war = { ideology = communism "
+                        "ruling_party = communism size = 0.5 }"),
+    "become_exiled_in": "become_exiled_in = { target = FROM legitimacy = 50 }",
+    # NB: puppet stays scalar by default (``puppet = TAG`` is idiomatic); the block
+    # form is valid too but we don't force it.
+    "set_autonomy": ("set_autonomy = { target = FROM "
+                     "autonomy_state = autonomy_puppet freedom_level = 0.5 }"),
+    "release_autonomy": ("release_autonomy = { target = FROM "
+                         "autonomy_state = autonomy_puppet freedom_level = 0.5 }"),
+    "diplomatic_relation": ("diplomatic_relation = { country = FROM "
+                            "relation = military_access active = yes }"),
+    "add_to_war": ("add_to_war = { targeted_alliance = FROM enemy = FROM "
+                   "hostility_reason = asked_to_join }"),
+    "add_opinion_modifier": ("add_opinion_modifier = { target = FROM "
+                             "modifier = opinion_modifier_id }"),
+    "remove_opinion_modifier": ("remove_opinion_modifier = { target = FROM "
+                                "modifier = opinion_modifier_id }"),
+    "set_politics": "set_politics = { ruling_party = communism elections_allowed = yes }",
+}
 
 
 def value_type_of(parent_key: str, key: str) -> str | None:
@@ -86,9 +117,19 @@ def node_from_catalog(item) -> Pair:
     parses (instant pre-filled form), otherwise an empty ``name = `` leaf.
 
     List-form effects (``add_ideas = { a b }`` and friends) insert as an empty
-    block so several items can be added, each an idea/state/tag list element."""
+    block; block-form effects (declare_war_on, annex_country, ...) insert a
+    pre-filled skeleton so their required sub-keys (target/type) are present."""
     if item.name in _LIST_ITEM_TYPES:
         return Pair(item.name, Block())
+    template = _BLOCK_EFFECT_TEMPLATES.get(item.name)
+    if template:
+        try:
+            root = pdx_parse(template, recover=False)
+            for pair in root.pairs():
+                if pair.key == item.name:
+                    return pair
+        except Exception:
+            pass
     if item.example:
         try:
             root = pdx_parse(item.example, recover=False)
