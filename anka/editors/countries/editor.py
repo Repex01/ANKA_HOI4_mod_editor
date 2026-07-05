@@ -20,6 +20,7 @@ from ...services.state_service import StateService
 from ...services.technology_service import TechnologyService
 from ...ui.widgets import ImageDropZone, ScrollableFrame
 from ..base import EditorModule, EditorRegistry
+from ..common import ScriptEditorDialog
 from .dialogs import (
     CharacterPickerDialog,
     CoresEditDialog,
@@ -44,6 +45,10 @@ class CountriesEditor(EditorModule):
         self.ideology_service = IdeologyService(context)
         self.character_service = context.characters  # shared across editor modules
         self.tech_service = TechnologyService(context)
+        self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
+                                                  "english")
+        self._value_options: dict[str, list[tuple[str, str]]] = {}
+        self._effects_loc_cat = None
         self._tech_selection: list[tuple[str, str]] = []
         self._tech_count_cache: dict[str, int] = {}
         self._loading = False      # suppress dirty-tracking while populating fields
@@ -85,12 +90,7 @@ class CountriesEditor(EditorModule):
 
     def on_leave(self) -> None:
         """Auto-save pending edits for the selected country when leaving the editor."""
-        if not self._dirty or self._selected is None:
-            return
-        self._save_politics()
-        self._save_tech()
-        self._save_name()
-        self._dirty = False
+        self._save_all_pending()
 
     def _build_list(self, root) -> None:
         left = ttk.Frame(root, style="Card.TFrame", padding=10)
@@ -129,6 +129,7 @@ class CountriesEditor(EditorModule):
         self._build_tab_territory()
         self._build_tab_politics()
         self._build_tab_technology()
+        self._build_tab_effects()
         self._build_tab_characters()
 
     # --- tab: general ----------------------------------------------------
@@ -398,6 +399,137 @@ class CountriesEditor(EditorModule):
         self._tech_status = ttk.Label(actions, text="", style="CardMuted.TLabel")
         self._tech_status.pack(side="left", padx=10)
 
+    # --- tab: additional effects ----------------------------------------
+    def _build_tab_effects(self) -> None:
+        tab = ttk.Frame(self._nb, style="Card.TFrame", padding=18)
+        self._nb.add(tab, text=self.t("countries.tabs.effects"))
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(3, weight=1)
+
+        head = ttk.Frame(tab, style="Card.TFrame")
+        head.grid(row=0, column=0, sticky="ew")
+        ttk.Label(head, text=self.t("countries.effects.title"),
+                  style="Heading.TLabel").pack(side="left")
+        self._effects_edit_btn = ttk.Button(
+            head, text="✎ " + self.t("countries.effects.edit"),
+            style="Accent.TButton", command=self._edit_effects, state="disabled")
+        self._effects_edit_btn.pack(side="right")
+
+        ttk.Label(tab, text=self.t("countries.effects.hint"), style="CardMuted.TLabel",
+                  wraplength=560, justify="left").grid(row=1, column=0, sticky="w",
+                                                       pady=(6, 8))
+        ttk.Label(tab, text=self.t("countries.effects.preview"),
+                  style="CardMuted.TLabel").grid(row=2, column=0, sticky="w")
+        wrap = ttk.Frame(tab, style="Card.TFrame")
+        wrap.grid(row=3, column=0, sticky="nsew", pady=(2, 0))
+        wrap.rowconfigure(0, weight=1)
+        wrap.columnconfigure(0, weight=1)
+        self._effects_text = tk.Text(wrap, wrap="none", relief="flat",
+                                     bg=self.palette.surface_alt, fg=self.palette.text,
+                                     font=("Consolas", 10), tabs="24",
+                                     state="disabled", height=10)
+        self._effects_text.grid(row=0, column=0, sticky="nsew")
+        ysb = ttk.Scrollbar(wrap, orient="vertical", command=self._effects_text.yview)
+        ysb.grid(row=0, column=1, sticky="ns")
+        xsb = ttk.Scrollbar(wrap, orient="horizontal", command=self._effects_text.xview)
+        xsb.grid(row=1, column=0, sticky="ew")
+        self._effects_text.configure(yscrollcommand=ysb.set, xscrollcommand=xsb.set)
+        self._effects_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
+        self._effects_status.grid(row=4, column=0, sticky="w", pady=(8, 0))
+
+    def _refresh_effects_preview(self) -> None:
+        text = ""
+        if self._selected is not None:
+            text = self.service.get_history_text(self._selected.tag)
+        self._effects_text.configure(state="normal")
+        self._effects_text.delete("1.0", "end")
+        self._effects_text.insert("1.0", text)
+        self._effects_text.configure(state="disabled")
+
+    def _edit_effects(self) -> None:
+        if self._selected is None:
+            return
+        # Persist pending edits from the other tabs so the editor reads current
+        # on-disk state (tech / politics / names share the same history file).
+        self._save_all_pending()
+        tag, name = self._selected.tag, self._selected.name
+        current = self.service.get_history_text(tag)
+
+        def submitted(text: str) -> None:
+            try:
+                self.service.set_history_text(tag, name, text)
+            except Exception as exc:
+                self._effects_status.configure(
+                    text=f"{self.t('common.error')}: {exc}",
+                    foreground=self.palette.danger)
+                return
+            # Re-read every derived tab from disk so e.g. set_technology edits
+            # made here show up in the Technology tab.
+            if self._selected is not None and self._selected.tag == tag:
+                self._populate(self._selected)
+            self._effects_status.configure(text=self.t("countries.effects.saved"),
+                                           foreground=self.palette.text_muted)
+
+        ScriptEditorDialog(self._nb, self, self.t("countries.effects.title"),
+                           current, submitted, ("effect", "trigger"), tag)
+
+    def _save_all_pending(self) -> None:
+        """Flush unsaved edits from the auto-saved tabs to disk (used before the
+        effects editor reads the file, and shares logic with on_leave)."""
+        if not self._dirty or self._selected is None:
+            return
+        self._save_politics()
+        self._save_tech()
+        self._save_name()
+        self._dirty = False
+
+    # --- script-editor owner protocol (for the effects tab) -------------
+    @property
+    def _effects_loc(self):
+        if self._effects_loc_cat is None:
+            from ...services._locutil import LocCatalog
+            self._effects_loc_cat = LocCatalog(
+                self.context.mod.path, self.context.game_path,
+                vanilla_filter="anka_country_effects",
+                default_pattern="anka_country_effects_l_{lang}.yml")
+        return self._effects_loc_cat
+
+    def loc_get(self, key: str, language: str) -> str:
+        return self._effects_loc.get(key, language) or ""
+
+    def loc_set(self, key: str, language: str, text: str) -> None:
+        self._effects_loc.set(key, language, text)
+
+    def value_options(self, vtype: str) -> list[tuple[str, str]]:
+        if vtype == "event":
+            from ...services.event_service import EventService
+            if getattr(self, "_event_service", None) is None:
+                self._event_service = EventService(self.context)
+            return self._event_service.event_options()
+        cached = self._value_options.get(vtype)
+        if cached is not None:
+            return cached
+        opts: list[tuple[str, str]] = []
+        if vtype == "country":
+            for ref in self.service.list_tags(include_vanilla=True):
+                opts.append((f"{ref.tag} · {ref.name}", ref.tag))
+        elif vtype == "state":
+            for st in self.state_service.list_states():
+                opts.append((f"{st.id} · {st.name}", str(st.id)))
+        elif vtype == "idea":
+            from ...services.idea_service import IdeaService
+            if getattr(self, "_idea_service", None) is None:
+                self._idea_service = IdeaService(self.context)
+            for idea in self._idea_service.list_ideas():
+                opts.append((f"{idea.id} · {idea.category}", idea.id))
+        elif vtype == "modifier":
+            from ..effects import ScriptCatalog
+            for name, mod in sorted(ScriptCatalog.modifiers().items()):
+                scopes = ", ".join(mod.scopes)
+                opts.append((f"{name} · {scopes}" if scopes else name, name))
+        self._value_options[vtype] = opts
+        return opts
+
     # --- tab: characters (assign existing) ------------------------------
     def _build_tab_characters(self) -> None:
         tab = ttk.Frame(self._nb, style="Card.TFrame", padding=18)
@@ -514,6 +646,11 @@ class CountriesEditor(EditorModule):
         # technologies (tech, condition) entries
         self._tech_selection = self.service.get_technology_entries(ref.tag)
         self._refresh_techs()
+
+        # additional effects (raw history block)
+        self._refresh_effects_preview()
+        self._effects_edit_btn.configure(state="normal")
+        self._effects_status.configure(text="")
 
         self._refresh_owned_states(current_capital=hist.get("capital", ""))
         self._refresh_characters()

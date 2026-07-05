@@ -560,5 +560,12 @@
   "help.idea.rule": "Diplomacy/gameplay rules, e.g. can_join_factions = no (free block).",
   "help.idea.cat_law": "Marks the category's slots as law slots (one law active at a time).",
   "help.idea.cat_designer": "Marks the category as a designer slot.",
-  "help.idea.cat_use_list_view": "Show the category's ideas as a list instead of icons."
+  "help.idea.cat_use_list_view": "Show the category's ideas as a list instead of icons.",
+
+  "countries.tabs.effects": "Additional effects",
+  "countries.effects.title": "On-start effects",
+  "countries.effects.edit": "Edit effects",
+  "countries.effects.hint": "Edit the country's history block — the effects run at game start (add_ideas, set_technology, give_guarantee, custom triggers/effects, dated blocks…). This is the same file the Technology/Politics tabs write to, so set_technology changes made here appear there and vice versa.",
+  "countries.effects.preview": "Current effects (read-only):",
+  "countries.effects.saved": "Effects saved"
 }

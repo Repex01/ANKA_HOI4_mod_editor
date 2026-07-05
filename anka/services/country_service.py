@@ -14,7 +14,8 @@ from pathlib import Path
 
 from ..config.constants import GAME_DIRS, HOI4_LANGUAGES
 from ..core.localisation import LocFile
-from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
+from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
+from ..core.pdx import parse as _pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case as _ensure_filename_case
 from ._locutil import loc_write_target as _loc_write_target
@@ -385,6 +386,19 @@ class CountryService:
     def _history_block(self, tag: str) -> Block:
         source = self._find_history_file(tag)
         return parse_file(source) if source else Block()
+
+    # --- raw history effects (Additional effects tab) -------------------
+    def get_history_text(self, tag: str) -> str:
+        """The whole country-history block serialized — the on-start effects
+        (capital, set_technology, set_politics, add_ideas, date blocks, ...).
+        Shared with the per-field tabs: they read/write the same file."""
+        return dumps(self._history_block(tag)).rstrip("\n")
+
+    def set_history_text(self, tag: str, name: str, text: str) -> Path:
+        """Replace the whole country-history block from edited script text
+        (strict parse; copies a vanilla file into the mod first)."""
+        root = _pdx_parse(text, recover=False) if text.strip() else Block()
+        return self._write_history(tag, name, Block(root.items))
 
     def _write_history(self, tag: str, name: str, block: Block) -> Path:
         target = self._mod_history_path(tag, name)
