@@ -22,6 +22,7 @@ from ..core.pdx import parse as pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
 from ._locutil import LocCatalog
+from ._pdxview import BlockView
 
 # Tri-state boolean flags on a decision (absent = game default).
 DECISION_FLAG_DEFAULTS = {
@@ -50,52 +51,10 @@ CATEGORY_SCRIPT_FIELDS = ("allowed", "visible", "available")
 _ID_RE = re.compile(r"^\w+$")
 
 
-class _BlockView:
-    """Shared scalar/flag/script accessors over a PDX block."""
+class _BlockView(BlockView):
+    """Decision-flavoured `BlockView` (shared helper lives in ``_pdxview``)."""
 
-    block: Block
-
-    def get_raw(self, key: str) -> str:
-        v = self.block.get(key)
-        return v.raw if isinstance(v, Scalar) else ""
-
-    def set_raw(self, key: str, value: str) -> None:
-        value = value.strip()
-        if value:
-            self.block.set(key, Scalar(value))
-        else:
-            self.block.remove(key)
-
-    def get_flag(self, name: str) -> bool:
-        v = self.block.get(name)
-        if isinstance(v, Scalar):
-            return v.as_bool()
-        return DECISION_FLAG_DEFAULTS.get(name, False)
-
-    def set_flag(self, name: str, value: bool) -> None:
-        if value == DECISION_FLAG_DEFAULTS.get(name, False):
-            self.block.remove(name)
-        else:
-            self.block.set(name, bool(value))
-
-    def get_script(self, key: str) -> str:
-        v = self.block.get(key)
-        if isinstance(v, Block):
-            return dumps(v, top_level=False)
-        if isinstance(v, Scalar):
-            return v.raw
-        return ""
-
-    def set_script(self, key: str, text: str) -> None:
-        """Parse `text` strictly and store under `key`; empty removes the key."""
-        if not text.strip():
-            self.block.remove(key)
-            return
-        parsed = pdx_parse(text, recover=False)
-        if len(parsed.items) == 1 and isinstance(parsed.items[0], Scalar):
-            self.block.set(key, parsed.items[0])
-        else:
-            self.block.set(key, Block(parsed.items))
+    FLAG_DEFAULTS = DECISION_FLAG_DEFAULTS
 
 
 class Decision(_BlockView):

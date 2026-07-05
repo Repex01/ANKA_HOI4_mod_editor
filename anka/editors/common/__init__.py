@@ -14,6 +14,7 @@ from .dialogs import (
     SinglePickDialog,
     TextPromptDialog,
 )
+from .inspector_base import InspectorBase
 from .script_editor import ScriptEditorDialog
 from .variants import VariantListEditor
 
@@ -21,5 +22,5 @@ __all__ = [
     "BaseDialog", "TextPromptDialog", "MultiPickDialog", "SinglePickDialog",
     "IconPickerDialog", "PdxPreviewDialog",
     "BlockTreeEditor", "BlockPickerDialog", "node_from_catalog",
-    "ScriptEditorDialog", "VariantListEditor",
+    "InspectorBase", "ScriptEditorDialog", "VariantListEditor",
 ]
