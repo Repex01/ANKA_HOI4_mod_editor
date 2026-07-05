@@ -1,8 +1,14 @@
 # ANKA — Hearts of Iron IV mod editor
 
 ANKA автоматизирует и упрощает работу с модами для Hearts of Iron IV: редактирование
-стран, фокусов, событий, нац. духов, личностей, решений, динамических модификаторов и
+стран, фокусов, событий, нац. духов, личностей, решений, боевых порядков (OOB) и
 локализации с автоматической генерацией нужных файлов и конвертацией графики.
+
+> **Разработчику (в т.ч. ИИ-ассистенту):** прежде чем писать код, прочитайте раздел
+> [«Как устроен редактор»](#как-устроен-редактор-шаблон-для-нового) — там собраны все
+> паттерны (block-backed модель, дерево, инспектор, owner-протокол, скрипт-редактор,
+> локализация) и подводные камни Tk. Почти любой новый редактор — это копия
+> `editors/decisions/` или `editors/ideas/` с заменой доменной модели.
 
 ## Установка
 
@@ -180,6 +186,231 @@ N слотов]`. Инспектор идеи: id (переименование 
 Тяжёлые сервисы с кэшем (например `ModContext.characters`) объявлены как
 `cached_property` на контексте — значит они общие для всех редакторов и кэш когерентен
 (персонаж, созданный в «Личностях», сразу виден в «Странах» без повторного скана).
+
+---
+
+# Как устроен редактор (шаблон для нового)
+
+Раздел для того, кто добавляет функциональность. Все «файловые» редакторы
+(decisions / events / ideas / oob) построены по одному шаблону из трёх слоёв:
+**сервис (block-backed модель) → каркас-редактор (дерево + тулбар) → инспекторы**.
+Быстрее всего скопировать ближайший существующий редактор и заменить доменную модель.
+`editors/decisions/` — самый простой эталон; `editors/ideas/` и `editors/oob/` — с
+инспектором-категорией и нестандартной моделью соответственно.
+
+## 1. Слой сервиса (`services/<name>_service.py`)
+
+Модель **block-backed**: доменные объекты — тонкие «вьюхи» над узлами PDX-дерева, а не
+копии данных. Благодаря этому неизвестные ключи переживают load→save без потерь.
+
+- **Наследуйтесь от `services/_pdxview.BlockView`.** Он даёт над `self.block: Block`:
+  `get_raw/set_raw` (скаляр-строка), `get_flag/set_flag` (tri-state булев флаг: значение,
+  равное дефолту из `FLAG_DEFAULTS`, **не пишется** — только отклонение от дефолта),
+  `get_script/set_script` (блок ↔ текст скрипта, строгий парс). Задайте классовый
+  `FLAG_DEFAULTS = {...}` для своих флагов. Пример: `Decision(_BlockView)`,
+  `IdeaDef(BlockView)`, `DivisionTemplate(BlockView)`.
+- **Ref / Document / Service** — три структуры (эталон в любом `*_service.py`):
+  - `XxxDocRef(rel_file, source_root, is_vanilla, edited, <quick-scan данные>)` —
+    лёгкое описание файла (`path`, `name`), плюс результат быстрого скана (что показать
+    в дереве без полного парса).
+  - `XxxDocument(ref, root: Block)` — распарсенный файл + методы навигации по объектам.
+  - `XxxService(context)` — CRUD и файловые операции.
+- **Быстрый скан (`_quick_scan`)** — регулярки + **подсчёт глубины по скобкам**, НЕ по
+  отступам (ванильные отступы — смесь табов и пробелов, доверять нельзя). Нужен, чтобы
+  список/дерево строились без парса сотен ванильных файлов. Инвариант, которого стоит
+  придерживаться: `quick_scan == полный парс` на всех ванильных файлах (см. smoke-тесты).
+- **`list_docs(include_vanilla)`** — mod-first: сканируем мод, потом игру; ванильный файл,
+  переопределённый модом, помечаем `edited=True`; при `include_vanilla` добавляем
+  оставшуюся ваниль. Сравнение путей — **регистронезависимое** (`rel_file.lower()`).
+- **`load(ref)`** кэширует по `mtime` (`self._doc_cache: dict[Path, tuple[mtime, doc]]`);
+  повторный `load` того же файла отдаёт тот же объект-документ (важно для «dirty»-логики).
+- **`save(doc)`** отказывается писать в ваниль (`ref.is_vanilla` → `PermissionError`),
+  прогоняет путь через `ensure_filename_case` (регистр под ванилу, критично!), пишет
+  `dump_file` (**без BOM**).
+- **`copy_to_mod(ref)`** — байтовая копия ванильного файла в мод по тому же
+  относительному пути (это и есть «override»), возвращает новый mod-`ref`.
+- **`delete(ref)`** — только для мода; чистит кэш.
+- **Куда попадает новый объект:** «первый мод-файл, уже содержащий эту сущность, иначе
+  `anka_<...>.txt`» (см. `mod_target_doc`).
+
+## 2. Локализация (`services/_locutil.LocCatalog`)
+
+Игра грузит ВСЕ `.yml`; два определения одного ключа → «loc key collision» и
+непредсказуемый результат. Поэтому пишем **collision-safe**:
+
+```python
+self.loc = LocCatalog(mod_path, game_path,
+                      vanilla_filter="idea",              # подстрока имён ванильных .yml
+                      default_pattern="anka_ideas_l_{lang}.yml")
+```
+`get/has/set(key, lang, value)`: запись идёт в мод-файл, где ключ уже есть → иначе в
+**мод-копию** ванильного .yml, определяющего ключ (override целиком) → иначе в свой
+`default_pattern`. `.yml` пишется **С BOM** (`utf-8-sig`) — обратно скриптам!
+`rename(old, new)` переносит ключ и его `_desc`-двойник; `rename_key` — произвольный ключ.
+Паттерн имени: `name_of/desc_of/set_loc/has_any_name` (см. decision/idea сервисы).
+
+## 3. Каркас-редактор (`editors/<name>/editor.py`)
+
+Подкласс `EditorModule` + `@EditorRegistry.register`. Обязательные атрибуты класса:
+`id`, `name_key`, `desc_key`, `order` (позиция в сайдбаре; см. таблицу ниже),
+`implemented` (True). Метод `build(parent) -> ttk.Widget` строит и возвращает корневой
+виджет. Наследник получает `self.context` (ModContext) и `self.services`
+(EditorServices), а также свойства `self.t` (переводчик), `self.palette` (цвета темы).
+
+Типовой каркас (копия `DecisionsEditor`):
+- **Тулбар:** ☰ панель, ➕ новый объект, 🗂 новая категория/файл, 💾 (`save_all`),
+  ⧉ «Копировать в мод» (появляется контекстно для ваниль-выбора), ⚠ панель проблем.
+- **Дерево слева** (`ttk.Treeview`), iid-схема `"<тип>::<rel_file>::<id>"`
+  (напр. `c::country`, `i::common/ideas/SOV.txt::idea_id`). Мод-объекты обычным цветом,
+  ваниль — тег `vanilla` (серый), read-only. Поиск, сохранение раскрытости узлов при
+  перестройке, `<Delete>` роутится на удаление (с confirm).
+- **`reload_tree()`** перечитывает мод-документы целиком + ванилу из quick-scan;
+  **`_refresh_tree()`** перерисовывает по текущему поиску, сохраняя открытые узлы.
+- **Сворачивание панели:** при скрытии дерева обязательно снимать резерв ширины колонки
+  (`self._grid_root.columnconfigure(0, minsize=0)`), иначе остаётся «мёртвая» полоса.
+- **Dirty-трекинг:** `mark_dirty(doc)` кладёт `doc.ref.path` в `self._dirty`; `save_all()`
+  сохраняет только «грязные» документы; `on_leave()` (вызывается при уходе с редактора)
+  = `save_all()`. Редактор НЕ пишет ничего при простом просмотре.
+- **Панель проблем:** `service.validate(docs, ...)` → список `Issue(severity, code,
+  subject, detail, rel_file)`; текст берётся из локали `"<name>.issue.<code>"`; клик по
+  проблеме выделяет объект в дереве.
+
+## 4. Инспектор (`editors/<name>/inspector.py`)
+
+Подкласс **`editors/common/inspector_base.InspectorBase`** — «тупая форма» над
+block-backed моделью: значения грузятся в `show(...)`, правки коммитятся сразу (с
+дебаунсом для текстовых полей) обратно в модель + `owner.mark_dirty(doc)`. База даёт:
+`self.body` (скроллируемая карточка, 2 колонки), `_debounce(key, commit, delay)`,
+`flush_pending()` (сбросить отложенные коммиты — вызывать при смене выбора и в `show`),
+`_guard()` (коммитить только когда не грузимся и не read-only), `_entry_row(...)`,
+`_set_state_all(editable)` (массовый read-only), `_icon_preview(sprite, size)`
+(**держите ссылку на PhotoImage в атрибуте**, иначе Tk соберёт картинку сборщиком).
+
+Паттерн `show(doc, obj, editable)`: `flush_pending()` → выставить `self._loading=True`
+→ заполнить поля → `_loading=False`. Коммиты проверяют `self._guard()`.
+
+## 5. Owner-протокол (что редактор обязан предоставить общим компонентам)
+
+Диалоги и `BlockTreeEditor` из `editors/common/` вызывают у «owner» (редактора) методы:
+
+| Метод / атрибут | Кто использует | Назначение |
+|---|---|---|
+| `t`, `palette` | все | переводчик, цвета |
+| `value_options(vtype)` | пикеры в скрипт-редакторе | `list[(display, value)]` для `vtype` ∈ `country/state/idea/focus/event/modifier` |
+| `loc_language` | inline-loc, инспекторы | текущий язык (`"russian"`/`"english"`) |
+| `loc_get/loc_set(key, lang, text)` | tooltip-поля скрипт-редактора | чтение/запись loc |
+| `resolver`, `resolver_ready()` | галерея иконок, превью | `SpriteResolver` + флаг «прогрет» |
+| `import_icon(path, obj)` | импорт своей картинки | конверт+регистрация, возвращает имя спрайта |
+| `mark_dirty(doc)` / `reload_tree()` / `refresh_tree_labels()` | инспекторы | сохранение и перерисовка |
+| `known_ids()` | проверка дубля id при rename | все id в области видимости |
+
+`value_options` кэшируйте в `self._value_options[vtype]` (кроме `"event"` — события
+создаются/переименовываются в сессии, кэшировать нельзя). Ветка `"focus"` — через
+`FocusService.focus_ids()` (дешёвый скан national_focus).
+
+## 6. Скрипт-редактор и типизированные значения (`editors/common/block_editor.py`)
+
+`ScriptEditorDialog(master, editor, title, initial_text, on_submit, kinds, focus_id)` —
+две вкладки (визуальный `BlockTreeEditor` + текст с подсветкой и строгим парсом; битый
+скрипт не сохранится). `kinds ⊆ ("effect","trigger")` — что предлагать в пикере.
+Правило по полям: условия (`allowed`, `visible`, `available`, …) — `("trigger",)`;
+награды/эффекты (`on_add`, `complete_effect`, …) — `("effect","trigger")`.
+
+Чтобы поле/ключ получил **пикер значения** или блок вставлялся правильно, правьте
+таблицы модуля (это единая точка на все редакторы):
+- **`_KEY_TYPES`** — ключ ВНУТРИ блока → тип пикера (`target/tag/country → country`,
+  `state → state`, `idea → idea` …).
+- **`_VALUE_TYPES`** — имя эффекта/триггера в **скалярной** форме → тип
+  (`declare_war_on`, `complete_national_focus → focus`, …).
+- **`_LIST_ITEM_TYPES`** — эффект-список `key = { a b c }`: тип его bare-элементов
+  (`add_ideas → idea`). Такой эффект из каталога вставляется **пустым блоком** + кнопка
+  быстрого добавления элемента.
+- **`_BLOCK_EFFECT_TEMPLATES`** — эффекты, которые ОБЯЗАНЫ быть блоком, но в игровой
+  документации описаны скупо: вставляются готовым скелетом
+  (`declare_war_on = { target = FROM type = annex_everything }` и т.п.). Держите шаблоны
+  соответствующими API игры.
+- **`_MODIFIER_PARENTS`** — блоки (`modifier`, `targeted_modifier` …), внутри которых
+  пикер предлагает **каталог статических модификаторов**.
+
+`node_from_catalog(item)` строит вставляемый `Pair` (список → пустой блок; блок-шаблон →
+скелет; иначе пример из каталога; иначе `name = `). Каталог эффектов/триггеров —
+`editors/effects/` (`ScriptCatalog.find/search/modifiers`), генерится из документации
+игры: `python -m anka.editors.effects.generate`.
+
+## 7. Иконки и спрайты
+
+- **Чтение:** `SpriteResolver.for_mod(mod_path, game_path)` — карта `имя→файл` по всем
+  `interface/**/*.gfx` мода+игры+DLC; `resolve(name) -> Path|None`. Стройте в фоне
+  (`resolver_ready()`), т.к. первый `resolve` парсит все .gfx.
+- **Создание:** `context.icons.add_<focus|decision|idea|event|character>_icon(source,
+  name)` конвертит картинку в DDS нужного размера и регистрирует `SpriteType` в
+  `anka_<...>.gfx` (см. `core/images/icons.py`). После создания в рантайме зовите
+  `resolver.add(sprite_name, dds_path)`, чтобы не перестраивать всю карту.
+- **Галерея выбора:** `IconPickerDialog(..., prefixes=("GFX_idea_",), on_import=...)`.
+- **`SpriteRegistry(gfx_path)`** — идемпотентная правка одного .gfx (`register`, `find`,
+  `register_sprite`, `save`); используется для сложных случаев (override-спрайты с
+  `noOfFrames`, спрайты пустых слотов идей — см. `services/_ideagui.py`).
+
+## 8. Регистрация, порядок, локали
+
+- Импортируйте новый редактор в `editors/__init__.py` (импорт = само-регистрация через
+  декоратор). Заглушки «в разработке» — `WipEditor` в `_stubs.py`.
+- `order` определяет позицию в сайдбаре (меньше — выше). Текущие:
+  `general 0 · countries 10 · focuses 20 · events 30 · ideas 40 · characters 50 ·
+  decisions 60 · dynamic_modifiers 70 · localisation 80 · ideologies 90 ·
+  technologies 95 · oob 100 · map 110`. «Общее» (0) открывается по умолчанию.
+- **Локали** — `locales/ru.json` и `locales/en.json`, **плоский** словарь
+  dotted-ключей (`"oob.new_template": "…"`), **без BOM**. Тексты подсказок-тултипов —
+  ключи `help.<topic>`, привязываются `ui.widgets.tooltip.attach_help(widget, self.t,
+  "<topic>", palette)` (нет ключа → тултип просто не появится). Добавляйте ключи в ОБА
+  файла.
+
+## 9. Подводные камни Tk (ловили не раз — читать перед кодом)
+
+- **Не называйте атрибуты виджет-наследников как Tk-внутренние:** `self._name`,
+  `self._options` и т.п. `tk.Toplevel`/`ttk.Frame` уже хранят там своё; присвоение
+  `self._name = tk.StringVar()` роняет `destroy()` (`unhashable type: 'StringVar'`) —
+  диалог не закрывается и колбэк после `destroy()` не выполняется. Используйте
+  `self._name_var` / `self._name_lbl`.
+- **PhotoImage** нужно держать ссылкой в атрибуте — иначе GC съест картинку (пустой
+  прямоугольник). Для каждого превью — отдельная ссылка.
+- **Читать значения виджетов ДО `destroy()`** диалога (комбобокс/энтри умирают вместе с
+  окном).
+- **`selection_set` в тестах шлёт `<<TreeviewSelect>>` через очередь** — в headless-тестах
+  зовите `root.update()` (не `update_idletasks()`).
+- **`Block.__bool__` всегда True** (см. ниже) — пустоту блока проверяйте `len(block)`.
+- **Повторяющиеся ключи** (`slot`, `option`, `set_technology`) — только `get_all`/`add`,
+  никогда `set` (перезапишет первый и потеряет остальные).
+
+## 10. API PDX-дерева (`core/pdx`) — шпаргалка
+
+`parse(text) -> Block` (строгий: `recover=False`), `parse_file(path)`,
+`dumps(block, top_level=True) -> str`, `dump_file(block, path)` (без BOM).
+Узлы: `Block(items, tag)`, `Pair(key, value, op)`, `Scalar(raw, quoted)`.
+
+```python
+b.get(key)            # первое значение (Value|None)         b.get_all(key)  # все значения
+b.get_scalar(key, d)  # raw-строка или d                     b.get_block(key)# вложенный Block|None
+b.has(key)            # есть ли ключ                          b.pairs()       # итератор Pair
+b.array_values()      # bare-скаляры массива { a b c }
+b.set(key, value)     # заменить первый / добавить            b.add(key,value)# добавить (дубль ок)
+b.add_value(v)        # bare-элемент                          b.remove(key)   # удалить все с ключом
+Scalar.of(x)          # авто-квотирование строк с пробелами   s.as_bool()/as_int()/as_float()
+```
+`value` в `Pair`/`get` — это `Scalar | Block`. Строки с пробелами/именами шаблонов
+пишите `Scalar(value, quoted=True)`. `dumps(block, top_level=False)` — для содержимого
+скрипт-поля (без внешних скобок).
+
+## 11. Проверка изменений (headless smoke)
+
+GUI-логику гоняем без видимого окна: `root = create_root(); root.withdraw()`, тема +
+`EditorServices`, `ModContext` на временном моде в scratchpad, `editor.build(root)`,
+`root.update()`, дальше дёргаем методы и проверяем дерево/модель. Для сервисов — прогон
+`parse_file`/`dumps` и `quick_scan == parse` по каталогам реальной игры. Примеры — в
+истории коммитов (смоки лежали в scratchpad-каталоге сессии). Быстрый общий тест:
+собрать ВСЕ редакторы (`EditorRegistry.all()`) в скрытом руте — ловит битые импорты,
+локали и ошибки построения UI. После правок обязательно `python -c "import anka.app,
+anka.editors"` и сборка редакторов.
 
 ---
 
