@@ -128,25 +128,28 @@ class LocCatalog:
 
     def rename(self, old: str, new: str) -> None:
         """Carry mod-side entries (and their _desc twins) over to a renamed id."""
+        for suffix in ("", "_desc"):
+            self.rename_key(old + suffix, new + suffix)
+
+    def rename_key(self, old: str, new: str) -> None:
+        """Carry one exact mod-side key over to a new name (indexed languages)."""
         for language, files in self._files.items():
-            for suffix in ("", "_desc"):
-                key = old + suffix
-                path = files.get(key)
-                if path is None or not path.exists():
-                    continue
-                loc = LocFile.load(path)
-                value = loc.get(key)
-                if value is None:
-                    continue
-                loc.remove(key)
-                loc.set(new + suffix, value)
-                loc.save(path)
-                files.pop(key, None)
-                files[new + suffix] = path
-                idx = self._cache.get(language)
-                if idx is not None:
-                    idx.pop(key, None)
-                    idx[new + suffix] = value
+            path = files.get(old)
+            if path is None or not path.exists():
+                continue
+            loc = LocFile.load(path)
+            value = loc.get(old)
+            if value is None:
+                continue
+            loc.remove(old)
+            loc.set(new, value)
+            loc.save(path)
+            files.pop(old, None)
+            files[new] = path
+            idx = self._cache.get(language)
+            if idx is not None:
+                idx.pop(old, None)
+                idx[new] = value
 
 
 def loc_write_target(mod_root: Path, game_root: Path, language: str, key: str,

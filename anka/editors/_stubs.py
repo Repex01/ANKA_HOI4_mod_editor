@@ -25,14 +25,6 @@ class WipEditor(EditorModule):
 
 
 @EditorRegistry.register
-class EventsEditor(WipEditor):
-    id = "events"
-    name_key = "editors.events.name"
-    desc_key = "editors.events.desc"
-    order = 30
-
-
-@EditorRegistry.register
 class IdeasEditor(WipEditor):
     id = "ideas"
     name_key = "editors.ideas.name"

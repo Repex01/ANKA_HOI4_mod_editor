@@ -41,7 +41,13 @@ _KEY_TYPES = {                       # by parameter key inside blocks
     "state": "state",
     "idea": "idea",
 }
+# Effects that fire an event: their ``id`` field (block form) and their scalar
+# form (``country_event = ns.1``) both take an event id — picker offered.
+_EVENT_EFFECT_KEYS = ("country_event", "news_event", "state_event",
+                      "unit_leader_event", "operative_leader_event")
 _VALUE_TYPES = {                     # by effect/trigger name in scalar form
+    "country_event": "event", "news_event": "event", "state_event": "event",
+    "unit_leader_event": "event", "operative_leader_event": "event",
     "country_exists": "country", "has_war_with": "country",
     "has_war_together_with": "country", "is_ally_with": "country",
     "is_puppet_of": "country", "is_subject_of": "country", "puppet": "country",
@@ -70,6 +76,8 @@ _MODIFIER_PARENTS = ("modifier", "modifiers", "hidden_modifier", "targeted_modif
 
 
 def value_type_of(parent_key: str, key: str) -> str | None:
+    if key == "id" and parent_key in _EVENT_EFFECT_KEYS:
+        return "event"
     return _KEY_TYPES.get(key) or _VALUE_TYPES.get(key)
 
 
@@ -376,7 +384,7 @@ class BlockPickerDialog(BaseDialog):
         kinds = (("modifier",) if self._with_modifiers else ()) + tuple(self._kinds)
         for kind in kinds:
             for item in ScriptCatalog.search(q, kind)[:250]:
-                entries.append((f"{badge[kind]} {item.name}", ("catalog", item)))
+                entries.append((f"{badge[kind]} {item.title}", ("catalog", item)))
         self._entries = entries
         self._list.delete(0, "end")
         for label, _p in entries:
@@ -392,7 +400,7 @@ class BlockPickerDialog(BaseDialog):
         self._doc.delete("1.0", "end")
         if payload and payload[0] == "catalog":
             item = payload[1]
-            parts = [item.name]
+            parts = [item.title]
             if item.scopes:
                 parts.append(f"{self.t('focuses.script.scope')}: {', '.join(item.scopes)}")
             if item.description:

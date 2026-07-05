@@ -98,6 +98,23 @@ class IconService:
         return self._add_icon(source, sprite, rel_texture, gfx_file,
                               DECISION_ICON_SIZE, compressed)
 
+    # --- event pictures ----------------------------------------------------
+    def add_event_picture(
+        self,
+        source: str | Path | Image.Image,
+        name: str,
+        gfx_file: str = "anka_events.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_report_event_<name>`` (DDS under gfx/event_pictures)
+        and register it. The original image size is kept — vanilla event
+        pictures vary (355×140 is only the typical window size) and the game
+        renders any dimensions. Returns (dds, gfx)."""
+        sprite = f"GFX_report_event_{name}"
+        rel_texture = f"{GAME_DIRS.GFX_EVENTS}/{name}.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              None, compressed)
+
     # --- ideas / national spirits ---------------------------------------
     def add_idea_icon(
         self,

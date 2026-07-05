@@ -15,10 +15,11 @@ from .dialogs import (
     TextPromptDialog,
 )
 from .script_editor import ScriptEditorDialog
+from .variants import VariantListEditor
 
 __all__ = [
     "BaseDialog", "TextPromptDialog", "MultiPickDialog", "SinglePickDialog",
     "IconPickerDialog", "PdxPreviewDialog",
     "BlockTreeEditor", "BlockPickerDialog", "node_from_catalog",
-    "ScriptEditorDialog",
+    "ScriptEditorDialog", "VariantListEditor",
 ]

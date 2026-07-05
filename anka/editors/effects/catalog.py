@@ -8,6 +8,7 @@ objects — never with raw JSON — so the storage format can evolve freely.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -24,8 +25,13 @@ class ScriptItem:
     targets: tuple[str, ...] = ()       # scopes this keyword may be targeted at
     description: str = ""
     example: str = ""                   # verbatim example from the docs ("" if none)
+    display: str = ""                   # picker label override (e.g. "x [SHORT]")
 
     kind: str = field(default="", repr=False)
+
+    @property
+    def title(self) -> str:
+        return self.display or self.name
 
     def snippet(self) -> str:
         """Ready-to-insert script text: the documented example when available,
@@ -80,13 +86,41 @@ def _load(filename: str, cls) -> dict[str, ScriptItem]:
     return out
 
 
+# Effects that fire an event. Each gets TWO picker entries: the documented full
+# form ([LONG], every optional field) and a minimal ``{ id = ... }`` one ([SHORT]).
+_EVENT_EFFECT_NAMES = ("country_event", "news_event", "state_event",
+                       "unit_leader_event", "operative_leader_event")
+_EXAMPLE_ID_RE = re.compile(r"id\s*=\s*([\w.]+)")
+
+
+def _add_event_effect_variants(items: dict[str, Effect]) -> dict[str, Effect]:
+    for name in _EVENT_EFFECT_NAMES:
+        full = items.get(name)
+        if full is None:
+            continue
+        m = _EXAMPLE_ID_RE.search(full.example)
+        sample = m.group(1) if m else "my_namespace.1"
+        items[name] = Effect(
+            name=name, scopes=full.scopes, targets=full.targets,
+            description=full.description, example=full.example,
+            display=f"{name} [LONG]")
+        # dict key differs so both survive; `name` stays the real script keyword
+        items[f"{name} [SHORT]"] = Effect(
+            name=name, scopes=full.scopes, targets=full.targets,
+            description=full.description,
+            example=f"{name} = {{\n\tid = {sample}\n}}",
+            display=f"{name} [SHORT]")
+    return items
+
+
 class ScriptCatalog:
     """Facade over the effect/trigger databases (loaded once per process)."""
 
     @staticmethod
     @lru_cache(maxsize=1)
     def effects() -> dict[str, Effect]:
-        return _load("effects.json", Effect)  # type: ignore[return-value]
+        return _add_event_effect_variants(
+            _load("effects.json", Effect))  # type: ignore[arg-type,return-value]
 
     @staticmethod
     @lru_cache(maxsize=1)

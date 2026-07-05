@@ -809,6 +809,12 @@ class FocusesEditor(EditorModule):
     def value_options(self, vtype: str) -> list[tuple[str, str]]:
         """(display, value) choices for typed script fields; cached per session.
         Displays include both id and human name, so search finds either."""
+        if vtype == "event":
+            # never cached: events are created/renamed during the session
+            from ...services.event_service import EventService
+            if getattr(self, "_event_service", None) is None:
+                self._event_service = EventService(self.context)
+            return self._event_service.event_options()
         cached = self._value_options.get(vtype)
         if cached is not None:
             return cached

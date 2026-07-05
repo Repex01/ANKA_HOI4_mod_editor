@@ -59,10 +59,12 @@ class TextPromptDialog(BaseDialog):
     def __init__(self, master, editor, title: str, label: str,
                  on_submit: Callable[[str], None], initial: str = "",
                  taken: set[str] | None = None,
-                 choices_label: str = "", choices: list[tuple[str, str]] | None = None):
+                 choices_label: str = "", choices: list[tuple[str, str]] | None = None,
+                 pattern: str | None = None):
         super().__init__(master, editor, title, (430, 210 if choices else 165))
         self._on_submit = on_submit
         self._taken = taken or set()
+        self._pattern = re.compile(pattern) if pattern else _ID_RE
 
         body = ttk.Frame(self, style="Card.TFrame", padding=14)
         body.pack(fill="both", expand=True, padx=12, pady=12)
@@ -98,7 +100,7 @@ class TextPromptDialog(BaseDialog):
 
     def _submit(self) -> None:
         value = self._var.get().strip()
-        if not _ID_RE.match(value):
+        if not self._pattern.match(value):
             self._error.configure(text=self.t("focuses.err.bad_id"))
             return
         if value in self._taken:
