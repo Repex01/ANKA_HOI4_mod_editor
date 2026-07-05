@@ -41,7 +41,9 @@ class CountryColor:
     extras: list = field(default_factory=list)  # preserved sub-entries (color_ui, ...)
 
 
-_TAG_RE = re.compile(r"^[A-Z]{2,3}$")
+# Country tags: a leading letter then letters/digits (HOI4 dynamic tags like
+# D01). MUST stay in sync with the new-country dialog's validation.
+_TAG_RE = re.compile(r"^[A-Z][A-Z0-9]{1,2}$")
 
 
 def _invert_condition(cond: str) -> str:

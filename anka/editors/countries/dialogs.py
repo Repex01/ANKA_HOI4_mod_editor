@@ -47,8 +47,10 @@ class NewCountryDialog(_Dialog):
         ttk.Entry(body, textvariable=self._tag, width=12).pack(anchor="w", pady=(2, 10))
 
         ttk.Label(body, text=self.t("countries.new.name"), style="CardMuted.TLabel").pack(anchor="w")
-        self._name = tk.StringVar()
-        ttk.Entry(body, textvariable=self._name, width=28).pack(anchor="w", pady=(2, 10))
+        # NB: not ``self._name`` — that is tk.Toplevel's own widget-name attribute;
+        # assigning a StringVar to it makes destroy() raise (unhashable StringVar).
+        self._name_var = tk.StringVar()
+        ttk.Entry(body, textvariable=self._name_var, width=28).pack(anchor="w", pady=(2, 10))
 
         ttk.Label(body, text=self.t("countries.color"), style="CardMuted.TLabel").pack(anchor="w")
         crow = ttk.Frame(body, style="Card.TFrame")
@@ -79,7 +81,7 @@ class NewCountryDialog(_Dialog):
             return self._fail("countries.new.invalid_tag")
         if tag in self._existing:
             return self._fail("countries.new.exists")
-        name = self._name.get().strip() or tag
+        name = self._name_var.get().strip() or tag
         try:
             self.editor.service.create_country(tag, name, self._rgb)
         except Exception as exc:

@@ -109,8 +109,9 @@ class ModListScreen(ttk.Frame):
                                 bg=self.app.palette.surface_alt, bd=0)
         self._thumb.grid(row=0, column=0, pady=(0, 12))
 
-        self._name = ttk.Label(right, text="—", style="Heading.TLabel", wraplength=320)
-        self._name.grid(row=1, column=0, sticky="w")
+        # not ``self._name`` — that shadows the Frame's own Tk widget-name attribute.
+        self._name_lbl = ttk.Label(right, text="—", style="Heading.TLabel", wraplength=320)
+        self._name_lbl.grid(row=1, column=0, sticky="w")
         self._meta = ttk.Label(right, text="", style="CardMuted.TLabel", wraplength=320, justify="left")
         self._meta.grid(row=2, column=0, sticky="w", pady=(2, 10))
 
@@ -165,7 +166,7 @@ class ModListScreen(ttk.Frame):
         if mod is None:
             return
         self._selected = mod
-        self._name.configure(text=mod.name)
+        self._name_lbl.configure(text=mod.name)
         source = self.app.t("modlist.source.local") if mod.is_local else self.app.t("modlist.source.workshop")
         meta = [f"{source}"]
         if mod.version:
