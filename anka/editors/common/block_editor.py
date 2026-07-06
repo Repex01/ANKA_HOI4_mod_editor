@@ -21,6 +21,8 @@ from ...core.pdx import parse as pdx_parse
 from ..effects import ScriptCatalog
 from .dialogs import BaseDialog, SinglePickDialog
 
+from collections import deque # stack
+
 _OPS = ("=", "<", ">", "<=", ">=", "!=")
 
 # Logic / flow containers offered by the picker, per script kind.
@@ -155,6 +157,8 @@ class BlockTreeEditor(ttk.Frame):
         self.root_key = root_key              # the script field being edited
         self._on_change = on_change or (lambda: None)
 
+        self._hovered_stack = deque()
+
         self._canvas = tk.Canvas(self, bg=self.palette.surface, highlightthickness=0, bd=0)
         self._sb = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
         self._body = ttk.Frame(self._canvas, style="Card.TFrame")
@@ -177,29 +181,36 @@ class BlockTreeEditor(ttk.Frame):
     # ------------------------------------------------------------------ render
     def render(self) -> None:
         y = self._canvas.yview()
+        # Every box is about to be destroyed; drop the hover stack so a rebuild under
+        # a stationary cursor can't re-highlight (or dim) an already-dead widget.
+        self._hovered_stack.clear()
         for w in self._body.winfo_children():
             w.destroy()
         self._render_block(self.root_block, self._body, depth=0,
-                           parent_key=self.root_key)
+                           parent_key=self.root_key, kinds=self.kinds)
         self._body.update_idletasks()
         self._canvas.yview_moveto(y[0])
 
     def _render_block(self, block: Block, parent: ttk.Frame, depth: int,
-                      parent_key: str = "") -> None:
+                      parent_key: str = "",
+                      kinds: tuple[str, ...] | None = None) -> None:
+        kinds = self.kinds if kinds is None else kinds
         for item in list(block.items):
-            self._render_item(block, item, parent, depth, parent_key)
-        self._add_button(block, parent, parent_key)
+            self._render_item(block, item, parent, depth, parent_key, kinds)
+        self._add_button(block, parent, parent_key, kinds)
 
     def _render_item(self, owner_block: Block, item, parent, depth: int,
-                     parent_key: str = "") -> None:
+                     parent_key: str = "",
+                     kinds: tuple[str, ...] | None = None) -> None:
+        kinds = self.kinds if kinds is None else kinds
         if isinstance(item, Pair) and isinstance(item.value, Block):
-            self._render_container(owner_block, item, parent, depth)
+            self._render_container(owner_block, item, parent, depth, kinds)
         elif isinstance(item, Pair):
             self._render_leaf(owner_block, item, parent, parent_key)
         elif isinstance(item, Scalar):
             self._render_bare(owner_block, item, parent, parent_key)
         elif isinstance(item, Block):                 # rare: anonymous block
-            self._render_container(owner_block, item, parent, depth)
+            self._render_container(owner_block, item, parent, depth, kinds)
 
     def _row(self, parent) -> ttk.Frame:
         row = ttk.Frame(parent, style="Card.TFrame")
@@ -323,12 +334,16 @@ class BlockTreeEditor(ttk.Frame):
             self._picker_button(row, vtype, var)
         self._del_btn(row, owner_block, scalar)
 
-    def _render_container(self, owner_block: Block, item, parent, depth: int) -> None:
+    def _render_container(self, owner_block: Block, item, parent, depth: int,
+                          kinds: tuple[str, ...] | None = None) -> None:
+        kinds = self.kinds if kinds is None else kinds
         pair = item if isinstance(item, Pair) else None
         block = item.value if pair is not None else item
         box = tk.Frame(parent, bg=self.palette.surface,
-                       highlightbackground=self.palette.border, highlightthickness=1)
+                       highlightbackground=self.palette.border,
+                       highlightcolor=self.palette.border, highlightthickness=1)
         box.pack(fill="x", pady=2, padx=(depth and 0, 0), anchor="w")
+        self._add_hover(box)
         head = ttk.Frame(box, style="Card.TFrame")
         head.pack(fill="x", padx=4, pady=(3, 0))
         if pair is not None:
@@ -338,14 +353,51 @@ class BlockTreeEditor(ttk.Frame):
                    command=lambda: self._remove(owner_block, item)).pack(side="right", padx=2)
         body = ttk.Frame(box, style="Card.TFrame")
         body.pack(fill="x", padx=(18, 4), pady=(0, 4))
+        # A `limit` block holds trigger conditions only — never effects — even inside
+        # an effect script; that restriction propagates to everything nested below it.
+        child_kinds = ("trigger",) if (pair is not None and pair.key == "limit") else kinds
         self._render_block(block, body, depth + 1,
-                           parent_key=pair.key if pair is not None else "")
+                           parent_key=pair.key if pair is not None else "",
+                           kinds=child_kinds)
 
-    def _add_button(self, block: Block, parent, parent_key: str = "") -> None:
+    def _add_hover(self, box: tk.Frame) -> None:
+        """Highlight only the innermost container under the pointer (accent border, a
+        touch thicker). A stack tracks the nesting so leaving a child restores its
+        parent's highlight; `render()` clears the stack when boxes are destroyed."""
+        def enter(_e=None) -> None:
+            if self._hovered_stack:
+                self._set_border(self._hovered_stack[-1], hot=False)
+            self._hovered_stack.append(box)
+            self._set_border(box, hot=True)
+
+        def leave(_e=None) -> None:
+            # Unwind to (and including) this box: children entered after it may have
+            # already been popped, so guard against it no longer being on the stack.
+            if box in self._hovered_stack:
+                while self._hovered_stack:
+                    if self._set_border(self._hovered_stack.pop(), hot=False) is box:
+                        break
+            if self._hovered_stack:
+                self._set_border(self._hovered_stack[-1], hot=True)
+
+        box.bind("<Enter>", enter, add="+")
+        box.bind("<Leave>", leave, add="+")
+
+    def _set_border(self, box: tk.Frame, *, hot: bool) -> tk.Frame:
+        """Colour a box's border, tolerating boxes destroyed by a re-render."""
+        if box.winfo_exists():
+            colour = self.palette.accent if hot else self.palette.border
+            box.configure(highlightbackground=colour, highlightcolor=colour,
+                          highlightthickness=2 if hot else 1)
+        return box
+
+    def _add_button(self, block: Block, parent, parent_key: str = "",
+                    kinds: tuple[str, ...] | None = None) -> None:
+        kinds = self.kinds if kinds is None else kinds
         row = ttk.Frame(parent, style="Card.TFrame")
         row.pack(fill="x", pady=1, anchor="w")
         ttk.Button(row, text="➕", width=3,
-                   command=lambda: self._pick_new(block, parent_key)).pack(side="left")
+                   command=lambda: self._pick_new(block, parent_key, kinds)).pack(side="left")
         # Inside a list-form effect (add_ideas = { a b }, prioritize = {...}, ...)
         # offer a one-click "add item" that appends a bare value with a picker.
         list_type = _LIST_ITEM_TYPES.get(parent_key)
@@ -359,8 +411,9 @@ class BlockTreeEditor(ttk.Frame):
         self._on_change()
 
     # ------------------------------------------------------------------ picker
-    def _pick_new(self, block: Block, parent_key: str = "") -> None:
-        BlockPickerDialog(self, self.owner, self.kinds,
+    def _pick_new(self, block: Block, parent_key: str = "",
+                  kinds: tuple[str, ...] | None = None) -> None:
+        BlockPickerDialog(self, self.owner, self.kinds if kinds is None else kinds,
                           lambda node: self._insert(block, node),
                           with_modifiers=parent_key in _MODIFIER_PARENTS)
 
