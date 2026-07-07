@@ -92,10 +92,13 @@ class ProvinceInspector(InspectorBase):
         self._neighbors: list[int] = []
         row += 1
 
-        self._state_btn = ttk.Button(b, text="🗺 " + self.t("map.goto_state"),
+        actions = ttk.Frame(b, style="Card.TFrame")
+        actions.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        self._state_btn = ttk.Button(actions, text="🗺 " + self.t("map.goto_state"),
                                      command=self._goto_state)
-        self._state_btn.grid(row=row, column=0, columnspan=2, sticky="w",
-                             pady=(10, 0))
+        self._state_btn.pack(side="left")
+        ttk.Button(actions, text="⚡ " + self.t("map.split_button"),
+                   command=self._split).pack(side="left", padx=(6, 0))
 
     # -------------------------------------------------------------------- show
     def show(self, pid: int | None) -> None:
@@ -188,6 +191,10 @@ class ProvinceInspector(InspectorBase):
     def _goto_state(self) -> None:
         if self.pid is not None:
             self.owner.goto_state_of_province(self.pid)
+
+    def _split(self) -> None:
+        if self.pid is not None:
+            self.owner.split_province_dialog(self.pid)
 
 
 class StateInspector(InspectorBase):

@@ -638,6 +638,60 @@ class MapService:
         self.set_pixels(ys + by0, xs + bx0, pid)
         return len(ys)
 
+    # ------------------------------------------------------- province splitting
+    def split_province(self, pid: int, k: int, *, seed: int | None = None,
+                       strategy: str = "organic", smooth_passes: int = 2,
+                       colors: list[tuple[int, int, int]] | None = None,
+                       labels: np.ndarray | None = None,
+                       bbox: tuple[int, int, int, int] | None = None,
+                       on_progress=None) -> list[int]:
+        """Split province `pid` into `k` connected provinces (phase 4b).
+
+        Cluster 1 keeps (\"eats\") the source id; clusters 2..k become new
+        provinces inheriting the source definition. Pass `labels`+`bbox` from a
+        previous `preview_split` to apply exactly what was previewed.
+        Returns the k province ids."""
+        self.ensure_bitmap()
+        d = self.by_id[pid]
+        if labels is None or bbox is None:
+            labels, bbox = self.preview_split(pid, k, seed=seed,
+                                              strategy=strategy,
+                                              smooth_passes=smooth_passes,
+                                              on_progress=on_progress)
+        x0, y0, _x1, _y1 = bbox
+        n_labels = int(labels.max())
+        if colors is None:
+            colors = self.free_colors(max(0, n_labels - 1))
+        ids = [pid]
+        for i in range(2, n_labels + 1):
+            nd = self.create_province(type=d.type, terrain=d.terrain,
+                                      continent=d.continent, coastal=d.coastal,
+                                      color=colors[i - 2])
+            ids.append(nd.id)
+        for i in range(2, n_labels + 1):          # label 1 already has pid's color
+            ys, xs = np.nonzero(labels == i)
+            self.set_pixels(ys + y0, xs + x0, ids[i - 1])
+        self._bboxes.pop(pid, None)
+        return ids
+
+    def preview_split(self, pid: int, k: int, *, seed: int | None = None,
+                      strategy: str = "organic", smooth_passes: int = 2,
+                      on_progress=None):
+        """Compute the split labels for a province without touching the map.
+        Returns (labels int32 on the bbox slice, bbox)."""
+        from .region_gen import split_region
+        self.ensure_bitmap()
+        d = self.by_id[pid]
+        bbox = self.bbox_of(pid)
+        if bbox is None:
+            raise ValueError(f"Province {pid} has no pixels")
+        x0, y0, x1, y1 = bbox
+        mask = self._codes[y0:y1 + 1, x0:x1 + 1] == d.code
+        labels = split_region(mask, k, seed=seed, strategy=strategy,
+                              smooth_passes=smooth_passes,
+                              on_progress=on_progress)
+        return labels, bbox
+
     # ------------------------------------------------------------------ saving
     def save(self) -> list[Path]:
         """Write dirty bmp/csv into the mod (whole-file override). Returns the

@@ -690,5 +690,18 @@
   "map.no_brush": "no brush",
   "map.err.no_brush": "Pick a brush province first (💉 picker or ➕ new province).",
   "map.filled_px": "Filled {count} px",
-  "map.province_created": "Province #{id} created — paint away"
+  "map.province_created": "Province #{id} created — paint away",
+  "map.split_title": "Split province #{id}",
+  "map.split_button": "Split…",
+  "map.split_strategy": "Strategy:",
+  "map.split_organic": "Organic borders",
+  "map.split_even": "Even borders",
+  "map.split_smooth": "Smoothing:",
+  "map.split_generate": "Generate",
+  "map.split_working": "Generating…",
+  "map.split_ready": "Done — check the preview and press Apply",
+  "map.split_big": "Large area ({count} px) — generation may take a while. Continue?",
+  "map.split_add_to_state": "Add the new provinces to state {state}?",
+  "map.split_done": "Province split into {count} parts",
+  "map.err.no_pixels": "This province has no pixels on the map."
 }

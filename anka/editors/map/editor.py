@@ -473,6 +473,46 @@ class MapEditor(EditorModule):
 
         NewProvinceDialog(self._insp_host, self, submit, like=like)
 
+    # ------------------------------------------------------- province splitting
+    def split_province_dialog(self, pid: int) -> None:
+        if not self.map.loaded or self.map.area_of(pid) == 0:
+            messagebox.showinfo("ANKA", self.t("map.err.no_pixels"))
+            return
+        from .dialogs import SplitProvinceDialog
+        SplitProvinceDialog(self._insp_host, self, pid, self.apply_split)
+
+    def apply_split(self, pid: int, labels, bbox, colors) -> None:
+        ids = self.map.split_province(pid, int(labels.max()),
+                                      labels=labels, bbox=bbox, colors=colors)
+        new_ids = ids[1:]
+        # Keep invariant "every land province belongs to exactly one state":
+        # offer to put the new provinces into the source province's state.
+        prov_state, _ = self.map._political_maps()
+        sid = prov_state.get(pid)
+        d = self.map.by_id.get(pid)
+        if (sid is not None and new_ids and d is not None and d.type == "land"
+                and messagebox.askyesno(
+                    "ANKA", self.t("map.split_add_to_state", state=sid))):
+            ref = self.states.doc_ref_for(sid)
+            if ref is not None:
+                if ref.is_vanilla:
+                    ref = self.states.copy_to_mod(ref)
+                doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
+                if doc.state is not None:
+                    for nid in new_ids:
+                        doc.state.add_province(nid)
+                    self.mark_dirty(doc)
+                    self.states.refresh_info(doc)
+                    if self._state_doc is not None and \
+                            self._state_doc.ref.path == doc.ref.path:
+                        self._state_doc = doc
+                        self.state_inspector.refresh_provinces_view()
+        self.map.invalidate_political()
+        self._value_options.pop("province_free", None)
+        self.canvas.refresh()
+        self._refresh_tree()
+        self._status.configure(text=self.t("map.split_done", count=len(ids)))
+
     def _map_hover(self, mx, my) -> None:
         if mx is None or not self.map.loaded:
             self._status.configure(text="")

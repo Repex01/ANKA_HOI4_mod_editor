@@ -691,5 +691,18 @@
   "map.no_brush": "кисть не выбрана",
   "map.err.no_brush": "Сначала выберите провинцию-кисть (пипетка 💉 или ➕ новая провинция).",
   "map.filled_px": "Залито {count} px",
-  "map.province_created": "Создана провинция #{id} — красьте кистью"
+  "map.province_created": "Создана провинция #{id} — красьте кистью",
+  "map.split_title": "Разбить провинцию #{id}",
+  "map.split_button": "Разбить…",
+  "map.split_strategy": "Стратегия:",
+  "map.split_organic": "Органические границы",
+  "map.split_even": "Ровные границы",
+  "map.split_smooth": "Сглаживание:",
+  "map.split_generate": "Сгенерировать",
+  "map.split_working": "Генерация…",
+  "map.split_ready": "Готово — проверьте превью и нажмите «Применить»",
+  "map.split_big": "Область большая ({count} px) — генерация может занять время. Продолжить?",
+  "map.split_add_to_state": "Добавить новые провинции в штат {state}?",
+  "map.split_done": "Провинция разбита на {count} частей",
+  "map.err.no_pixels": "У провинции нет пикселей на карте."
 }
