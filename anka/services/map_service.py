@@ -185,6 +185,7 @@ class MapService:
 
     def set_def(self, pid: int, **fields) -> ProvinceDef:
         """Edit definition fields of a province (type/coastal/terrain/continent)."""
+        self.defs                                 # ensure loaded
         d = self.by_id[pid]
         for key, value in fields.items():
             if not hasattr(d, key):

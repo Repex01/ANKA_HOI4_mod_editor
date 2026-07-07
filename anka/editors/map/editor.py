@@ -23,7 +23,7 @@ from ...services.terrain_service import TerrainService
 from ...services._locutil import LocCatalog
 from ..base import EditorModule, EditorRegistry
 from .canvas import MapCanvas
-from .inspector import StateInspector
+from .inspector import ProvinceInspector, StateInspector
 
 
 @EditorRegistry.register
@@ -147,21 +147,37 @@ class MapEditor(EditorModule):
         panel.columnconfigure(0, weight=1)
         self._grid_root.columnconfigure(2, minsize=340)
         self._insp_host = panel
-        self.state_inspector = StateInspector(panel, self)
-        self.state_inspector.grid(row=0, column=0, sticky="nsew")
+        self._nb = ttk.Notebook(panel)
+        self.province_inspector = ProvinceInspector(self._nb, self)
+        self.state_inspector = StateInspector(self._nb, self)
+        self._nb.add(self.province_inspector, text=self.t("map.province"))
+        self._nb.add(self.state_inspector, text=self.t("map.state"))
+        self._nb.grid(row=0, column=0, sticky="nsew")
         self._placeholder = ttk.Label(panel, text=self.t("map.select_hint"),
                                       style="CardMuted.TLabel", wraplength=300,
                                       justify="left")
         self._placeholder.grid(row=0, column=0, sticky="n", pady=16)
         self._show_inspector(None)
 
-    def _show_inspector(self, which: str | None) -> None:
-        self.state_inspector.grid_remove()
-        self._placeholder.grid_remove()
-        if which == "state":
-            self.state_inspector.grid()
-        else:
+    def _show_inspector(self, which: str | None, focus: str | None = None) -> None:
+        """`which`: None (placeholder) / "province" / "state" / "both";
+        `focus`: which tab to raise."""
+        if which is None:
+            self._nb.grid_remove()
             self._placeholder.grid()
+            return
+        self._placeholder.grid_remove()
+        self._nb.grid()
+        self._nb.tab(0, state="normal" if which in ("province", "both") else "disabled")
+        self._nb.tab(1, state="normal" if which in ("state", "both") else "disabled")
+        if focus == "province" and which in ("province", "both"):
+            self._nb.select(0)
+        elif focus == "state" and which in ("state", "both"):
+            self._nb.select(1)
+        elif which == "province":
+            self._nb.select(0)
+        elif which == "state":
+            self._nb.select(1)
 
     # ----------------------------------------------------------------- loading
     def _start_loading(self) -> None:
@@ -249,11 +265,13 @@ class MapEditor(EditorModule):
 
     # --------------------------------------------------------------- selection
     def select_state(self, state_id: int, zoom: bool = False) -> None:
-        self.state_inspector.flush_pending()
+        self._flush_inspectors()
         self._selected_state = state_id
         self._set_assign_mode(False)
         st = self.states.get(state_id)
         provinces = set(st.provinces) if st else set()
+        if self._selected_province not in provinces:
+            self._selected_province = None
         keep = ({self._selected_province}
                 if self._selected_province in provinces else set())
         self.canvas.set_selection(keep, highlight=provinces)
@@ -262,18 +280,68 @@ class MapEditor(EditorModule):
             if bbox is not None:
                 self.canvas.zoom_to_bbox(bbox)
         self._open_state_doc(state_id)
+        self._sync_inspectors(focus="state")
+
+    def select_province(self, pid: int, zoom: bool = False) -> None:
+        """Select a province (and its state, if any) programmatically."""
+        self._flush_inspectors()
+        self._selected_province = pid
+        prov_state, _owners = self.map._political_maps()
+        sid = prov_state.get(pid)
+        self._selected_state = sid
+        highlight = set()
+        if sid is not None:
+            st = self.states.get(sid)
+            if st is not None:
+                highlight = set(st.provinces)
+            self._open_state_doc(sid)
+            self._tree_show_state(sid)
+        else:
+            self._state_doc = None
+        self.canvas.set_selection({pid}, highlight=highlight)
+        if zoom:
+            bbox = self.map.bbox_of(pid)
+            if bbox is not None:
+                self.canvas.zoom_to_bbox(bbox)
+        self._sync_inspectors(focus="province")
+
+    def _flush_inspectors(self) -> None:
+        self.state_inspector.flush_pending()
+        self.province_inspector.flush_pending()
+
+    def _tree_show_state(self, sid: int) -> None:
+        iid = f"s::{sid}"
+        if self._tree.exists(iid):
+            self._suppress_tree_event = True
+            try:
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
+            finally:
+                self._suppress_tree_event = False
 
     def _open_state_doc(self, state_id: int) -> None:
         ref = self.states.doc_ref_for(state_id)
         if ref is None:
             self._state_doc = None
-            self._show_inspector(None)
             return
         # A dirty (unsaved) document must keep its in-memory edits.
         doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
         self._state_doc = doc
-        self._show_inspector("state")
-        self.state_inspector.show(doc, editable=not ref.is_vanilla)
+
+    def _sync_inspectors(self, focus: str | None = None) -> None:
+        """Refresh both inspector tabs from the current selection."""
+        has_prov = (self._selected_province is not None
+                    and self._selected_province in self.map.by_id)
+        has_state = self._state_doc is not None and self._state_doc.state is not None
+        if has_prov:
+            self.province_inspector.show(self._selected_province)
+        if has_state:
+            self.state_inspector.show(self._state_doc,
+                                      editable=not self._state_doc.ref.is_vanilla)
+        which = ("both" if has_prov and has_state
+                 else "province" if has_prov
+                 else "state" if has_state else None)
+        self._show_inspector(which, focus=focus)
 
     def _state_bbox(self, provinces: set[int]):
         boxes = [b for p in provinces if (b := self.map.bbox_of(p)) is not None]
@@ -293,31 +361,7 @@ class MapEditor(EditorModule):
             self._selected_province = None
             self.canvas.set_selection(set())
             return
-        self._selected_province = pid
-        prov_state, _owners = self.map._political_maps()
-        sid = prov_state.get(pid)
-        highlight = set()
-        if sid is not None:
-            st = self.states.get(sid)
-            if st is not None:
-                highlight = set(st.provinces)
-        self.canvas.set_selection({pid}, highlight=highlight)
-        if sid is not None and sid != self._selected_state:
-            self._selected_state = sid
-            iid = f"s::{sid}"
-            if self._tree.exists(iid):
-                self._suppress_tree_event = True
-                try:
-                    self._tree.selection_set(iid)
-                    self._tree.see(iid)
-                finally:
-                    self._suppress_tree_event = False
-            self.state_inspector.flush_pending()
-            self._open_state_doc(sid)
-        elif sid is None:
-            self._selected_state = None
-            self._state_doc = None
-            self._show_inspector(None)
+        self.select_province(pid)
 
     def _map_hover(self, mx, my) -> None:
         if mx is None or not self.map.loaded:
@@ -332,12 +376,52 @@ class MapEditor(EditorModule):
         self._status.configure(text=f"{mx}, {my} · #{pid}{extra}")
 
     def goto_province(self, pid: int) -> None:
+        """Zoom to a province keeping the state context (no tab switch)."""
         bbox = self.map.bbox_of(pid)
         if bbox is not None:
             self.canvas.zoom_to_bbox(bbox)
         self._selected_province = pid
         keep_highlight = set(self.canvas.highlight)
         self.canvas.set_selection({pid}, highlight=keep_highlight)
+        self.province_inspector.show(pid)
+        self._sync_inspectors()
+
+    def goto_state_of_province(self, pid: int) -> None:
+        prov_state, _ = self.map._political_maps()
+        sid = prov_state.get(pid)
+        if sid is not None:
+            self._open_state_doc(sid)
+            self._selected_state = sid
+            self._tree_show_state(sid)
+            self._sync_inspectors(focus="state")
+
+    # -------------------------------------------------- province definition edit
+    def set_province_def(self, pid: int, **fields) -> None:
+        self.map.set_def(pid, **fields)
+        self.canvas.refresh()          # terrain/type feed the render LUTs
+
+    def land_terrains(self) -> list[str]:
+        return self.terrain.land_terrains()
+
+    def water_terrains(self) -> list[str]:
+        return self.terrain.water_terrains()
+
+    def continent_options(self) -> list[tuple[str, int]]:
+        opts = [("0 · —", 0)]
+        for i, name in enumerate(self.map.continents(), start=1):
+            opts.append((f"{i} · {name}", i))
+        return opts
+
+    def province_facts(self, pid: int) -> str:
+        area = self.map.area_of(pid)
+        bbox = self.map.bbox_of(pid)
+        lines = [f"{self.t('map.area')}: {area} px"]
+        if bbox is not None:
+            lines.append(f"bbox: {bbox[0]},{bbox[1]} – {bbox[2]},{bbox[3]}")
+        return "\n".join(lines)
+
+    def province_neighbors(self, pid: int) -> list[int]:
+        return self.map.neighbors_of(pid)
 
     # ------------------------------------------------------- province assigning
     def toggle_assign_mode(self) -> None:

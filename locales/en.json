@@ -681,5 +681,8 @@
   "map.assign_hint": "Click a province on the map to add it to the state (🎯 toggles off)",
   "map.err.assign_vanilla": "This state is vanilla. Use \"Copy to mod\" first.",
   "map.err.sea_in_state": "Sea/lake provinces cannot belong to a state.",
-  "map.no_state": "no state"
+  "map.no_state": "no state",
+  "map.neighbors": "Neighboring provinces",
+  "map.goto_state": "Go to state",
+  "map.area": "Area"
 }

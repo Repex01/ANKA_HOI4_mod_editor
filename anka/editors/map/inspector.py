@@ -1,9 +1,9 @@
-"""State inspector for the map editor.
+"""State & province inspectors for the map editor.
 
-A dumb form over `StateDef` (block-backed): values load in ``show()``, edits
-commit instantly (debounced for typed fields) into the parsed document and mark
-it dirty through the owning editor. Vanilla states are read-only until copied
-into the mod ("Копировать в мод" in the header).
+Dumb forms over block-backed models: values load in ``show()``, edits commit
+instantly (debounced for typed fields) and mark the owner dirty. Vanilla states
+are read-only until copied into the mod; province definition edits are always
+allowed — saving writes a whole-file override of ``definition.csv`` into the mod.
 """
 from __future__ import annotations
 
@@ -13,6 +13,181 @@ from tkinter import messagebox, ttk
 from ...services.state_service import StateDocument
 from ..common.dialogs import PdxPreviewDialog, SinglePickDialog
 from ..common.inspector_base import InspectorBase
+
+PROVINCE_TYPES = ("land", "sea", "lake")
+
+
+class ProvinceInspector(InspectorBase):
+    """definition.csv row of one province: type / coastal / terrain / continent
+    (phase 3) + read-only geometry facts (area, bbox, neighbors)."""
+
+    def __init__(self, master, owner):
+        super().__init__(master, owner)
+        self.pid: int | None = None
+        self._build()
+
+    def _build(self) -> None:
+        b = self.body
+        row = 0
+        self._title_lbl = ttk.Label(b, text="", style="Heading.TLabel")
+        self._title_lbl.grid(row=row, column=0, columnspan=2, sticky="w",
+                             pady=(0, 6))
+        row += 1
+        self._rgb_lbl = ttk.Label(b, text="", style="CardMuted.TLabel")
+        self._rgb_lbl.grid(row=row, column=0, columnspan=2, sticky="w")
+        row += 1
+
+        ttk.Label(b, text=self.t("map.type"), style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=3)
+        self._type_var = tk.StringVar()
+        self._type_combo = ttk.Combobox(b, textvariable=self._type_var,
+                                        state="readonly", width=10,
+                                        values=list(PROVINCE_TYPES))
+        self._type_combo.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        self._type_combo.bind("<<ComboboxSelected>>", lambda e: self._commit_type())
+        row += 1
+
+        ttk.Label(b, text=self.t("map.terrain"), style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=3)
+        self._terrain_var = tk.StringVar()
+        self._terrain_combo = ttk.Combobox(b, textvariable=self._terrain_var,
+                                           state="readonly", width=18)
+        self._terrain_combo.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        self._terrain_combo.bind("<<ComboboxSelected>>",
+                                 lambda e: self._commit_terrain())
+        row += 1
+
+        self._coastal_var = tk.BooleanVar()
+        ttk.Checkbutton(b, text=self.t("map.coastal"), style="Card.TCheckbutton",
+                        variable=self._coastal_var,
+                        command=self._commit_coastal).grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=3)
+        row += 1
+
+        ttk.Label(b, text=self.t("map.continent"), style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=3)
+        self._cont_var = tk.StringVar()
+        self._cont_combo = ttk.Combobox(b, textvariable=self._cont_var,
+                                        state="readonly", width=18)
+        self._cont_combo.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        self._cont_combo.bind("<<ComboboxSelected>>",
+                              lambda e: self._commit_continent())
+        row += 1
+
+        self._facts_lbl = ttk.Label(b, text="", style="CardMuted.TLabel",
+                                    justify="left")
+        self._facts_lbl.grid(row=row, column=0, columnspan=2, sticky="w",
+                             pady=(8, 3))
+        row += 1
+
+        ttk.Label(b, text=self.t("map.neighbors"), style="Heading.TLabel").grid(
+            row=row, column=0, columnspan=2, sticky="w", pady=(8, 3))
+        row += 1
+        self._nb_list = tk.Listbox(b, height=6, bg=self.palette.surface_alt,
+                                   fg=self.palette.text, relief="flat",
+                                   selectbackground=self.palette.accent,
+                                   exportselection=False, font=("Consolas", 10))
+        self._nb_list.grid(row=row, column=0, columnspan=2, sticky="ew")
+        self._nb_list.bind("<Double-1>", self._goto_neighbor)
+        self._neighbors: list[int] = []
+        row += 1
+
+        self._state_btn = ttk.Button(b, text="🗺 " + self.t("map.goto_state"),
+                                     command=self._goto_state)
+        self._state_btn.grid(row=row, column=0, columnspan=2, sticky="w",
+                             pady=(10, 0))
+
+    # -------------------------------------------------------------------- show
+    def show(self, pid: int | None) -> None:
+        self.flush_pending()
+        self._loading = True
+        self.pid = pid
+        d = self.owner.province_def(pid) if pid is not None else None
+        if d is None:
+            self._loading = False
+            return
+        self._title_lbl.configure(text=f"{self.t('map.province')} #{d.id}")
+        self._rgb_lbl.configure(text=f"RGB {d.r}, {d.g}, {d.b}")
+        self._type_var.set(d.type)
+        self._set_terrain_choices(d.type)
+        self._terrain_var.set(d.terrain)
+        self._coastal_var.set(d.coastal)
+        conts = self.owner.continent_options()
+        self._cont_combo.configure(values=[label for label, _v in conts])
+        current = next((label for label, v in conts if v == d.continent),
+                       str(d.continent))
+        self._cont_var.set(current)
+        self._facts_lbl.configure(text=self.owner.province_facts(d.id))
+        self._neighbors = self.owner.province_neighbors(d.id)
+        self._nb_list.delete(0, "end")
+        for n in self._neighbors:
+            nd = self.owner.province_def(n)
+            extra = f"  {nd.type}/{nd.terrain}" if nd is not None else ""
+            self._nb_list.insert("end", f"{n}{extra}")
+        is_land = d.type == "land"
+        self._state_btn.configure(state="normal" if is_land else "disabled")
+        self._loading = False
+
+    def _set_terrain_choices(self, ptype: str) -> None:
+        if ptype == "land":
+            values = self.owner.land_terrains()
+        else:
+            values = self.owner.water_terrains()
+        self._terrain_combo.configure(values=values)
+
+    # ----------------------------------------------------------------- commits
+    def _commit_type(self) -> None:
+        if self._loading or self.pid is None:
+            return
+        new_type = self._type_var.get()
+        d = self.owner.province_def(self.pid)
+        if d is None or d.type == new_type:
+            return
+        fields = {"type": new_type}
+        # Keep the terrain consistent with the new type.
+        terrains = (self.owner.land_terrains() if new_type == "land"
+                    else self.owner.water_terrains())
+        if d.terrain not in terrains and terrains:
+            fields["terrain"] = terrains[0]
+        self.owner.set_province_def(self.pid, **fields)
+        self._set_terrain_choices(new_type)
+        self._terrain_var.set(fields.get("terrain", d.terrain))
+
+    def _commit_terrain(self) -> None:
+        if self._loading or self.pid is None:
+            return
+        d = self.owner.province_def(self.pid)
+        value = self._terrain_var.get()
+        if d is not None and d.terrain != value:
+            self.owner.set_province_def(self.pid, terrain=value)
+
+    def _commit_coastal(self) -> None:
+        if self._loading or self.pid is None:
+            return
+        d = self.owner.province_def(self.pid)
+        value = self._coastal_var.get()
+        if d is not None and d.coastal != value:
+            self.owner.set_province_def(self.pid, coastal=value)
+
+    def _commit_continent(self) -> None:
+        if self._loading or self.pid is None:
+            return
+        label = self._cont_var.get()
+        value = next((v for lbl, v in self.owner.continent_options()
+                      if lbl == label), None)
+        d = self.owner.province_def(self.pid)
+        if value is not None and d is not None and d.continent != value:
+            self.owner.set_province_def(self.pid, continent=value)
+
+    # ------------------------------------------------------------------- misc
+    def _goto_neighbor(self, _event=None) -> None:
+        sel = self._nb_list.curselection()
+        if sel:
+            self.owner.select_province(self._neighbors[sel[0]], zoom=True)
+
+    def _goto_state(self) -> None:
+        if self.pid is not None:
+            self.owner.goto_state_of_province(self.pid)
 
 
 class StateInspector(InspectorBase):
