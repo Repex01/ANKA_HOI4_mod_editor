@@ -684,5 +684,11 @@
   "map.no_state": "no state",
   "map.neighbors": "Neighboring provinces",
   "map.goto_state": "Go to state",
-  "map.area": "Area"
+  "map.area": "Area",
+  "map.new_province": "New province",
+  "map.new_province_hint": "The province gets a free id and a unique color. Paint its pixels with the brush or fill, then add it to a state (for land).",
+  "map.no_brush": "no brush",
+  "map.err.no_brush": "Pick a brush province first (💉 picker or ➕ new province).",
+  "map.filled_px": "Filled {count} px",
+  "map.province_created": "Province #{id} created — paint away"
 }

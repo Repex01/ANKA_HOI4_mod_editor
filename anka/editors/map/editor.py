@@ -58,6 +58,9 @@ class MapEditor(EditorModule):
         self._load_state = "idle"            # idle | loading | ready | error
         self._load_error = ""
         self._suppress_tree_event = False
+        self._tool = "select"                # select | brush | fill | picker
+        self._brush_target: int | None = None
+        self._last_paint: tuple[int, int] | None = None
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
@@ -80,6 +83,8 @@ class MapEditor(EditorModule):
             map_size=self._map_size,
             on_click=self._map_click,
             on_hover=self._map_hover,
+            on_paint=self._paint,
+            on_paint_end=self._paint_end,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
@@ -111,6 +116,26 @@ class MapEditor(EditorModule):
                    command=lambda: self.canvas.fit_map()).pack(side="left", padx=4)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
+
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
+                                                   padx=6, pady=2)
+        self._tool_btns: dict[str, ttk.Button] = {}
+        for name, icon in (("select", "⭘"), ("brush", "🖌"),
+                           ("fill", "🪣"), ("picker", "💉")):
+            btn = ttk.Button(bar, text=f"{icon}",
+                             command=lambda n=name: self._set_tool(n), width=3)
+            btn.pack(side="left", padx=1)
+            self._tool_btns[name] = btn
+        self._radius_var = tk.IntVar(value=6)
+        ttk.Spinbox(bar, from_=1, to=64, width=4,
+                    textvariable=self._radius_var).pack(side="left", padx=(6, 2))
+        self._target_swatch = tk.Label(bar, text="  ", bd=1, relief="solid")
+        self._target_swatch.pack(side="left", padx=(8, 2))
+        self._target_lbl = ttk.Label(bar, text=self.t("map.no_brush"),
+                                     style="Muted.TLabel")
+        self._target_lbl.pack(side="left")
+        ttk.Button(bar, text="➕ " + self.t("map.new_province"),
+                   command=self._new_province).pack(side="left", padx=6)
 
         self._assign_lbl = tk.Label(bar, text="🎯 " + self.t("map.assign_hint"),
                                     bd=0, padx=10, pady=3,
@@ -357,11 +382,96 @@ class MapEditor(EditorModule):
         if self._assign_mode and pid is not None:
             self.assign_province_to_state(pid)
             return
+        if self._tool == "picker":
+            if pid is not None:
+                self.set_brush_target(pid)
+            return
+        if self._tool == "fill":
+            self._fill_at(mx, my)
+            return
         if pid is None:
             self._selected_province = None
             self.canvas.set_selection(set())
             return
         self.select_province(pid)
+
+    # ----------------------------------------------------------- paint tools
+    def _set_tool(self, name: str) -> None:
+        self._tool = name
+        self.canvas.paint_mode = name == "brush"
+        for tool, btn in self._tool_btns.items():
+            btn.configure(style="Accent.TButton" if tool == name else "TButton")
+        self.canvas.canvas.configure(
+            cursor={"brush": "pencil", "fill": "spraycan",
+                    "picker": "target"}.get(name, "crosshair"))
+
+    def set_brush_target(self, pid: int) -> None:
+        d = self.map.by_id.get(pid)
+        if d is None:
+            return
+        self._brush_target = pid
+        self._target_swatch.configure(bg=f"#{d.r:02x}{d.g:02x}{d.b:02x}")
+        self._target_lbl.configure(text=f"#{pid} · {d.type}/{d.terrain}")
+
+    def _require_target(self) -> int | None:
+        if self._brush_target is None or self._brush_target not in self.map.by_id:
+            messagebox.showinfo("ANKA", self.t("map.err.no_brush"))
+            return None
+        return self._brush_target
+
+    def _paint(self, mx: int, my: int, _event) -> None:
+        if not self.map.loaded or self._tool != "brush":
+            return
+        pid = self._brush_target
+        if pid is None or pid not in self.map.by_id:
+            self._last_paint = None
+            return
+        radius = max(1, int(self._radius_var.get() or 1))
+        # Interpolate along the stroke so fast drags leave no gaps.
+        points = [(mx, my)]
+        if self._last_paint is not None:
+            lx, ly = self._last_paint
+            dist = max(abs(mx - lx), abs(my - ly))
+            step = max(1, radius)
+            if dist > step:
+                n = dist // step
+                points = [(lx + (mx - lx) * (i + 1) // (n + 1),
+                           ly + (my - ly) * (i + 1) // (n + 1))
+                          for i in range(int(n))] + points
+        for x, y in points:
+            self.map.paint_disk(x, y, radius, pid)
+        self._last_paint = (mx, my)
+        self.canvas.refresh()
+
+    def _paint_end(self) -> None:
+        self._last_paint = None
+
+    def _fill_at(self, mx: int, my: int) -> None:
+        pid = self._require_target()
+        if pid is None or not self.map.loaded:
+            return
+        try:
+            painted = self.map.flood_fill(mx, my, pid)
+        except KeyError:
+            return
+        if painted:
+            self.canvas.refresh()
+            self._status.configure(
+                text=self.t("map.filled_px", count=painted))
+
+    def _new_province(self) -> None:
+        from .dialogs import NewProvinceDialog
+        like = self.map.by_id.get(self._selected_province) \
+            if self._selected_province is not None else None
+
+        def submit(fields: dict) -> None:
+            d = self.map.create_province(**fields)
+            self._value_options.pop("province_free", None)
+            self.set_brush_target(d.id)
+            self._set_tool("brush")
+            self._status.configure(text=self.t("map.province_created", id=d.id))
+
+        NewProvinceDialog(self._insp_host, self, submit, like=like)
 
     def _map_hover(self, mx, my) -> None:
         if mx is None or not self.map.loaded:

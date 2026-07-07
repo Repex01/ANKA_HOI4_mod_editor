@@ -42,6 +42,35 @@ def decode_rgb(code: int) -> tuple[int, int, int]:
     return (code >> 16) & 0xFF, (code >> 8) & 0xFF, code & 0xFF
 
 
+def _flood_region(mask: np.ndarray, sy: int, sx: int) -> np.ndarray:
+    """Connected component of True cells containing (sy, sx) — scanline stack
+    fill; segment extents are found with numpy, not per-pixel Python steps."""
+    h, w = mask.shape
+    region = np.zeros_like(mask)
+    if not (0 <= sy < h and 0 <= sx < w) or not mask[sy, sx]:
+        return region
+    stack = [(sy, sx)]
+    while stack:
+        y, x = stack.pop()
+        if region[y, x] or not mask[y, x]:
+            continue
+        blocked = ~mask[y]
+        left = np.nonzero(blocked[:x + 1])[0]
+        x0 = int(left[-1]) + 1 if len(left) else 0
+        right = np.nonzero(blocked[x:])[0]
+        x1 = x + int(right[0]) - 1 if len(right) else w - 1
+        region[y, x0:x1 + 1] = True
+        for ny in (y - 1, y + 1):
+            if 0 <= ny < h:
+                candidates = mask[ny, x0:x1 + 1] & ~region[ny, x0:x1 + 1]
+                if candidates.any():
+                    xs = np.nonzero(candidates)[0]
+                    run_starts = xs[np.r_[True, np.diff(xs) > 1]]
+                    for s in run_starts:
+                        stack.append((ny, x0 + int(s)))
+    return region
+
+
 def state_color(state_id: int) -> tuple[int, int, int]:
     """Deterministic, well-spread color for a state id (state render mode)."""
     import colorsys
@@ -217,6 +246,7 @@ class MapService:
         ~1–2 s on the vanilla map; call from a worker thread)."""
         if self._codes is not None:
             return
+        self.defs                                   # definitions feed by_code
         path = self.map_file(self.map_filenames()["provinces"])
         if path is None:
             raise FileNotFoundError("provinces.bmp not found in mod or game")
@@ -561,6 +591,52 @@ class MapService:
     def set_mask(self, mask: np.ndarray, pid: int) -> None:
         ys, xs = np.nonzero(mask)
         self.set_pixels(ys, xs, pid)
+
+    def paint_disk(self, cx: int, cy: int, radius: int, pid: int) -> int:
+        """Brush stamp: paint a disk of `radius` (map px) with province `pid`.
+        Returns the number of painted pixels."""
+        self.ensure_bitmap()
+        h, w = self._codes.shape
+        x0, x1 = max(0, cx - radius), min(w, cx + radius + 1)
+        y0, y1 = max(0, cy - radius), min(h, cy + radius + 1)
+        if x0 >= x1 or y0 >= y1:
+            return 0
+        yy, xx = np.ogrid[y0 - cy:y1 - cy, x0 - cx:x1 - cx]
+        disk = (xx * xx + yy * yy) <= radius * radius
+        ys, xs = np.nonzero(disk)
+        self.set_pixels(ys + y0, xs + x0, pid)
+        return len(ys)
+
+    def flood_fill(self, x: int, y: int, pid: int) -> int:
+        """Fill the connected same-color region around (x, y) with province
+        `pid` (scanline BFS on numpy rows — no per-pixel Python loops).
+        Returns the number of repainted pixels."""
+        self.ensure_bitmap()
+        h, w = self._codes.shape
+        if not (0 <= x < w and 0 <= y < h):
+            return 0
+        seed_code = int(self._codes[y, x])
+        target = self.by_id.get(pid)
+        if target is None:
+            raise KeyError(f"Province {pid} not defined")
+        if seed_code == target.code:
+            return 0
+        # Work on the bbox of the seed color to keep rows short.
+        seed_def = self.by_code.get(seed_code)
+        bbox = self.bbox_of(seed_def.id) if seed_def is not None else None
+        if bbox is None:
+            mask_full = self._codes == seed_code
+            rows = np.any(mask_full, axis=1)
+            cols = np.any(mask_full, axis=0)
+            bbox = (int(np.argmax(cols)), int(np.argmax(rows)),
+                    int(len(cols) - 1 - np.argmax(cols[::-1])),
+                    int(len(rows) - 1 - np.argmax(rows[::-1])))
+        bx0, by0, bx1, by1 = bbox
+        mask = self._codes[by0:by1 + 1, bx0:bx1 + 1] == seed_code
+        region = _flood_region(mask, y - by0, x - bx0)
+        ys, xs = np.nonzero(region)
+        self.set_pixels(ys + by0, xs + bx0, pid)
+        return len(ys)
 
     # ------------------------------------------------------------------ saving
     def save(self) -> list[Path]:
