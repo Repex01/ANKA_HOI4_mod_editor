@@ -58,8 +58,9 @@ class StateCategoryService:
                     color = (128, 128, 128)
                     cblock = body.get_block("color")
                     if cblock is not None:
-                        nums = [v.as_int() for v in cblock.array_values()
-                                if isinstance(v, Scalar)]
+                        # array_values() yields raw strings
+                        nums = [int(float(v)) for v in cblock.array_values()
+                                if v.replace(".", "", 1).isdigit()]
                         if len(nums) >= 3:
                             color = (nums[0], nums[1], nums[2])
                     slots = 0

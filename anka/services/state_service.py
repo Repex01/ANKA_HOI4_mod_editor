@@ -1,13 +1,20 @@
-"""State (region) ownership for the Countries editor.
+"""States: light ownership info for the Countries editor + a block-backed
+document model for the Map editor.
 
 A HOI4 *region* is a state defined in ``history/states/<id>-<name>.txt``; ownership is
 the ``owner`` key inside its ``history`` block. Assigning a state to a country edits
 that key — copying the vanilla file into the mod first if needed, so the base game stays
 untouched. The service also reports the current owner so the UI can flag conflicts
 (already owned by someone else) without blocking the action.
+
+The map editor works through `StateDocRef` / `StateDocument` / `StateDef`
+(the Ref/Document/BlockView pattern of the other editors): every state lives in
+its own file, unknown history effects survive load→save untouched. The legacy
+`StateInfo` API above stays intact — the Countries editor depends on it.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +22,9 @@ from ..config.constants import GAME_DIRS
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case as _ensure_filename_case
+from ._pdxview import BlockView
+
+_STATE_ID_RE = re.compile(r"^[ \t]*id[ \t]*=[ \t]*(\d+)", re.M)
 
 
 @dataclass
@@ -197,3 +207,422 @@ class StateService:
         if info and info.owner and info.owner != tag:
             return info.owner
         return None
+
+    def invalidate(self) -> None:
+        """Drop the `StateInfo` cache (map editor edited state documents)."""
+        self._cache = None
+
+    # ================== block-backed documents (map editor) ==================
+    def list_docs(self, include_vanilla: bool = True) -> list["StateDocRef"]:
+        """Mod-first refs of every state file; vanilla files overridden by the
+        mod (same rel path, case-insensitive) are skipped and the mod ref is
+        marked `edited`."""
+        refs: list[StateDocRef] = []
+        seen: set[str] = set()
+        vanilla_rels = set()
+        game_dir = self.ctx.game_path / GAME_DIRS.HISTORY_STATES
+        if game_dir.is_dir():
+            vanilla_rels = {f.name.lower() for f in game_dir.glob("*.txt")}
+        mod_dir = self.ctx.mod.path / GAME_DIRS.HISTORY_STATES
+        if mod_dir.is_dir():
+            for file in sorted(mod_dir.glob("*.txt")):
+                rel = f"{GAME_DIRS.HISTORY_STATES}/{file.name}"
+                refs.append(StateDocRef(rel_file=rel, source_root=self.ctx.mod.path,
+                                        is_vanilla=False,
+                                        edited=file.name.lower() in vanilla_rels,
+                                        state_id=self._quick_state_id(file)))
+                seen.add(file.name.lower())
+        if include_vanilla and game_dir.is_dir():
+            for file in sorted(game_dir.glob("*.txt")):
+                if file.name.lower() in seen:
+                    continue
+                rel = f"{GAME_DIRS.HISTORY_STATES}/{file.name}"
+                refs.append(StateDocRef(rel_file=rel, source_root=self.ctx.game_path,
+                                        is_vanilla=True,
+                                        state_id=self._quick_state_id(file)))
+        return refs
+
+    @staticmethod
+    def _quick_state_id(file: Path) -> int | None:
+        try:
+            text = file.read_text(encoding="utf-8-sig", errors="replace")
+        except OSError:
+            return None
+        m = _STATE_ID_RE.search(text)
+        return int(m.group(1)) if m else None
+
+    def doc_ref_for(self, state_id: int) -> "StateDocRef | None":
+        for ref in self.list_docs(include_vanilla=True):
+            if ref.state_id == state_id:
+                return ref
+        return None
+
+    def load(self, ref: "StateDocRef") -> "StateDocument":
+        """Parse (or reuse the cached parse of) a state file."""
+        if not hasattr(self, "_doc_cache"):
+            self._doc_cache: dict[str, tuple[float, StateDocument]] = {}
+        key = str(ref.path).lower()
+        try:
+            mtime = ref.path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        cached = self._doc_cache.get(key)
+        if cached is not None and cached[0] == mtime:
+            return cached[1]
+        root = parse_file(ref.path)
+        doc = StateDocument(ref, root)
+        self._doc_cache[key] = (mtime, doc)
+        return doc
+
+    def save_doc(self, doc: "StateDocument") -> None:
+        if doc.ref.is_vanilla:
+            raise PermissionError("Refusing to write a vanilla state file")
+        target = _ensure_filename_case(doc.ref.path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(doc.root, target)
+        if hasattr(self, "_doc_cache"):
+            key = str(doc.ref.path).lower()
+            try:
+                self._doc_cache[key] = (target.stat().st_mtime, doc)
+            except OSError:
+                self._doc_cache.pop(key, None)
+        self.refresh_info(doc)
+
+    def refresh_info(self, doc: "StateDocument") -> None:
+        """Sync the light `StateInfo` cache with an (edited) document — much
+        cheaper than `invalidate()`, which would re-parse all 1000+ files."""
+        st = doc.state
+        if st is None:
+            return
+        if self._cache is None:
+            self.list_states()
+        names = self._state_names()
+        info = StateInfo(st.id, names.get(st.id, f"STATE_{st.id}"),
+                         st.owner or None, doc.ref.path,
+                         not doc.ref.is_vanilla, st.provinces, st.cores)
+        if self._cache is not None:
+            self._cache[st.id] = info
+
+    def copy_to_mod(self, ref: "StateDocRef") -> "StateDocRef":
+        """Byte-exact copy of a vanilla state file into the mod (override)."""
+        if not ref.is_vanilla:
+            return ref
+        target = self.ctx.mod.path / ref.rel_file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target = _ensure_filename_case(target)
+        if not target.exists():
+            target.write_bytes(ref.path.read_bytes())
+        return StateDocRef(rel_file=ref.rel_file, source_root=self.ctx.mod.path,
+                           is_vanilla=False, edited=True, state_id=ref.state_id)
+
+    def delete_doc(self, ref: "StateDocRef") -> None:
+        if ref.is_vanilla:
+            raise PermissionError("Refusing to delete a vanilla state file")
+        if ref.path.exists():
+            ref.path.unlink()
+        if hasattr(self, "_doc_cache"):
+            self._doc_cache.pop(str(ref.path).lower(), None)
+        if self._cache is not None and ref.state_id is not None:
+            self._cache.pop(ref.state_id, None)
+
+    def find_province_state(self, province_id: int,
+                            exclude_state: int | None = None) -> "StateDocRef | None":
+        """The (other) state currently containing a province — conflict check
+        when assigning provinces on the map."""
+        for ref in self.list_docs(include_vanilla=True):
+            if ref.state_id is None or ref.state_id == exclude_state:
+                continue
+            doc = self.load(ref)
+            state = doc.state
+            if state is not None and province_id in state.provinces:
+                return ref
+        return None
+
+
+@dataclass
+class StateDocRef:
+    rel_file: str
+    source_root: Path
+    is_vanilla: bool
+    edited: bool = False
+    state_id: int | None = None
+
+    @property
+    def path(self) -> Path:
+        return self.source_root / self.rel_file
+
+
+class StateDocument:
+    def __init__(self, ref: StateDocRef, root: Block):
+        self.ref = ref
+        self.root = root
+
+    @property
+    def state(self) -> "StateDef | None":
+        block = self.root.get_block("state")
+        return StateDef(block) if block is not None else None
+
+
+class StateDef(BlockView):
+    """Thin view over one ``state = { ... }`` block. The ``history`` block and
+    any unknown effects inside it are preserved untouched."""
+
+    FLAG_DEFAULTS = {"impassable": False}
+
+    def __init__(self, block: Block):
+        self.block = block
+
+    # --- plain fields -------------------------------------------------------
+    @property
+    def id(self) -> int:
+        v = self.block.get("id")
+        return v.as_int(0) if isinstance(v, Scalar) else 0
+
+    @property
+    def name_key(self) -> str:
+        return self.get_raw("name")
+
+    def set_name_key(self, key: str) -> None:
+        self.block.set("name", Scalar(key, quoted=True))
+
+    @property
+    def manpower(self) -> int:
+        v = self.block.get("manpower")
+        return v.as_int(0) if isinstance(v, Scalar) else 0
+
+    def set_manpower(self, value: int) -> None:
+        self.block.set("manpower", Scalar(str(int(value))))
+
+    @property
+    def state_category(self) -> str:
+        return self.get_raw("state_category")
+
+    def set_state_category(self, name: str) -> None:
+        self.set_raw("state_category", name)
+
+    @property
+    def local_supplies(self) -> float:
+        v = self.block.get("local_supplies")
+        return (v.as_float(0.0) or 0.0) if isinstance(v, Scalar) else 0.0
+
+    def set_local_supplies(self, value: float) -> None:
+        if value:
+            self.block.set("local_supplies", Scalar(f"{value:g}"))
+        else:
+            self.block.remove("local_supplies")
+
+    @property
+    def impassable(self) -> bool:
+        return self.get_flag("impassable")
+
+    def set_impassable(self, value: bool) -> None:
+        self.set_flag("impassable", value)
+
+    # --- provinces ------------------------------------------------------------
+    @property
+    def provinces(self) -> list[int]:
+        block = self.block.get_block("provinces")
+        if block is None:
+            return []
+        # array_values() yields raw strings
+        return [int(v) for v in block.array_values() if v.isdigit()]
+
+    def set_provinces(self, ids: list[int]) -> None:
+        block = self.block.get_block("provinces")
+        if block is None:
+            block = Block()
+            self.block.set("provinces", block)
+        block.items = [Scalar(str(i)) for i in ids]
+
+    def add_province(self, pid: int) -> None:
+        ids = self.provinces
+        if pid not in ids:
+            ids.append(pid)
+            self.set_provinces(ids)
+
+    def remove_province(self, pid: int) -> None:
+        ids = self.provinces
+        if pid in ids:
+            ids.remove(pid)
+            self.set_provinces(ids)
+
+    # --- history --------------------------------------------------------------
+    def _history(self, create: bool = False) -> Block | None:
+        h = self.block.get_block("history")
+        if h is None and create:
+            h = Block()
+            self.block.set("history", h)
+        return h
+
+    @property
+    def owner(self) -> str:
+        h = self._history()
+        return h.get_scalar("owner", "") if h is not None else ""
+
+    def set_owner(self, tag: str) -> None:
+        h = self._history(create=True)
+        if tag:
+            h.set("owner", Scalar(tag))
+        else:
+            h.remove("owner")
+
+    @property
+    def controller(self) -> str:
+        h = self._history()
+        return h.get_scalar("controller", "") if h is not None else ""
+
+    def set_controller(self, tag: str) -> None:
+        h = self._history(create=True)
+        if tag:
+            h.set("controller", Scalar(tag))
+        else:
+            h.remove("controller")
+
+    @property
+    def cores(self) -> list[str]:
+        h = self._history()
+        if h is None:
+            return []
+        return [v.raw for v in h.get_all("add_core_of") if isinstance(v, Scalar)]
+
+    def set_cores(self, tags: list[str]) -> None:
+        """Replace ``add_core_of`` pairs keeping the first one's position."""
+        h = self._history(create=True)
+        index = next((i for i, it in enumerate(h.items)
+                      if isinstance(it, Pair) and it.key == "add_core_of"), None)
+        h.items = [it for it in h.items
+                   if not (isinstance(it, Pair) and it.key == "add_core_of")]
+        pairs = [Pair("add_core_of", Scalar(t)) for t in tags]
+        if index is None:
+            h.items.extend(pairs)
+        else:
+            h.items[index:index] = pairs
+
+    # --- victory points ---------------------------------------------------------
+    @property
+    def victory_points(self) -> list[tuple[int, int]]:
+        h = self._history()
+        if h is None:
+            return []
+        out: list[tuple[int, int]] = []
+        for v in h.get_all("victory_points"):
+            if isinstance(v, Block):
+                nums = [int(s) for s in v.array_values()
+                        if s.lstrip("-").isdigit()]
+                for i in range(0, len(nums) - 1, 2):
+                    out.append((nums[i], nums[i + 1]))
+        return out
+
+    def set_victory_points(self, points: list[tuple[int, int]]) -> None:
+        h = self._history(create=True)
+        index = next((i for i, it in enumerate(h.items)
+                      if isinstance(it, Pair) and it.key == "victory_points"), None)
+        h.items = [it for it in h.items
+                   if not (isinstance(it, Pair) and it.key == "victory_points")]
+        pairs = [Pair("victory_points",
+                      Block([Scalar(str(p)), Scalar(str(v))]))
+                 for p, v in points]
+        if index is None:
+            h.items.extend(pairs)
+        else:
+            h.items[index:index] = pairs
+
+    # --- resources ---------------------------------------------------------------
+    @property
+    def resources(self) -> dict[str, float]:
+        block = self.block.get_block("resources")
+        if block is None:
+            return {}
+        out: dict[str, float] = {}
+        for pair in block.pairs():
+            if isinstance(pair.value, Scalar):
+                val = pair.value.as_float()
+                if val is not None:
+                    out[pair.key] = val
+        return out
+
+    def set_resource(self, name: str, amount: float) -> None:
+        block = self.block.get_block("resources")
+        if amount <= 0:
+            if block is not None:
+                block.remove(name)
+                if not len(block.items):
+                    self.block.remove("resources")
+            return
+        if block is None:
+            block = Block()
+            self.block.set("resources", block)
+        text = f"{amount:g}"
+        block.set(name, Scalar(text))
+
+    # --- buildings ------------------------------------------------------------------
+    def _buildings(self, create: bool = False) -> Block | None:
+        h = self._history(create=create)
+        if h is None:
+            return None
+        b = h.get_block("buildings")
+        if b is None and create:
+            b = Block()
+            h.set("buildings", b)
+        return b
+
+    @property
+    def state_buildings(self) -> dict[str, int]:
+        b = self._buildings()
+        if b is None:
+            return {}
+        out: dict[str, int] = {}
+        for pair in b.pairs():
+            if isinstance(pair.value, Scalar) and not pair.key.isdigit():
+                lvl = pair.value.as_int()
+                if lvl is not None:
+                    out[pair.key] = lvl
+        return out
+
+    def set_state_building(self, name: str, level: int) -> None:
+        b = self._buildings(create=level > 0)
+        if b is None:
+            return
+        if level > 0:
+            b.set(name, Scalar(str(int(level))))
+        else:
+            b.remove(name)
+
+    @property
+    def province_buildings(self) -> dict[int, dict[str, int]]:
+        b = self._buildings()
+        if b is None:
+            return {}
+        out: dict[int, dict[str, int]] = {}
+        for pair in b.pairs():
+            if isinstance(pair.value, Block) and pair.key.isdigit():
+                inner: dict[str, int] = {}
+                for p2 in pair.value.pairs():
+                    if isinstance(p2.value, Scalar):
+                        lvl = p2.value.as_int()
+                        if lvl is not None:
+                            inner[p2.key] = lvl
+                out[int(pair.key)] = inner
+        return out
+
+    def set_province_building(self, province: int, name: str, level: int) -> None:
+        b = self._buildings(create=level > 0)
+        if b is None:
+            return
+        key = str(province)
+        prov_block = None
+        for pair in b.pairs():
+            if pair.key == key and isinstance(pair.value, Block):
+                prov_block = pair.value
+                break
+        if level > 0:
+            if prov_block is None:
+                prov_block = Block()
+                b.add(key, prov_block)
+            prov_block.set(name, Scalar(str(int(level))))
+        elif prov_block is not None:
+            prov_block.remove(name)
+            if not len(prov_block.items):
+                b.items = [it for it in b.items
+                           if not (isinstance(it, Pair) and it.key == key
+                                   and it.value is prov_block)]

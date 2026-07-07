@@ -208,7 +208,7 @@ class MapService:
         cont = block.get_block("continents")
         if cont is None:
             return []
-        return [v.raw for v in cont.array_values() if isinstance(v, Scalar)]
+        return list(cont.array_values())      # raw strings already
 
     # ------------------------------------------------------------------ bitmap
     def ensure_bitmap(self) -> None:
