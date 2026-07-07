@@ -633,5 +633,27 @@
 
   "oob.shift_hint": "Tip: Shift+click a ＋ to copy the unit above it (or the left column's top unit if the column is empty).",
   "oob.shift_copy_none": "Nothing to copy into the first cell — add a unit with ＋.",
-  "focuses.pick.focus": "Pick a focus"
+  "focuses.pick.focus": "Pick a focus",
+
+  "common.yes": "Yes",
+  "common.no": "No",
+  "map.panel": "States",
+  "map.mode": "Mode:",
+  "map.mode.provinces": "Provinces",
+  "map.mode.terrain": "Terrain",
+  "map.mode.owner": "Owners",
+  "map.mode.state": "States",
+  "map.fit": "Fit map",
+  "map.loading": "Loading map…",
+  "map.load_error": "Failed to load the map: {error}",
+  "map.select_hint": "Click a province on the map or pick a state in the list on the left.",
+  "map.province": "Province",
+  "map.state": "State",
+  "map.type": "Type",
+  "map.terrain": "Terrain",
+  "map.coastal": "Coastal",
+  "map.continent": "Continent",
+  "map.owner": "Owner",
+  "map.provinces_count": "Provinces",
+  "map.saved_nudge_warning": "Map saved. 3D positions (positions.txt etc.) may be stale — regenerate them with the Nudge tool."
 }

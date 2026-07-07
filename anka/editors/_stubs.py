@@ -41,14 +41,6 @@ class TechnologiesEditor(WipEditor):
 
 
 @EditorRegistry.register
-class MapEditor(WipEditor):
-    id = "map"
-    name_key = "editors.map.name"
-    desc_key = "editors.map.desc"
-    order = 110
-
-
-@EditorRegistry.register
 class DynamicModifiersEditor(WipEditor):
     id = "dynamic_modifiers"
     name_key = "editors.dynamic_modifiers.name"

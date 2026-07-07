@@ -634,5 +634,27 @@
 
   "oob.shift_hint": "Подсказка: Shift+клик по ＋ копирует юнита сверху (или верхний юнит левой колонки, если колонка пуста).",
   "oob.shift_copy_none": "Нечего копировать в первую ячейку — добавьте юнит через ＋.",
-  "focuses.pick.focus": "Выбрать фокус"
+  "focuses.pick.focus": "Выбрать фокус",
+
+  "common.yes": "Да",
+  "common.no": "Нет",
+  "map.panel": "Штаты",
+  "map.mode": "Режим:",
+  "map.mode.provinces": "Провинции",
+  "map.mode.terrain": "Террейн",
+  "map.mode.owner": "Владельцы",
+  "map.mode.state": "Штаты",
+  "map.fit": "Вся карта",
+  "map.loading": "Загрузка карты…",
+  "map.load_error": "Не удалось загрузить карту: {error}",
+  "map.select_hint": "Кликните по провинции на карте или выберите штат в списке слева.",
+  "map.province": "Провинция",
+  "map.state": "Штат",
+  "map.type": "Тип",
+  "map.terrain": "Террейн",
+  "map.coastal": "Прибрежная",
+  "map.continent": "Континент",
+  "map.owner": "Владелец",
+  "map.provinces_count": "Провинций",
+  "map.saved_nudge_warning": "Карта сохранена. 3D-позиции (positions.txt и т.п.) могли устареть — перегенерируйте их инструментом Nudge."
 }
