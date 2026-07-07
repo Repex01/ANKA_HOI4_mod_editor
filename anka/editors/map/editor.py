@@ -15,9 +15,11 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from ...services.adjacency_service import AdjacencyService
 from ...services.building_service import BuildingService
 from ...services.map_refs import ResourceService, StateCategoryService
 from ...services.map_service import RENDER_MODES, MapService
+from ...services.map_zones import StrategicRegionService, SupplyAreaService
 from ...services.state_service import StateService
 from ...services.terrain_service import TerrainService
 from ...services._locutil import LocCatalog
@@ -42,6 +44,9 @@ class MapEditor(EditorModule):
         self.resources = ResourceService(context)
         self.map = MapService(context, state_service=self.states,
                               terrain_service=self.terrain)
+        self.adjacencies = AdjacencyService(context, map_service=self.map)
+        self.supply_areas = SupplyAreaService(context)
+        self.strat_regions = StrategicRegionService(context)
         self.loc = LocCatalog(context.mod.path, context.game_path,
                               vanilla_filter="state",
                               default_pattern="anka_states_l_{lang}.yml")
@@ -92,9 +97,82 @@ class MapEditor(EditorModule):
                                       style="Muted.TLabel")
         self._loading_lbl.grid(row=0, column=0)
 
+        self._build_problems(center)
         self._build_inspector_panel(root)
         self._start_loading()
         return root
+
+    def _build_problems(self, center) -> None:
+        panel = ttk.Frame(center, style="Card.TFrame", padding=(8, 6))
+        panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        panel.columnconfigure(0, weight=1)
+        self._problems_panel = panel
+        self._problems = ttk.Treeview(panel, columns=("sev", "subject", "msg"),
+                                      show="headings", height=5)
+        self._problems.heading("sev", text="!")
+        self._problems.heading("subject", text=self.t("map.col.subject"))
+        self._problems.heading("msg", text=self.t("focuses.col.problem"))
+        self._problems.column("sev", width=30, anchor="center", stretch=False)
+        self._problems.column("subject", width=140, stretch=False)
+        self._problems.column("msg", width=440)
+        self._problems.grid(row=0, column=0, sticky="ew")
+        sb = ttk.Scrollbar(panel, orient="vertical", command=self._problems.yview)
+        sb.grid(row=0, column=1, sticky="ns")
+        self._problems.configure(yscrollcommand=sb.set)
+        self._problems.tag_configure("error", foreground=self.palette.danger)
+        self._problems.bind("<<TreeviewSelect>>", self._on_problem_select)
+        panel.grid_remove()
+        self._problems_visible = False
+        self._issues: list = []
+
+    def _toggle_problems(self) -> None:
+        self._problems_visible = not self._problems_visible
+        if self._problems_visible:
+            self._validate()
+            self._problems_panel.grid()
+        else:
+            self._problems_panel.grid_remove()
+
+    def _validate(self) -> None:
+        from ...services.map_validation import validate
+        if not self.map.loaded:
+            return
+        try:
+            self._issues = validate(self.map, self.states, self.buildings,
+                                    strategic_regions=self.strat_regions,
+                                    supply_areas=self.supply_areas)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", str(exc))
+            return
+        self._problems.delete(*self._problems.get_children())
+        errors = 0
+        for i, issue in enumerate(self._issues):
+            if issue.severity == "error":
+                errors += 1
+            msg = self.t(f"map.issue.{issue.code}", **issue.detail)
+            self._problems.insert("", "end", iid=str(i),
+                                  values=("⛔" if issue.severity == "error"
+                                          else "⚠", issue.subject, msg),
+                                  tags=(issue.severity,))
+        n = len(self._issues)
+        label = f"⚠ {n}" if not errors else f"⛔ {errors} · ⚠ {n - errors}"
+        self._btn_problems.configure(text=label)
+
+    def _on_problem_select(self, _event=None) -> None:
+        sel = self._problems.selection()
+        if not sel:
+            return
+        try:
+            issue = self._issues[int(sel[0])]
+        except (ValueError, IndexError):
+            return
+        if issue.target_kind == "province" and issue.target_id in self.map.by_id:
+            if self.map.area_of(issue.target_id):
+                self.select_province(issue.target_id, zoom=True)
+            else:
+                self.select_province(issue.target_id)
+        elif issue.target_kind == "state":
+            self.select_state(issue.target_id, zoom=True)
 
     def _build_toolbar(self, root) -> None:
         bar = ttk.Frame(root, style="TFrame")
@@ -111,6 +189,8 @@ class MapEditor(EditorModule):
                              width=16, values=list(self._mode_by_label))
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._mode_changed)
+        from ...ui.widgets.tooltip import attach_help
+        attach_help(combo, self.t, "map.mode", self.palette)
 
         ttk.Button(bar, text="⤢ " + self.t("map.fit"),
                    command=lambda: self.canvas.fit_map()).pack(side="left", padx=4)
@@ -125,6 +205,7 @@ class MapEditor(EditorModule):
             btn = ttk.Button(bar, text=f"{icon}",
                              command=lambda n=name: self._set_tool(n), width=3)
             btn.pack(side="left", padx=1)
+            attach_help(btn, self.t, "map.tools", self.palette)
             self._tool_btns[name] = btn
         self._radius_var = tk.IntVar(value=6)
         ttk.Spinbox(bar, from_=1, to=64, width=4,
@@ -136,6 +217,10 @@ class MapEditor(EditorModule):
         self._target_lbl.pack(side="left")
         ttk.Button(bar, text="➕ " + self.t("map.new_province"),
                    command=self._new_province).pack(side="left", padx=6)
+        ttk.Button(bar, text="⇄ " + self.t("map.adjacencies"),
+                   command=self._open_adjacencies).pack(side="left", padx=2)
+        self._btn_problems = ttk.Button(bar, text="⚠", command=self._toggle_problems)
+        self._btn_problems.pack(side="right", padx=(0, 4))
 
         self._assign_lbl = tk.Label(bar, text="🎯 " + self.t("map.assign_hint"),
                                     bd=0, padx=10, pady=3,
@@ -445,6 +530,8 @@ class MapEditor(EditorModule):
 
     def _paint_end(self) -> None:
         self._last_paint = None
+        if self._brush_target is not None:
+            self._ensure_strategic_region(self._brush_target)
 
     def _fill_at(self, mx: int, my: int) -> None:
         pid = self._require_target()
@@ -458,6 +545,7 @@ class MapEditor(EditorModule):
             self.canvas.refresh()
             self._status.configure(
                 text=self.t("map.filled_px", count=painted))
+            self._ensure_strategic_region(pid)
 
     def _new_province(self) -> None:
         from .dialogs import NewProvinceDialog
@@ -507,11 +595,37 @@ class MapEditor(EditorModule):
                             self._state_doc.ref.path == doc.ref.path:
                         self._state_doc = doc
                         self.state_inspector.refresh_provinces_view()
+        # Strategic regions must stay consistent: new provinces inherit the
+        # source province's region.
+        touched = self.strat_regions.sync_provinces(
+            {nid: pid for nid in new_ids}, [])
         self.map.invalidate_political()
         self._value_options.pop("province_free", None)
         self.canvas.refresh()
         self._refresh_tree()
-        self._status.configure(text=self.t("map.split_done", count=len(ids)))
+        note = (" · " + self.t("map.strat_synced", count=len(touched))
+                if touched else "")
+        self._status.configure(
+            text=self.t("map.split_done", count=len(ids)) + note)
+
+    def _ensure_strategic_region(self, pid: int) -> None:
+        """A drawn province must live in exactly one strategic region: if it is
+        in none, inherit the majority region of its pixel neighbors."""
+        if self.strat_regions.doc_for_member(pid) is not None:
+            return
+        if self.map.area_of(pid) == 0:
+            return
+        votes: dict[int, int] = {}
+        for nb in self.map.neighbors_of(pid):
+            doc = self.strat_regions.doc_for_member(nb)
+            if doc is not None:
+                votes[doc.zone_id] = votes.get(doc.zone_id, 0) + 1
+        if not votes:
+            return
+        region = max(votes, key=votes.get)
+        self.strat_regions.move_member(pid, region)
+        self._status.configure(
+            text=self.t("map.strat_assigned", id=pid, region=region))
 
     def _map_hover(self, mx, my) -> None:
         if mx is None or not self.map.loaded:
@@ -599,7 +713,7 @@ class MapEditor(EditorModule):
         d = self.map.by_id.get(pid)
         if d is None:
             return
-        if d.type != "land":
+        if d.type == "sea":       # lakes occur inside vanilla states, sea never
             messagebox.showinfo("ANKA", self.t("map.err.sea_in_state"))
             return
         if pid in doc.state.provinces:
@@ -665,6 +779,7 @@ class MapEditor(EditorModule):
         self._refresh_tree()
         if sid is not None:
             self._open_state_doc(sid)
+            self._sync_inspectors(focus="state")
 
     def delete_state(self, doc) -> None:
         if doc.ref.is_vanilla:
@@ -735,6 +850,50 @@ class MapEditor(EditorModule):
     def province_def(self, pid: int):
         return self.map.by_id.get(pid)
 
+    # -------------------------------------------------------------- supply areas
+    def supply_area_label(self, state_id: int) -> str:
+        doc = self.supply_areas.doc_for_member(state_id)
+        if doc is None:
+            return self.t("map.no_supply_area")
+        return (f"{doc.zone_id} · {doc.name or f'SUPPLYAREA_{doc.zone_id}'}"
+                f" · value {self.supply_areas.value_of(doc)}")
+
+    def pick_supply_area(self, state_id: int, on_done) -> None:
+        from ..common.dialogs import SinglePickDialog
+        options: list[tuple[str, str]] = []
+        for ref in self.supply_areas.list_docs():
+            try:
+                doc = self.supply_areas.load(ref)
+            except Exception:
+                continue
+            options.append((f"{doc.zone_id} · {doc.name} · "
+                            f"value {self.supply_areas.value_of(doc)}",
+                            str(doc.zone_id)))
+        options.sort(key=lambda o: int(o[1]))
+        options.append((f"➕ {self.t('map.new_supply_area')}", "new"))
+
+        def picked(value: str) -> None:
+            if value == "new":
+                area = self.supply_areas.create_area(self.supply_areas.free_id())
+                area_id = area.zone_id
+            else:
+                area_id = int(value)
+            self.supply_areas.move_member(state_id, area_id)
+            on_done()
+
+        SinglePickDialog(self._insp_host, self, self.t("map.pick_supply_area"),
+                         options, picked)
+
+    def set_supply_area_value(self, state_id: int, value: int) -> None:
+        doc = self.supply_areas.doc_for_member(state_id)
+        if doc is not None:
+            self.supply_areas.set_value(doc, value)
+
+    # -------------------------------------------------------------- adjacencies
+    def _open_adjacencies(self) -> None:
+        from .dialogs import AdjacencyDialog
+        AdjacencyDialog(self._insp_host, self)
+
     # ----------------------------------------------------------------- toggles
     def _toggle_list(self) -> None:
         self._list_visible = not self._list_visible
@@ -766,14 +925,19 @@ class MapEditor(EditorModule):
                                                     error=str(exc)))
         try:
             written = self.map.save()
+            if self.adjacencies.dirty:
+                self.adjacencies.save()
         except Exception as exc:                          # noqa: BLE001
             messagebox.showerror("ANKA", self.t("focuses.err.save", error=str(exc)))
             return
+        if self._problems_visible:
+            self._validate()
         if written:
             messagebox.showinfo("ANKA", self.t("map.saved_nudge_warning"))
 
     def on_leave(self) -> None:
         self.state_inspector.flush_pending()
+        self.province_inspector.flush_pending()
         for path in list(self._dirty):
             doc = self._dirty_docs.get(path)
             if doc is not None:
@@ -785,3 +949,5 @@ class MapEditor(EditorModule):
             self._dirty_docs.pop(path, None)
         if self.map.dirty_bmp or self.map.dirty_csv:
             self.map.save()
+        if self.adjacencies.dirty:
+            self.adjacencies.save()

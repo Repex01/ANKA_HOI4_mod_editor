@@ -97,8 +97,11 @@ class ProvinceInspector(InspectorBase):
         self._state_btn = ttk.Button(actions, text="🗺 " + self.t("map.goto_state"),
                                      command=self._goto_state)
         self._state_btn.pack(side="left")
-        ttk.Button(actions, text="⚡ " + self.t("map.split_button"),
-                   command=self._split).pack(side="left", padx=(6, 0))
+        split_btn = ttk.Button(actions, text="⚡ " + self.t("map.split_button"),
+                               command=self._split)
+        split_btn.pack(side="left", padx=(6, 0))
+        from ...ui.widgets.tooltip import attach_help
+        attach_help(split_btn, self.t, "map.split", self.palette)
 
     # -------------------------------------------------------------------- show
     def show(self, pid: int | None) -> None:
@@ -259,6 +262,18 @@ class StateInspector(InspectorBase):
         chk.grid(row=row, column=0, columnspan=2, sticky="w", pady=3)
         row += 1
 
+        ttk.Label(b, text=self.t("map.supply_area"),
+                  style="CardMuted.TLabel").grid(row=row, column=0,
+                                                 sticky="w", pady=3)
+        sa = ttk.Frame(b, style="Card.TFrame")
+        sa.grid(row=row, column=1, sticky="ew", padx=(8, 0), pady=3)
+        self._supply_lbl = ttk.Label(sa, text="", style="Card.TLabel")
+        self._supply_lbl.pack(side="left")
+        self._supply_btn = ttk.Button(sa, text="…", width=3,
+                                      command=self._pick_supply_area)
+        self._supply_btn.pack(side="left", padx=(6, 0))
+        row += 1
+
         row = self._section(row, self.t("map.cores"))
         self._cores_frame = ttk.Frame(b, style="Card.TFrame")
         self._cores_frame.grid(row=row, column=0, columnspan=2, sticky="ew")
@@ -381,6 +396,7 @@ class StateInspector(InspectorBase):
         self._manpower_var.set(str(st.manpower))
         self._supplies_var.set(f"{st.local_supplies:g}")
         self._impassable_var.set(st.impassable)
+        self._supply_lbl.configure(text=self.owner.supply_area_label(st.id))
         self._refresh_cores()
         self._refresh_vps()
         self._refresh_resources()
@@ -479,6 +495,16 @@ class StateInspector(InspectorBase):
             return
         self.state.set_impassable(self._impassable_var.get())
         self._dirty()
+
+    def _pick_supply_area(self) -> None:
+        if self.state is None:
+            return
+        sid = self.state.id
+
+        def done() -> None:
+            self._supply_lbl.configure(text=self.owner.supply_area_label(sid))
+
+        self.owner.pick_supply_area(sid, done)
 
     # -------------------------------------------------------------------- cores
     def _refresh_cores(self) -> None:

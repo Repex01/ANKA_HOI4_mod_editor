@@ -97,6 +97,154 @@ class NewProvinceDialog(BaseDialog):
         self._on_submit(fields)
 
 
+class AdjacencyDialog(BaseDialog):
+    """Table over ``map/adjacencies.csv``: straits, canals, impassable borders.
+    Edits go to the service (saved with the editor's 💾)."""
+
+    def __init__(self, master, editor):
+        super().__init__(master, editor, editor.t("map.adjacencies"), (760, 480))
+        self.resizable(True, True)
+        self.service = editor.adjacencies
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=12)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.rowconfigure(0, weight=1)
+        body.columnconfigure(0, weight=1)
+
+        cols = ("from", "to", "type", "through", "rule", "comment")
+        self._tree = ttk.Treeview(body, columns=cols, show="headings")
+        headers = {"from": "From", "to": "To", "type": "Type",
+                   "through": "Through", "rule": "Rule",
+                   "comment": self.t("map.comment")}
+        widths = {"from": 70, "to": 70, "type": 90, "through": 70,
+                  "rule": 150, "comment": 220}
+        for c in cols:
+            self._tree.heading(c, text=headers[c])
+            self._tree.column(c, width=widths[c],
+                              stretch=(c == "comment"))
+        self._tree.grid(row=0, column=0, sticky="nsew")
+        sb = ttk.Scrollbar(body, orient="vertical", command=self._tree.yview)
+        sb.grid(row=0, column=1, sticky="ns")
+        self._tree.configure(yscrollcommand=sb.set)
+        self._tree.bind("<Double-1>", lambda e: self._edit())
+
+        bar = ttk.Frame(body, style="Card.TFrame")
+        bar.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        ttk.Button(bar, text="➕ " + self.t("common.add"),
+                   command=self._add).pack(side="left")
+        ttk.Button(bar, text="✏", width=3, command=self._edit).pack(
+            side="left", padx=4)
+        ttk.Button(bar, text="➖", width=3, command=self._remove).pack(side="left")
+        ttk.Button(bar, text=self.t("common.close"),
+                   command=self.destroy).pack(side="right")
+        self._refresh()
+
+    def _refresh(self) -> None:
+        self._tree.delete(*self._tree.get_children())
+        for i, row in enumerate(self.service.rows):
+            self._tree.insert("", "end", iid=str(i), values=(
+                row.from_id, row.to_id, row.type or "—", row.through,
+                row.rule or "", row.comment))
+
+    def _selected_row(self):
+        sel = self._tree.selection()
+        if not sel:
+            return None
+        try:
+            return self.service.rows[int(sel[0])]
+        except (ValueError, IndexError):
+            return None
+
+    def _add(self) -> None:
+        AdjacencyRowDialog(self, self.editor, None, self._row_submitted)
+
+    def _edit(self) -> None:
+        row = self._selected_row()
+        if row is not None:
+            AdjacencyRowDialog(self, self.editor, row, self._row_submitted)
+
+    def _row_submitted(self, row, fields: dict) -> None:
+        if row is None:
+            self.service.add(**fields)
+        else:
+            self.service.edit(row, **fields)
+        self._refresh()
+
+    def _remove(self) -> None:
+        row = self._selected_row()
+        if row is None:
+            return
+        from tkinter import messagebox
+        if messagebox.askyesno("ANKA", self.t("map.confirm_remove_adjacency",
+                                              a=row.from_id, b=row.to_id),
+                               parent=self):
+            self.service.remove(row)
+            self._refresh()
+
+
+class AdjacencyRowDialog(BaseDialog):
+    def __init__(self, master, editor, row, on_submit):
+        super().__init__(master, editor, editor.t("map.adjacency_row"),
+                         (420, 360))
+        self._row = row
+        self._on_submit = on_submit
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=14)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(1, weight=1)
+
+        def entry(r, label, value):
+            ttk.Label(body, text=label, style="CardMuted.TLabel").grid(
+                row=r, column=0, sticky="w", pady=3)
+            var = tk.StringVar(value=str(value))
+            ttk.Entry(body, textvariable=var, width=12).grid(
+                row=r, column=1, sticky="w", padx=(8, 0), pady=3)
+            return var
+
+        self._from_var = entry(0, "From", row.from_id if row else "")
+        self._to_var = entry(1, "To", row.to_id if row else "")
+        ttk.Label(body, text="Type", style="CardMuted.TLabel").grid(
+            row=2, column=0, sticky="w", pady=3)
+        self._type_var = tk.StringVar(value=(row.type if row else "sea") or "—")
+        ttk.Combobox(body, textvariable=self._type_var, state="readonly",
+                     values=["sea", "impassable", "—"], width=12).grid(
+            row=2, column=1, sticky="w", padx=(8, 0), pady=3)
+        self._through_var = entry(3, "Through", row.through if row else -1)
+        ttk.Label(body, text="Rule", style="CardMuted.TLabel").grid(
+            row=4, column=0, sticky="w", pady=3)
+        self._rule_var = tk.StringVar(value=(row.rule if row else "") or "—")
+        ttk.Combobox(body, textvariable=self._rule_var, state="readonly",
+                     values=["—"] + editor.adjacencies.rule_names(),
+                     width=22).grid(row=4, column=1, sticky="w",
+                                    padx=(8, 0), pady=3)
+        self._comment_var = entry(5, self.t("map.comment"),
+                                  row.comment if row else "")
+        self._error = ttk.Label(body, text="", style="CardMuted.TLabel",
+                                foreground=self.palette.danger)
+        self._error.grid(row=6, column=0, columnspan=2, sticky="w")
+        self.buttons_row(body, self.t("common.save")).grid(
+            row=7, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+    def _submit(self) -> None:
+        try:
+            fields = {
+                "from_id": int(self._from_var.get()),
+                "to_id": int(self._to_var.get()),
+                "through": int(self._through_var.get() or "-1"),
+            }
+        except ValueError:
+            self._error.configure(text=self.t("map.err.bad_number"))
+            return
+        type_value = self._type_var.get()
+        fields["type"] = "" if type_value == "—" else type_value
+        rule = self._rule_var.get()
+        fields["rule"] = "" if rule == "—" else rule
+        fields["comment"] = self._comment_var.get()
+        row = self._row
+        self.destroy()
+        self._on_submit(row, fields)
+
+
 class SplitProvinceDialog(BaseDialog):
     """Split one province into K generated provinces (phase 4b): parameters,
     background generation with the ported cluster-growth algorithm, a preview
