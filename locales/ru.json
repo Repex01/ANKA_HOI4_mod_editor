@@ -752,5 +752,18 @@
   "map.split_area_title": "Разбить область ({count} провинций)",
   "map.multi_selected": "Выбрано провинций: {count} · {area} px (Shift+клик / Shift+рамка, Esc — сброс)",
   "map.err.no_selection": "Выберите провинцию или несколько (Shift+клик / Shift+рамка).",
-  "map.split_orphaned": "провинции без пикселей: {ids}"
+  "map.split_orphaned": "провинции без пикселей: {ids}",
+  "editors.on_actions.name": "On Actions",
+  "editors.on_actions.desc": "Хуки движка (common/on_actions): эффекты на события игры — старт, капитуляция, смена власти и т.д.",
+  "on_actions.panel": "Файлы",
+  "on_actions.select_hint": "Выберите on_action в списке слева или создайте новый (➕).",
+  "on_actions.new_entry": "Новый on_action",
+  "on_actions.name_label": "Имя хука (on_...)",
+  "on_actions.custom_name": "Своё имя (напр. on_daily_GER)",
+  "on_actions.delete": "Удалить",
+  "on_actions.confirm_delete": "Удалить запись {name} из файла мода?",
+  "on_actions.extra_keys": "Прочие ключи (сохраняются как есть)",
+  "on_actions.issue.empty_entry": "Пустая запись — нет ни effect, ни random_events",
+  "on_actions.issue.unknown_name": "Неизвестное имя хука (нет в ванильных on_actions и не похоже на TAG-вариант)",
+  "help.on_actions.effect": "Эффекты, выполняемые при срабатывании хука. Несколько effect-блоков ванили редактор сливает в один — для движка это эквивалентно."
 }

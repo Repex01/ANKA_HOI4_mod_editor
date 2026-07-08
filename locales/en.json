@@ -751,5 +751,18 @@
   "map.split_area_title": "Split area ({count} provinces)",
   "map.multi_selected": "Selected provinces: {count} · {area} px (Shift+click / Shift+drag, Esc clears)",
   "map.err.no_selection": "Select a province or several (Shift+click / Shift+drag).",
-  "map.split_orphaned": "provinces left without pixels: {ids}"
+  "map.split_orphaned": "provinces left without pixels: {ids}",
+  "editors.on_actions.name": "On Actions",
+  "editors.on_actions.desc": "Engine hooks (common/on_actions): effects fired on game events — startup, capitulation, government change, etc.",
+  "on_actions.panel": "Files",
+  "on_actions.select_hint": "Pick an on_action in the list on the left or create one (➕).",
+  "on_actions.new_entry": "New on_action",
+  "on_actions.name_label": "Hook name (on_...)",
+  "on_actions.custom_name": "Custom name (e.g. on_daily_GER)",
+  "on_actions.delete": "Delete",
+  "on_actions.confirm_delete": "Delete entry {name} from the mod file?",
+  "on_actions.extra_keys": "Other keys (preserved as-is)",
+  "on_actions.issue.empty_entry": "Empty entry — neither effect nor random_events",
+  "on_actions.issue.unknown_name": "Unknown hook name (not in vanilla on_actions and not a TAG variant)",
+  "help.on_actions.effect": "Effects executed when the hook fires. Multiple vanilla effect blocks are merged into one by the editor — equivalent for the engine."
 }

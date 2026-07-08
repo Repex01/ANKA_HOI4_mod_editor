@@ -53,7 +53,8 @@ anka/
 │   ├── characters/         «Личности» (создание персонажей всех ролей)
 │   ├── effects/            каталог эффектов/триггеров/модификаторов (JSON + загрузчик)
 │   ├── map/                карта: canvas-вьюпорт, инспекторы штата/провинции, кисть/заливка,
-│   │                       разбиение провинции (region_gen), adjacencies, валидация
+│   │                       разбиение провинции (region_gen), adjacencies, валидация, undo/redo
+│   ├── on_actions/         хуки движка common/on_actions (effect/random_events)
 │   └── _stubs.py           заглушки: dynamic_modifiers, localisation, ideologies, technologies
 └── ui/                     tkinter: окна (main_menu, settings, mod_list, mod_editor), темы, i18n,
                             виджеты (ImageDropZone, ScrollableFrame, dnd-обёртка tkinterdnd2)
@@ -205,6 +206,19 @@ canvas-вьюпорт · инспекторы «Провинция»/«Штат�
   на чужой провинции, покрытие стратрегионов и зон снабжения. Клик по проблеме —
   выбор объекта на карте.
 
+### On Actions (`editors/on_actions/`)
+Хуки движка `common/on_actions/*.txt` (`on_actions = { on_startup = { effect = {...}
+random_events = {...} } }`). Файлы аддитивны: один хук легально встречается в
+нескольких файлах (и повторно в одном) — дерево группирует «файл → хук». Инспектор:
+`effect` (повторяющиеся ванильные effect-блоки читаются слитно и при правке пишутся
+одним блоком — для движка эквивалентно) и `random_events` через общий скрипт-редактор;
+прочие ключи сохраняются нетронутыми и перечисляются в карточке. Имена хуков не
+хардкодятся: сканируются из ванильных файлов + официального
+`common/on_actions/_documentation.md` (123 имени); свои — TAG-варианты (`on_daily_GER`)
+и произвольные `on_*`. Новая запись идёт в первый мод-файл, иначе в
+`anka_on_actions.txt`. Валидация: неизвестное имя хука (не ваниль и не TAG-вариант),
+пустая запись.
+
 ### Каталог эффектов и триггеров (`editors/effects/`)
 Все эффекты (553) и триггеры (596) — данные: `effects.json`/`triggers.json` (имя, скоупы,
 цели, описание, пример) грузятся при старте в `Effect`/`Trigger` через `ScriptCatalog` и
@@ -354,8 +368,8 @@ read-only), `_entry_row(...)`, `_set_state_all(editable)` (массовый read
 - Импорт нового редактора в `editors/__init__.py` = само-регистрация через декоратор.
   Заглушки «в разработке» — `WipEditor` в `_stubs.py`.
 - `order` (меньше — выше): `general 0 · countries 10 · focuses 20 · events 30 · ideas 40 ·
-  characters 50 · decisions 60 · dynamic_modifiers 70 · localisation 80 · ideologies 90 ·
-  technologies 95 · oob 100 · map 110`. «Общее» (0) открывается по умолчанию.
+  characters 50 · decisions 60 · on_actions 65 · dynamic_modifiers 70 · localisation 80 ·
+  ideologies 90 · technologies 95 · oob 100 · map 110`. «Общее» (0) открывается по умолчанию.
 - **Локали** — `locales/ru.json`, `locales/en.json`: **плоский** словарь dotted-ключей
   (`"oob.new_template": "…"`), **без BOM**. Тултипы — ключи `help.<topic>`, привязка
   `ui.widgets.tooltip.attach_help(widget, self.t, "<topic>", palette)` (нет ключа → нет
