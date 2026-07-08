@@ -73,6 +73,7 @@ class MapEditor(EditorModule):
         self._last_paint: tuple[int, int] | None = None
         self.commands = CommandStack(limit=40)
         self._stroke_delta: list[tuple] = []   # (ys, xs, old) chunks of a stroke
+        self._multi_sel: set[int] = set()      # Shift-click / rubber-band picks
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
@@ -97,11 +98,14 @@ class MapEditor(EditorModule):
             on_hover=self._map_hover,
             on_paint=self._paint,
             on_paint_end=self._paint_end,
+            on_rect_select=self._rect_select,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
         for widget in (self.canvas.canvas, self._tree):
             widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
             widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
+        self.canvas.canvas.bind("<Escape>",
+                                lambda e: self.clear_multi_selection())
 
         self._loading_lbl = ttk.Label(center, text=self.t("map.loading"),
                                       style="Muted.TLabel")
@@ -233,6 +237,10 @@ class MapEditor(EditorModule):
         self._target_lbl.pack(side="left")
         ttk.Button(bar, text="➕ " + self.t("map.new_province"),
                    command=self._new_province).pack(side="left", padx=6)
+        split_btn = ttk.Button(bar, text="⚡ " + self.t("map.split_area"),
+                               command=self._split_selection)
+        split_btn.pack(side="left", padx=2)
+        attach_help(split_btn, self.t, "map.split", self.palette)
         ttk.Button(bar, text="⇄ " + self.t("map.adjacencies"),
                    command=self._open_adjacencies).pack(side="left", padx=2)
         self._btn_problems = ttk.Button(bar, text="⚠", command=self._toggle_problems)
@@ -476,12 +484,16 @@ class MapEditor(EditorModule):
         return (min(b[0] for b in boxes), min(b[1] for b in boxes),
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
 
-    def _map_click(self, mx: int, my: int, _event) -> None:
+    def _map_click(self, mx: int, my: int, event) -> None:
         if not self.map.loaded:
             return
         pid = self.map.province_at(mx, my)
         if self._assign_mode and pid is not None:
             self.assign_province_to_state(pid)
+            return
+        shift = bool(getattr(event, "state", 0) & 0x0001)
+        if shift and self._tool == "select" and pid is not None:
+            self._toggle_multi(pid)
             return
         if self._tool == "picker":
             if pid is not None:
@@ -490,11 +502,56 @@ class MapEditor(EditorModule):
         if self._tool == "fill":
             self._fill_at(mx, my)
             return
+        self._multi_sel.clear()
         if pid is None:
             self._selected_province = None
             self.canvas.set_selection(set())
             return
         self.select_province(pid)
+
+    # -------------------------------------------------------- multi-selection
+    def _toggle_multi(self, pid: int) -> None:
+        """Shift+click: grow/shrink the multi-selection for area generation."""
+        if not self._multi_sel and self._selected_province is not None:
+            self._multi_sel.add(self._selected_province)
+        if pid in self._multi_sel:
+            self._multi_sel.discard(pid)
+        else:
+            self._multi_sel.add(pid)
+        self._show_multi_selection()
+
+    def _rect_select(self, x0: int, y0: int, x1: int, y1: int) -> None:
+        """Shift+drag rubber band: add every province in the rect."""
+        if not self.map.loaded:
+            return
+        w, h = self.map.size
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(w - 1, x1), min(h - 1, y1)
+        if x0 > x1 or y0 > y1:
+            return
+        for code in np.unique(self.map.codes[y0:y1 + 1, x0:x1 + 1]):
+            d = self.map.by_code.get(int(code))
+            if d is not None and d.id != 0:
+                self._multi_sel.add(d.id)
+        self._show_multi_selection()
+
+    def _show_multi_selection(self) -> None:
+        self.canvas.set_selection(set(self._multi_sel))
+        if self._multi_sel:
+            area = sum(self.map.area_of(p) for p in self._multi_sel)
+            self._status.configure(text=self.t("map.multi_selected",
+                                               count=len(self._multi_sel),
+                                               area=area))
+        else:
+            self._status.configure(text="")
+
+    def clear_multi_selection(self) -> None:
+        if self._multi_sel:
+            self._multi_sel.clear()
+            keep = ({self._selected_province}
+                    if self._selected_province is not None else set())
+            self.canvas.set_selection(keep, highlight=self.canvas.highlight)
+            self._status.configure(text="")
 
     # ----------------------------------------------------------- paint tools
     def _set_tool(self, name: str) -> None:
@@ -601,78 +658,109 @@ class MapEditor(EditorModule):
 
     # ------------------------------------------------------- province splitting
     def split_province_dialog(self, pid: int) -> None:
-        if not self.map.loaded or self.map.area_of(pid) == 0:
+        self._open_split_dialog([pid])
+
+    def _split_selection(self) -> None:
+        """Toolbar entry point: split the multi-selection (or the single
+        selected province)."""
+        pids = sorted(self._multi_sel)
+        if not pids and self._selected_province is not None:
+            pids = [self._selected_province]
+        if not pids:
+            messagebox.showinfo("ANKA", self.t("map.err.no_selection"))
+            return
+        self._open_split_dialog(pids)
+
+    def _open_split_dialog(self, pids: list[int]) -> None:
+        pids = [p for p in pids if p in self.map.by_id]
+        if not self.map.loaded or not pids \
+                or all(self.map.area_of(p) == 0 for p in pids):
             messagebox.showinfo("ANKA", self.t("map.err.no_pixels"))
             return
         from .dialogs import SplitProvinceDialog
-        SplitProvinceDialog(self._insp_host, self, pid, self.apply_split)
+        SplitProvinceDialog(self._insp_host, self, pids, self.apply_split)
 
-    def apply_split(self, pid: int, labels, bbox, colors) -> None:
-        d = self.map.by_id.get(pid)
-        if d is None:
+    def apply_split(self, pids: list[int], labels, bbox, colors) -> None:
+        """Apply previewed split labels over one or several source provinces.
+
+        Each cluster's donor (majority pixel contributor) defines the new
+        province's definition fields, target state and strategic region."""
+        pids = [p for p in pids if p in self.map.by_id]
+        if not pids:
             return
-        source_code = d.code
-        # Strategic-region snapshot BEFORE the sync (for the undo command).
-        region_doc = self.strat_regions.doc_for_member(pid)
-        region_id = region_doc.zone_id if region_doc is not None else None
-        region_old = list(region_doc.members) if region_doc is not None else []
+        # Strategic-region snapshots BEFORE the sync (for the undo commands).
+        region_old: dict[int, list[int]] = {}
+        for pid in pids:
+            doc = self.strat_regions.doc_for_member(pid)
+            if doc is not None and doc.zone_id not in region_old:
+                region_old[doc.zone_id] = list(doc.members)
 
-        ids = self.map.split_province(pid, int(labels.max()),
-                                      labels=labels, bbox=bbox, colors=colors)
-        new_ids = ids[1:]
-        children: list = [CreateDefCommand(self.map.by_id[nid])
-                          for nid in new_ids]
-        ys, xs = np.nonzero(labels >= 2)      # label 1 keeps the source color
-        if len(ys):
-            code_lut = np.zeros(int(labels.max()) + 1, dtype=np.uint32)
-            for label, lpid in enumerate(ids, start=1):
-                code_lut[label] = self.map.by_id[lpid].code
-            children.append(PixelsCommand(
-                ys + bbox[1], xs + bbox[0],
-                np.uint32(source_code), code_lut[labels[ys, xs]]))
+        result = self.map.apply_split_area(pids, labels, bbox, colors)
+        new_ids = [d.id for d in result.new_defs]
+        donor_of = {pid_l: donor for pid_l, donor
+                    in zip(result.ids, result.donors) if pid_l in new_ids}
+
+        children: list = [CreateDefCommand(d) for d in result.new_defs]
+        if result.deltas:
+            ys = np.concatenate([c[0] for c in result.deltas])
+            xs = np.concatenate([c[1] for c in result.deltas])
+            old = np.concatenate([c[2] for c in result.deltas])
+            new = np.concatenate([np.full(len(c[0]), c[3], dtype=np.uint32)
+                                  for c in result.deltas])
+            children.append(PixelsCommand(ys, xs, old, new))
+
         # Keep invariant "every land province belongs to exactly one state":
-        # offer to put the new provinces into the source province's state.
+        # offer to add each new province to its donor's state.
         prov_state, _ = self.map._political_maps()
-        sid = prov_state.get(pid)
-        if (sid is not None and new_ids and d.type == "land"
-                and messagebox.askyesno(
-                    "ANKA", self.t("map.split_add_to_state", state=sid))):
-            ref = self.states.doc_ref_for(sid)
-            if ref is not None:
+        by_state: dict[int, list[int]] = {}
+        for nid, donor in donor_of.items():
+            sid = prov_state.get(donor)
+            if sid is not None and self.map.by_id[nid].type == "land":
+                by_state.setdefault(sid, []).append(nid)
+        if by_state and messagebox.askyesno(
+                "ANKA", self.t("map.split_add_to_state",
+                               state=", ".join(str(s) for s in sorted(by_state)))):
+            for sid, nids in sorted(by_state.items()):
+                ref = self.states.doc_ref_for(sid)
+                if ref is None:
+                    continue
                 if ref.is_vanilla:
                     ref = self.states.copy_to_mod(ref)
                 doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
-                if doc.state is not None:
-                    old_provinces = list(doc.state.provinces)
-                    for nid in new_ids:
-                        doc.state.add_province(nid)
-                    children.append(StateProvincesCommand(
-                        sid, old_provinces, list(doc.state.provinces)))
-                    self.mark_dirty(doc)
-                    self.states.refresh_info(doc)
-                    if self._state_doc is not None and \
-                            self._state_doc.ref.path == doc.ref.path:
-                        self._state_doc = doc
-                        self.state_inspector.refresh_provinces_view()
-        # Strategic regions must stay consistent: new provinces inherit the
-        # source province's region.
-        touched = self.strat_regions.sync_provinces(
-            {nid: pid for nid in new_ids}, [])
-        if touched and region_id is not None:
-            region_now = self.strat_regions.doc_for_zone(region_id)
-            if region_now is not None:
+                if doc.state is None:
+                    continue
+                old_provinces = list(doc.state.provinces)
+                for nid in nids:
+                    doc.state.add_province(nid)
+                children.append(StateProvincesCommand(
+                    sid, old_provinces, list(doc.state.provinces)))
+                self.mark_dirty(doc)
+                self.states.refresh_info(doc)
+                if self._state_doc is not None and \
+                        self._state_doc.ref.path == doc.ref.path:
+                    self._state_doc = doc
+                    self.state_inspector.refresh_provinces_view()
+        # Strategic regions must stay consistent: new provinces inherit their
+        # donor's region.
+        touched = self.strat_regions.sync_provinces(donor_of, [])
+        for zone_doc in touched:
+            if zone_doc.zone_id in region_old:
                 children.append(ZoneMembersCommand(
-                    "strat_regions", region_id, region_old,
-                    list(region_now.members)))
+                    "strat_regions", zone_doc.zone_id,
+                    region_old[zone_doc.zone_id], list(zone_doc.members)))
         self._record(CompoundCommand(children, "map.cmd.split"))
+        self._multi_sel.clear()
         self.map.invalidate_political()
         self._value_options.pop("province_free", None)
         self.canvas.refresh()
         self._refresh_tree()
         note = (" · " + self.t("map.strat_synced", count=len(touched))
                 if touched else "")
+        if result.orphaned:
+            note += " · " + self.t("map.split_orphaned",
+                                   ids=", ".join(map(str, result.orphaned)))
         self._status.configure(
-            text=self.t("map.split_done", count=len(ids)) + note)
+            text=self.t("map.split_done", count=len(result.ids)) + note)
 
     def _ensure_strategic_region(self, pid: int):
         """A drawn province must live in exactly one strategic region: if it is

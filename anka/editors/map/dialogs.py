@@ -246,18 +246,19 @@ class AdjacencyRowDialog(BaseDialog):
 
 
 class SplitProvinceDialog(BaseDialog):
-    """Split one province into K generated provinces (phase 4b): parameters,
-    background generation with the ported cluster-growth algorithm, a preview
-    in the exact future colors, then apply."""
+    """Split a region (one province or a multi-selection) into K generated
+    provinces (phase 4b): parameters, background generation with the ported
+    cluster-growth algorithm, a shape preview, then apply."""
 
     PREVIEW = (460, 300)
 
-    def __init__(self, master, editor, pid: int,
-                 on_apply: Callable[[int, np.ndarray, tuple, list], None]):
-        super().__init__(master, editor,
-                         editor.t("map.split_title", id=pid), (520, 520))
+    def __init__(self, master, editor, pids: list[int],
+                 on_apply: Callable[[list[int], np.ndarray, tuple, list], None]):
+        title = (editor.t("map.split_title", id=pids[0]) if len(pids) == 1
+                 else editor.t("map.split_area_title", count=len(pids)))
+        super().__init__(master, editor, title, (520, 520))
         self.resizable(True, True)
-        self._pid = pid
+        self._pids = list(pids)
         self._on_apply = on_apply
         self._labels = None
         self._bbox = None
@@ -324,16 +325,22 @@ class SplitProvinceDialog(BaseDialog):
         if self._state == "working":
             return
         editor = self.editor
-        area = editor.map.area_of(self._pid)
+        area = sum(editor.map.area_of(p) for p in self._pids)
         if area > _SPLIT_SOFT_CAP:
             from tkinter import messagebox
             if not messagebox.askyesno(
                     "ANKA", self.t("map.split_big", count=area), parent=self):
                 return
-        try:
-            seed = int(self._seed_var.get().strip() or "0")
-        except ValueError:
-            seed = 0
+        raw_seed = self._seed_var.get().strip()
+        if raw_seed:
+            try:
+                seed = int(raw_seed)
+            except ValueError:
+                seed = 0
+        else:
+            import random
+            seed = random.randrange(1_000_000)   # пустое поле = случайный вариант
+        self._seed_var.set(str(seed))            # показать, чтобы можно было воспроизвести
         k = max(2, int(self._k_var.get() or 2))
         strategy = self._strategies.get(self._strategy_var.get(), "organic")
         smooth = max(0, int(self._smooth_var.get() or 0))
@@ -348,10 +355,12 @@ class SplitProvinceDialog(BaseDialog):
 
         def work():
             try:
-                labels, bbox = editor.map.preview_split(
-                    self._pid, k, seed=seed, strategy=strategy,
+                labels, bbox = editor.map.preview_split_area(
+                    self._pids, k, seed=seed, strategy=strategy,
                     smooth_passes=smooth, on_progress=on_progress)
-                colors = editor.map.free_colors(int(labels.max()) - 1)
+                # Up to `k` new colors may be needed (a donor id is reused per
+                # cluster at most once); unused ones are simply not taken.
+                colors = editor.map.free_colors(int(labels.max()))
                 self._result = (labels, bbox, colors)
             except Exception as exc:                       # noqa: BLE001
                 self._result = exc
@@ -379,12 +388,19 @@ class SplitProvinceDialog(BaseDialog):
         self._progress.configure(text=self.t("map.split_ready"))
         self._apply_btn.configure(state="normal")
         self._draw_preview()
+        # Генератор детерминирован: не сдвинув seed, повторное «Сгенерировать»
+        # выдало бы в точности тот же результат. Автоинкремент даёт новый
+        # вариант на каждый клик, а конкретное значение остаётся воспроизводимым.
+        try:
+            self._seed_var.set(str(int(self._seed_var.get() or "0") + 1))
+        except ValueError:
+            self._seed_var.set("0")
 
     def _draw_preview(self) -> None:
         labels, bbox, colors = self._labels, self._bbox, self._colors
         if labels is None:
             return
-        d = self.editor.map.by_id[self._pid]
+        d = self.editor.map.by_id[self._pids[0]]
         h, w = labels.shape
         palette = [(45, 47, 56), d.color] + list(colors)
         lut = np.array(palette, dtype=np.uint8)
@@ -404,6 +420,6 @@ class SplitProvinceDialog(BaseDialog):
         if self._labels is None:
             return
         labels, bbox, colors = self._labels, self._bbox, self._colors
-        pid = self._pid
+        pids = self._pids
         self.destroy()
-        self._on_apply(pid, labels, bbox, colors)
+        self._on_apply(pids, labels, bbox, colors)

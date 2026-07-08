@@ -82,6 +82,17 @@ def state_color(state_id: int) -> tuple[int, int, int]:
 
 
 @dataclass
+class SplitResult:
+    """Outcome of `apply_split_area`, per cluster label (index = label - 1)."""
+
+    ids: list[int]                        # province id of each cluster
+    donors: list[int]                     # majority source province per cluster
+    new_defs: list["ProvinceDef"]         # freshly created definitions
+    deltas: list[tuple]                   # (ys, xs, old_codes, new_code) chunks
+    orphaned: list[int]                   # sources left with 0 pixels, not reused
+
+
+@dataclass
 class ProvinceDef:
     id: int
     r: int
@@ -697,58 +708,111 @@ class MapService:
         return self.set_pixels(ys + by0, xs + bx0, pid)
 
     # ------------------------------------------------------- province splitting
+    def preview_split_area(self, pids: list[int], k: int, *,
+                           seed: int | None = None, strategy: str = "organic",
+                           smooth_passes: int = 2, on_progress=None):
+        """Compute split labels for the union of several provinces without
+        touching the map. Returns (labels int32 on the bbox slice, bbox)."""
+        from .region_gen import split_region
+        self.ensure_bitmap()
+        codes = []
+        boxes = []
+        for pid in pids:
+            d = self.by_id.get(pid)
+            box = self.bbox_of(pid) if d is not None else None
+            if d is None or box is None:
+                continue
+            codes.append(d.code)
+            boxes.append(box)
+        if not boxes:
+            raise ValueError("No pixels in the selected provinces")
+        bbox = (min(b[0] for b in boxes), min(b[1] for b in boxes),
+                max(b[2] for b in boxes), max(b[3] for b in boxes))
+        x0, y0, x1, y1 = bbox
+        crop = self._codes[y0:y1 + 1, x0:x1 + 1]
+        mask = np.isin(crop, np.array(codes, dtype=np.uint32))
+        labels = split_region(mask, k, seed=seed, strategy=strategy,
+                              smooth_passes=smooth_passes,
+                              on_progress=on_progress)
+        return labels, bbox
+
+    def preview_split(self, pid: int, k: int, **kwargs):
+        """Single-province convenience wrapper of `preview_split_area`."""
+        return self.preview_split_area([pid], k, **kwargs)
+
+    def apply_split_area(self, pids: list[int], labels: np.ndarray,
+                         bbox: tuple[int, int, int, int],
+                         colors: list[tuple[int, int, int]] | None = None):
+        """Apply previewed split labels to the map (phase 4b, generalized to a
+        multi-province area).
+
+        Each cluster's *donor* is the source province that contributed most of
+        its pixels; a donor id is reused ("eaten") by the first cluster it
+        dominates, other clusters become new provinces inheriting the donor's
+        definition. Returns a `SplitResult` with everything the undo stack and
+        the state/region sync need."""
+        self.ensure_bitmap()
+        x0, y0, x1, y1 = bbox
+        n = int(labels.max())
+        old_crop = self._codes[y0:y1 + 1, x0:x1 + 1].copy()
+        if colors is None:
+            colors = self.free_colors(n)
+        pid_set = set(pids)
+        ids: list[int] = []
+        donors: list[int] = []
+        new_defs: list[ProvinceDef] = []
+        used: set[int] = set()
+        color_i = 0
+        label_pixels: list[tuple[np.ndarray, np.ndarray]] = []
+        for label in range(1, n + 1):
+            lys, lxs = np.nonzero(labels == label)
+            label_pixels.append((lys, lxs))
+            vals, counts = np.unique(old_crop[lys, lxs], return_counts=True)
+            donor = None
+            for v in vals[np.argsort(-counts)]:
+                dd = self.by_code.get(int(v))
+                if dd is not None:
+                    donor = dd
+                    break
+            if donor is None:                     # orphan colors only — fall back
+                donor = self.by_id[pids[0]]
+            donors.append(donor.id)
+            if donor.id in pid_set and donor.id not in used:
+                ids.append(donor.id)
+                used.add(donor.id)
+            else:
+                nd = self.create_province(type=donor.type, terrain=donor.terrain,
+                                          continent=donor.continent,
+                                          coastal=donor.coastal,
+                                          color=colors[color_i])
+                color_i += 1
+                ids.append(nd.id)
+                new_defs.append(nd)
+        deltas: list[tuple] = []                  # (ys, xs, old, new_code)
+        for (lys, lxs), pid_l in zip(label_pixels, ids):
+            dys, dxs, dold = self.set_pixels(lys + y0, lxs + x0, pid_l)
+            if len(dys):
+                deltas.append((dys, dxs, dold, self.by_id[pid_l].code))
+        for pid in pids:
+            self._bboxes.pop(pid, None)
+        orphaned = [p for p in pids if p not in used and self.area_of(p) == 0]
+        return SplitResult(ids=ids, donors=donors, new_defs=new_defs,
+                           deltas=deltas, orphaned=orphaned)
+
     def split_province(self, pid: int, k: int, *, seed: int | None = None,
                        strategy: str = "organic", smooth_passes: int = 2,
                        colors: list[tuple[int, int, int]] | None = None,
                        labels: np.ndarray | None = None,
                        bbox: tuple[int, int, int, int] | None = None,
                        on_progress=None) -> list[int]:
-        """Split province `pid` into `k` connected provinces (phase 4b).
-
-        Cluster 1 keeps (\"eats\") the source id; clusters 2..k become new
-        provinces inheriting the source definition. Pass `labels`+`bbox` from a
-        previous `preview_split` to apply exactly what was previewed.
-        Returns the k province ids."""
-        self.ensure_bitmap()
-        d = self.by_id[pid]
+        """Split one province into `k` connected provinces; cluster 1 keeps the
+        source id. Kept as the simple single-province entry point."""
         if labels is None or bbox is None:
             labels, bbox = self.preview_split(pid, k, seed=seed,
                                               strategy=strategy,
                                               smooth_passes=smooth_passes,
                                               on_progress=on_progress)
-        x0, y0, _x1, _y1 = bbox
-        n_labels = int(labels.max())
-        if colors is None:
-            colors = self.free_colors(max(0, n_labels - 1))
-        ids = [pid]
-        for i in range(2, n_labels + 1):
-            nd = self.create_province(type=d.type, terrain=d.terrain,
-                                      continent=d.continent, coastal=d.coastal,
-                                      color=colors[i - 2])
-            ids.append(nd.id)
-        for i in range(2, n_labels + 1):          # label 1 already has pid's color
-            ys, xs = np.nonzero(labels == i)
-            self.set_pixels(ys + y0, xs + x0, ids[i - 1])
-        self._bboxes.pop(pid, None)
-        return ids
-
-    def preview_split(self, pid: int, k: int, *, seed: int | None = None,
-                      strategy: str = "organic", smooth_passes: int = 2,
-                      on_progress=None):
-        """Compute the split labels for a province without touching the map.
-        Returns (labels int32 on the bbox slice, bbox)."""
-        from .region_gen import split_region
-        self.ensure_bitmap()
-        d = self.by_id[pid]
-        bbox = self.bbox_of(pid)
-        if bbox is None:
-            raise ValueError(f"Province {pid} has no pixels")
-        x0, y0, x1, y1 = bbox
-        mask = self._codes[y0:y1 + 1, x0:x1 + 1] == d.code
-        labels = split_region(mask, k, seed=seed, strategy=strategy,
-                              smooth_passes=smooth_passes,
-                              on_progress=on_progress)
-        return labels, bbox
+        return self.apply_split_area([pid], labels, bbox, colors).ids
 
     # ------------------------------------------------------------------ saving
     def save(self) -> list[Path]:

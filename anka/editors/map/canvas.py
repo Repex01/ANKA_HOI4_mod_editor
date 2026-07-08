@@ -30,7 +30,8 @@ class MapCanvas(ttk.Frame):
                  on_click: Callable[[int, int, tk.Event], None] | None = None,
                  on_hover: Callable[[int | None, int | None], None] | None = None,
                  on_paint: Callable[[int, int, tk.Event], None] | None = None,
-                 on_paint_end: Callable[[], None] | None = None):
+                 on_paint_end: Callable[[], None] | None = None,
+                 on_rect_select: Callable[[int, int, int, int], None] | None = None):
         super().__init__(master, style="TFrame")
         self.palette = palette
         self._render = render
@@ -39,6 +40,8 @@ class MapCanvas(ttk.Frame):
         self._on_hover = on_hover
         self._on_paint = on_paint
         self._on_paint_end = on_paint_end
+        self._on_rect_select = on_rect_select
+        self._band: tuple[int, int] | None = None   # rubber-band start (screen px)
 
         self.mode = "provinces"
         self.zoom = 0.25
@@ -226,12 +229,22 @@ class MapCanvas(ttk.Frame):
             mx, my = self.screen_to_map(event.x, event.y)
             self._on_paint(mx, my, event)
             return
+        if (event.state & 0x0001) and self._on_rect_select is not None:
+            self._band = (event.x, event.y)      # Shift: rubber-band select
+            return
         self._pan = ("maybe", event.x, event.y, *self.offset)
 
     def _motion1(self, event) -> None:
         if self._painting and self._on_paint is not None:
             mx, my = self.screen_to_map(event.x, event.y)
             self._on_paint(mx, my, event)
+            return
+        if self._band is not None:
+            bx, by = self._band
+            c = self.canvas
+            c.delete("band")
+            c.create_rectangle(bx, by, event.x, event.y, outline=self.palette.accent,
+                               dash=(4, 3), width=2, tags="band")
             return
         if self._pan is None:
             return
@@ -248,6 +261,21 @@ class MapCanvas(ttk.Frame):
             self._painting = False
             if self._on_paint_end is not None:
                 self._on_paint_end()
+            return
+        if self._band is not None:
+            bx, by = self._band
+            self._band = None
+            self.canvas.delete("band")
+            if abs(event.x - bx) + abs(event.y - by) < 6:
+                # Shift+click without drag: a normal click, the editor sees the
+                # Shift modifier in event.state and toggles the province.
+                if self._on_click is not None:
+                    mx, my = self.screen_to_map(event.x, event.y)
+                    self._on_click(mx, my, event)
+                return
+            x0, y0 = self.screen_to_map(min(bx, event.x), min(by, event.y))
+            x1, y1 = self.screen_to_map(max(bx, event.x), max(by, event.y))
+            self._on_rect_select(x0, y0, x1, y1)
             return
         pan, self._pan = self._pan, None
         if pan is not None and pan[0] == "maybe" and self._on_click is not None:

@@ -747,5 +747,10 @@
   "map.cmd.create": "создание провинции",
   "map.cmd.assign": "перенос провинции между штатами",
   "map.cmd.split": "разбиение провинции",
-  "map.cmd.region": "смена стратегического региона"
+  "map.cmd.region": "смена стратегического региона",
+  "map.split_area": "Генерация области",
+  "map.split_area_title": "Разбить область ({count} провинций)",
+  "map.multi_selected": "Выбрано провинций: {count} · {area} px (Shift+клик / Shift+рамка, Esc — сброс)",
+  "map.err.no_selection": "Выберите провинцию или несколько (Shift+клик / Shift+рамка).",
+  "map.split_orphaned": "провинции без пикселей: {ids}"
 }

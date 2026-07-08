@@ -746,5 +746,10 @@
   "map.cmd.create": "province creation",
   "map.cmd.assign": "state membership change",
   "map.cmd.split": "province split",
-  "map.cmd.region": "strategic region change"
+  "map.cmd.region": "strategic region change",
+  "map.split_area": "Generate area",
+  "map.split_area_title": "Split area ({count} provinces)",
+  "map.multi_selected": "Selected provinces: {count} · {area} px (Shift+click / Shift+drag, Esc clears)",
+  "map.err.no_selection": "Select a province or several (Shift+click / Shift+drag).",
+  "map.split_orphaned": "provinces left without pixels: {ids}"
 }
