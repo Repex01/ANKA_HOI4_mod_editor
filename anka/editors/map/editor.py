@@ -15,6 +15,8 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+import numpy as np
+
 from ...services.adjacency_service import AdjacencyService
 from ...services.building_service import BuildingService
 from ...services.map_refs import ResourceService, StateCategoryService
@@ -25,6 +27,9 @@ from ...services.terrain_service import TerrainService
 from ...services._locutil import LocCatalog
 from ..base import EditorModule, EditorRegistry
 from .canvas import MapCanvas
+from .commands import (TOUCH_DEFS, TOUCH_STATES, CommandStack, CompoundCommand,
+                       CreateDefCommand, PixelsCommand, SetDefCommand,
+                       StateProvincesCommand, ZoneMembersCommand)
 from .inspector import ProvinceInspector, StateInspector
 
 
@@ -62,10 +67,12 @@ class MapEditor(EditorModule):
         self._value_options: dict[str, list[tuple[str, str]]] = {}
         self._load_state = "idle"            # idle | loading | ready | error
         self._load_error = ""
-        self._suppress_tree_event = False
+        self._tree_sel_guard: str | None = None   # iid of a programmatic tree select
         self._tool = "select"                # select | brush | fill | picker
         self._brush_target: int | None = None
         self._last_paint: tuple[int, int] | None = None
+        self.commands = CommandStack(limit=40)
+        self._stroke_delta: list[tuple] = []   # (ys, xs, old) chunks of a stroke
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
@@ -92,6 +99,9 @@ class MapEditor(EditorModule):
             on_paint_end=self._paint_end,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        for widget in (self.canvas.canvas, self._tree):
+            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
+            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
 
         self._loading_lbl = ttk.Label(center, text=self.t("map.loading"),
                                       style="Muted.TLabel")
@@ -196,6 +206,12 @@ class MapEditor(EditorModule):
                    command=lambda: self.canvas.fit_map()).pack(side="left", padx=4)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
+        self._undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo,
+                                    state="disabled")
+        self._undo_btn.pack(side="left", padx=(4, 1))
+        self._redo_btn = ttk.Button(bar, text="↷", width=3, command=self.redo,
+                                    state="disabled")
+        self._redo_btn.pack(side="left", padx=1)
 
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
                                                    padx=6, pady=2)
@@ -352,21 +368,19 @@ class MapEditor(EditorModule):
                               tags=() if st.in_mod else ("vanilla",))
             self._items[iid] = ("state", st.id)
         if selected and self._tree.exists(selected[0]):
-            self._suppress_tree_event = True
-            try:
-                self._tree.selection_set(selected[0])
-            finally:
-                self._suppress_tree_event = False
+            self._tree_sel_guard = selected[0]
+            self._tree.selection_set(selected[0])
 
     def _state_display_name(self, st) -> str:
         loc = self.loc.get(f"STATE_{st.id}", self.loc_language)
         return loc if loc else st.name
 
     def _on_tree_select(self, _event=None) -> None:
-        if self._suppress_tree_event:
-            return
         sel = self._tree.selection()
         if not sel:
+            return
+        if getattr(self, "_tree_sel_guard", None) == sel[0]:
+            self._tree_sel_guard = None       # programmatic echo — swallow once
             return
         payload = self._items.get(sel[0])
         if payload is None or payload[0] != "state":
@@ -420,14 +434,16 @@ class MapEditor(EditorModule):
         self.province_inspector.flush_pending()
 
     def _tree_show_state(self, sid: int) -> None:
+        """Reflect a state in the tree WITHOUT triggering select_state:
+        `selection_set` delivers <<TreeviewSelect>> through the event queue,
+        so a boolean reset right after the call would be cleared long before
+        the event arrives — guard by the exact iid instead."""
         iid = f"s::{sid}"
         if self._tree.exists(iid):
-            self._suppress_tree_event = True
-            try:
+            if self._tree.selection() != (iid,):
+                self._tree_sel_guard = iid
                 self._tree.selection_set(iid)
-                self._tree.see(iid)
-            finally:
-                self._suppress_tree_event = False
+            self._tree.see(iid)
 
     def _open_state_doc(self, state_id: int) -> None:
         ref = self.states.doc_ref_for(state_id)
@@ -524,28 +540,49 @@ class MapEditor(EditorModule):
                            ly + (my - ly) * (i + 1) // (n + 1))
                           for i in range(int(n))] + points
         for x, y in points:
-            self.map.paint_disk(x, y, radius, pid)
+            delta = self.map.paint_disk(x, y, radius, pid)
+            if len(delta[0]):
+                self._stroke_delta.append(delta)
         self._last_paint = (mx, my)
         self.canvas.refresh()
 
     def _paint_end(self) -> None:
         self._last_paint = None
-        if self._brush_target is not None:
-            self._ensure_strategic_region(self._brush_target)
+        chunks, self._stroke_delta = self._stroke_delta, []
+        pid = self._brush_target
+        children = []
+        if chunks and pid is not None and pid in self.map.by_id:
+            ys = np.concatenate([c[0] for c in chunks])
+            xs = np.concatenate([c[1] for c in chunks])
+            old = np.concatenate([c[2] for c in chunks])
+            children.append(PixelsCommand(ys, xs, old, self.map.by_id[pid].code))
+        if pid is not None:
+            region_cmd = self._ensure_strategic_region(pid)
+            if region_cmd is not None:
+                children.append(region_cmd)
+        if len(children) == 1:
+            self._record(children[0])
+        elif children:
+            self._record(CompoundCommand(children, "map.cmd.paint"))
 
     def _fill_at(self, mx: int, my: int) -> None:
         pid = self._require_target()
         if pid is None or not self.map.loaded:
             return
         try:
-            painted = self.map.flood_fill(mx, my, pid)
+            ys, xs, old = self.map.flood_fill(mx, my, pid)
         except KeyError:
             return
-        if painted:
+        if len(ys):
             self.canvas.refresh()
             self._status.configure(
-                text=self.t("map.filled_px", count=painted))
-            self._ensure_strategic_region(pid)
+                text=self.t("map.filled_px", count=len(ys)))
+            children = [PixelsCommand(ys, xs, old, self.map.by_id[pid].code)]
+            region_cmd = self._ensure_strategic_region(pid)
+            if region_cmd is not None:
+                children.append(region_cmd)
+            self._record(children[0] if len(children) == 1
+                         else CompoundCommand(children, "map.cmd.fill"))
 
     def _new_province(self) -> None:
         from .dialogs import NewProvinceDialog
@@ -554,6 +591,7 @@ class MapEditor(EditorModule):
 
         def submit(fields: dict) -> None:
             d = self.map.create_province(**fields)
+            self._record(CreateDefCommand(d))
             self._value_options.pop("province_free", None)
             self.set_brush_target(d.id)
             self._set_tool("brush")
@@ -570,15 +608,33 @@ class MapEditor(EditorModule):
         SplitProvinceDialog(self._insp_host, self, pid, self.apply_split)
 
     def apply_split(self, pid: int, labels, bbox, colors) -> None:
+        d = self.map.by_id.get(pid)
+        if d is None:
+            return
+        source_code = d.code
+        # Strategic-region snapshot BEFORE the sync (for the undo command).
+        region_doc = self.strat_regions.doc_for_member(pid)
+        region_id = region_doc.zone_id if region_doc is not None else None
+        region_old = list(region_doc.members) if region_doc is not None else []
+
         ids = self.map.split_province(pid, int(labels.max()),
                                       labels=labels, bbox=bbox, colors=colors)
         new_ids = ids[1:]
+        children: list = [CreateDefCommand(self.map.by_id[nid])
+                          for nid in new_ids]
+        ys, xs = np.nonzero(labels >= 2)      # label 1 keeps the source color
+        if len(ys):
+            code_lut = np.zeros(int(labels.max()) + 1, dtype=np.uint32)
+            for label, lpid in enumerate(ids, start=1):
+                code_lut[label] = self.map.by_id[lpid].code
+            children.append(PixelsCommand(
+                ys + bbox[1], xs + bbox[0],
+                np.uint32(source_code), code_lut[labels[ys, xs]]))
         # Keep invariant "every land province belongs to exactly one state":
         # offer to put the new provinces into the source province's state.
         prov_state, _ = self.map._political_maps()
         sid = prov_state.get(pid)
-        d = self.map.by_id.get(pid)
-        if (sid is not None and new_ids and d is not None and d.type == "land"
+        if (sid is not None and new_ids and d.type == "land"
                 and messagebox.askyesno(
                     "ANKA", self.t("map.split_add_to_state", state=sid))):
             ref = self.states.doc_ref_for(sid)
@@ -587,8 +643,11 @@ class MapEditor(EditorModule):
                     ref = self.states.copy_to_mod(ref)
                 doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
                 if doc.state is not None:
+                    old_provinces = list(doc.state.provinces)
                     for nid in new_ids:
                         doc.state.add_province(nid)
+                    children.append(StateProvincesCommand(
+                        sid, old_provinces, list(doc.state.provinces)))
                     self.mark_dirty(doc)
                     self.states.refresh_info(doc)
                     if self._state_doc is not None and \
@@ -599,6 +658,13 @@ class MapEditor(EditorModule):
         # source province's region.
         touched = self.strat_regions.sync_provinces(
             {nid: pid for nid in new_ids}, [])
+        if touched and region_id is not None:
+            region_now = self.strat_regions.doc_for_zone(region_id)
+            if region_now is not None:
+                children.append(ZoneMembersCommand(
+                    "strat_regions", region_id, region_old,
+                    list(region_now.members)))
+        self._record(CompoundCommand(children, "map.cmd.split"))
         self.map.invalidate_political()
         self._value_options.pop("province_free", None)
         self.canvas.refresh()
@@ -608,24 +674,31 @@ class MapEditor(EditorModule):
         self._status.configure(
             text=self.t("map.split_done", count=len(ids)) + note)
 
-    def _ensure_strategic_region(self, pid: int) -> None:
+    def _ensure_strategic_region(self, pid: int):
         """A drawn province must live in exactly one strategic region: if it is
-        in none, inherit the majority region of its pixel neighbors."""
+        in none, inherit the majority region of its pixel neighbors.
+        Returns the recorded-state `ZoneMembersCommand` (already executed) or
+        None when nothing had to change."""
         if self.strat_regions.doc_for_member(pid) is not None:
-            return
+            return None
         if self.map.area_of(pid) == 0:
-            return
+            return None
         votes: dict[int, int] = {}
         for nb in self.map.neighbors_of(pid):
             doc = self.strat_regions.doc_for_member(nb)
             if doc is not None:
                 votes[doc.zone_id] = votes.get(doc.zone_id, 0) + 1
         if not votes:
-            return
+            return None
         region = max(votes, key=votes.get)
+        target = self.strat_regions.doc_for_zone(region)
+        old_members = list(target.members) if target is not None else []
         self.strat_regions.move_member(pid, region)
         self._status.configure(
             text=self.t("map.strat_assigned", id=pid, region=region))
+        target = self.strat_regions.doc_for_zone(region)
+        return ZoneMembersCommand("strat_regions", region, old_members,
+                                  list(target.members) if target else old_members)
 
     def _map_hover(self, mx, my) -> None:
         if mx is None or not self.map.loaded:
@@ -661,7 +734,14 @@ class MapEditor(EditorModule):
 
     # -------------------------------------------------- province definition edit
     def set_province_def(self, pid: int, **fields) -> None:
+        d = self.map.by_id.get(pid)
+        if d is None:
+            return
+        old = {key: getattr(d, key) for key in fields}
+        if old == fields:
+            return
         self.map.set_def(pid, **fields)
+        self._record(SetDefCommand(pid, old, dict(fields)))
         self.canvas.refresh()          # terrain/type feed the render LUTs
 
     def land_terrains(self) -> list[str]:
@@ -721,7 +801,7 @@ class MapEditor(EditorModule):
         # Conflict: province already belongs to another state.
         prev = next((st for st in self.states.list_states()
                      if pid in st.provinces), None)
-        prev_doc = None
+        children: list = []
         if prev is not None:
             if not messagebox.askyesno(
                     "ANKA", self.t("map.confirm_move_province",
@@ -735,10 +815,18 @@ class MapEditor(EditorModule):
             prev_doc = (self._dirty_docs.get(str(prev_ref.path))
                         or self.states.load(prev_ref))
             if prev_doc.state is not None:
+                old_prev = list(prev_doc.state.provinces)
                 prev_doc.state.remove_province(pid)
+                children.append(StateProvincesCommand(
+                    prev.id, old_prev, list(prev_doc.state.provinces)))
                 self.mark_dirty(prev_doc)
                 self.states.refresh_info(prev_doc)
+        old_target = list(doc.state.provinces)
         doc.state.add_province(pid)
+        children.append(StateProvincesCommand(
+            doc.state.id, old_target, list(doc.state.provinces)))
+        self._record(children[0] if len(children) == 1
+                     else CompoundCommand(children, "map.cmd.assign"))
         self.mark_dirty(doc)
         self.states.refresh_info(doc)
         self.provinces_changed()
@@ -794,6 +882,49 @@ class MapEditor(EditorModule):
         self.map.invalidate_political()
         self.canvas.set_selection(set())
         self._refresh_tree()
+
+    # ------------------------------------------------------------- undo / redo
+    def _record(self, command) -> None:
+        """Push an already-executed command onto the history."""
+        self.commands.record(command)
+        self._update_undo_buttons()
+
+    def push_provinces_change(self, state_id: int, old: list[int],
+                              new: list[int]) -> None:
+        """Inspector hook: record a provinces-list edit it already applied."""
+        self._record(StateProvincesCommand(state_id, old, new))
+
+    def undo(self) -> None:
+        self._history_step(undo=True)
+
+    def redo(self) -> None:
+        self._history_step(undo=False)
+
+    def _history_step(self, undo: bool) -> None:
+        if not self.map.loaded:
+            return
+        self._flush_inspectors()      # pending debounced edits must land first
+        command = (self.commands.undo(self) if undo
+                   else self.commands.redo(self))
+        if command is None:
+            return
+        touches = command.touches
+        if TOUCH_STATES in touches or TOUCH_DEFS in touches:
+            self.map.invalidate_political()
+            self._value_options.pop("province_free", None)
+            self._refresh_tree()
+        self.canvas.refresh()
+        self._sync_inspectors()
+        self.state_inspector.refresh_provinces_view()
+        self._update_undo_buttons()
+        arrow = "↶" if undo else "↷"
+        self._status.configure(text=f"{arrow} {self.t(command.label_key)}")
+
+    def _update_undo_buttons(self) -> None:
+        self._undo_btn.configure(
+            state="normal" if self.commands.can_undo() else "disabled")
+        self._redo_btn.configure(
+            state="normal" if self.commands.can_redo() else "disabled")
 
     # ----------------------------------------------------------- owner protocol
     def mark_dirty(self, doc) -> None:

@@ -61,7 +61,7 @@ class MapCanvas(ttk.Frame):
         self._destroyed = False
 
         self.canvas = tk.Canvas(self, bg=palette.bg, highlightthickness=0, bd=0,
-                                cursor="crosshair")
+                                cursor="crosshair", takefocus=1)
         self.canvas.pack(fill="both", expand=True)
 
         c = self.canvas
@@ -220,6 +220,7 @@ class MapCanvas(ttk.Frame):
 
     # ------------------------------------------------------------------ events
     def _press1(self, event) -> None:
+        self.canvas.focus_set()      # so Ctrl+Z/Ctrl+Y reach the map
         if self.paint_mode and self._on_paint is not None:
             self._painting = True
             mx, my = self.screen_to_map(event.x, event.y)

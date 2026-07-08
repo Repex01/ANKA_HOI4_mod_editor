@@ -408,6 +408,11 @@ class StateInspector(InspectorBase):
         self._refresh_province_buildings()
         self._set_state_all(editable)
         self._delete_btn.configure(state="normal" if editable else "disabled")
+        # _set_state_all disables EVERY button on a vanilla state — but these
+        # two must stay clickable: copying to mod is exactly the read-only
+        # escape hatch, and the supply area lives in zone files, not this one.
+        self._copy_btn.configure(state="normal")
+        self._supply_btn.configure(state="normal")
         self._loading = False
 
     def refresh_provinces_view(self) -> None:
@@ -717,7 +722,10 @@ class StateInspector(InspectorBase):
         if not messagebox.askyesno("ANKA", self.t("map.confirm_remove_province",
                                                   id=pid)):
             return
+        old = list(self.state.provinces)
         self.state.remove_province(pid)
+        self.owner.push_provinces_change(self.state.id, old,
+                                         list(self.state.provinces))
         self._dirty()
         self.owner.provinces_changed()
         self._refresh_provinces()

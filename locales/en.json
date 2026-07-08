@@ -736,5 +736,15 @@
   "map.issue.two_supply_areas": "State {state} belongs to multiple supply areas",
   "help.map.mode": "Map coloring mode: raw province colors, terrain categories, owner-country colors, or deterministic state colors.",
   "help.map.tools": "⭘ select · 🖌 brush (paints the active province) · 🪣 flood fill · 💉 picker (grab the province under the cursor as the brush). Editing province borders stales positions.txt — regenerate with Nudge.",
-  "help.map.split": "Splits a province into K connected parts with natural borders (cluster-growth algorithm). New provinces inherit the source's type/terrain/continent and strategic region."
+  "help.map.split": "Splits a province into K connected parts with natural borders (cluster-growth algorithm). New provinces inherit the source's type/terrain/continent and strategic region.",
+  "map.undo": "Undo",
+  "map.redo": "Redo",
+  "map.cmd.generic": "operation",
+  "map.cmd.paint": "brush stroke",
+  "map.cmd.fill": "flood fill",
+  "map.cmd.def": "province definition edit",
+  "map.cmd.create": "province creation",
+  "map.cmd.assign": "state membership change",
+  "map.cmd.split": "province split",
+  "map.cmd.region": "strategic region change"
 }

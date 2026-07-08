@@ -546,6 +546,25 @@ class MapService:
         self.dirty_csv = True
         return d
 
+    def restore_def(self, *, id: int, color: tuple[int, int, int], type: str,
+                    terrain: str, continent: int, coastal: bool) -> ProvinceDef:
+        """Re-insert a definition row with an exact id + color (redo of a
+        removed/undone `create_province`)."""
+        if id in self.by_id:
+            return self.by_id[id]
+        code = encode_rgb(*color)
+        if code in self.by_code or color == (0, 0, 0):
+            raise ValueError(f"Color {color} is already taken")
+        d = ProvinceDef(id=id, r=color[0], g=color[1], b=color[2], type=type,
+                        coastal=coastal, terrain=terrain, continent=continent,
+                        line_idx=len(self._csv_lines), dirty=True)
+        self.defs.append(d)
+        self._csv_lines.append("")            # placeholder, re-serialized on save
+        self.by_id[id] = d
+        self.by_code[code] = d
+        self.dirty_csv = True
+        return d
+
     def remove_province(self, pid: int) -> None:
         """Drop a definition row (caller ensures the province has no pixels)."""
         d = self.by_id.pop(pid, None)
@@ -562,65 +581,105 @@ class MapService:
         self.dirty_csv = True
         self._luts.clear()
 
-    def set_pixels(self, ys: np.ndarray, xs: np.ndarray, pid: int) -> None:
+    def set_pixels(self, ys: np.ndarray, xs: np.ndarray, pid: int):
         """Paint pixels (map coords) with province `pid`. Incremental: only the
-        touched provinces' bboxes are invalidated, LUT rows stay valid."""
+        touched provinces' bboxes are invalidated, LUT rows stay valid.
+
+        Returns the *actually changed* pixels as ``(ys, xs, old_codes)`` — the
+        delta the undo stack needs to revert the operation."""
         self.ensure_bitmap()
         d = self.by_id.get(pid)
         if d is None:
             raise KeyError(f"Province {pid} not defined")
+        empty = (np.empty(0, np.int32), np.empty(0, np.int32),
+                 np.empty(0, np.uint32))
         if len(ys) == 0:
-            return
+            return empty
         code = d.code
+        old = self._codes[ys, xs]
+        changed = old != code
+        if not changed.any():
+            return empty
+        ys = np.asarray(ys)[changed].astype(np.int32)
+        xs = np.asarray(xs)[changed].astype(np.int32)
+        old = old[changed].copy()
         idx = self._uidx.get(code)
         if idx is None:
             idx = len(self._ucodes)
             self._ucodes.append(code)
             self._uidx[code] = idx
             self._luts.clear()                # cached LUT lengths are now stale
-        overwritten = np.unique(self._codes[ys, xs])
         self._codes[ys, xs] = code
         self._inv[ys, xs] = idx
         self._bboxes.pop(pid, None)
-        for old in overwritten:
-            old_def = self.by_code.get(int(old))
+        for old_code in np.unique(old):
+            old_def = self.by_code.get(int(old_code))
             if old_def is not None:
                 self._bboxes.pop(old_def.id, None)
+        self.dirty_bmp = True
+        return ys, xs, old
+
+    def restore_pixels(self, ys: np.ndarray, xs: np.ndarray, codes) -> None:
+        """Write raw color codes back (undo/redo path). `codes` is a uint32
+        array or a single code applied to every pixel."""
+        self.ensure_bitmap()
+        if len(ys) == 0:
+            return
+        codes_arr = np.asarray(codes, dtype=np.uint32)
+        if codes_arr.ndim == 0:
+            codes_arr = np.full(len(ys), int(codes_arr), dtype=np.uint32)
+        overwritten = np.unique(self._codes[ys, xs])
+        uniq = np.unique(codes_arr)
+        for c in uniq:
+            ci = int(c)
+            if ci not in self._uidx:
+                self._uidx[ci] = len(self._ucodes)
+                self._ucodes.append(ci)
+                self._luts.clear()
+        idx_of = np.array([self._uidx[int(c)] for c in uniq], dtype=np.int32)
+        self._codes[ys, xs] = codes_arr
+        self._inv[ys, xs] = idx_of[np.searchsorted(uniq, codes_arr)]
+        for code in np.concatenate([overwritten, uniq]):
+            d = self.by_code.get(int(code))
+            if d is not None:
+                self._bboxes.pop(d.id, None)
         self.dirty_bmp = True
 
     def set_mask(self, mask: np.ndarray, pid: int) -> None:
         ys, xs = np.nonzero(mask)
         self.set_pixels(ys, xs, pid)
 
-    def paint_disk(self, cx: int, cy: int, radius: int, pid: int) -> int:
+    def paint_disk(self, cx: int, cy: int, radius: int, pid: int):
         """Brush stamp: paint a disk of `radius` (map px) with province `pid`.
-        Returns the number of painted pixels."""
+        Returns the changed-pixels delta of `set_pixels`."""
         self.ensure_bitmap()
         h, w = self._codes.shape
         x0, x1 = max(0, cx - radius), min(w, cx + radius + 1)
         y0, y1 = max(0, cy - radius), min(h, cy + radius + 1)
         if x0 >= x1 or y0 >= y1:
-            return 0
+            return (np.empty(0, np.int32), np.empty(0, np.int32),
+                    np.empty(0, np.uint32))
         yy, xx = np.ogrid[y0 - cy:y1 - cy, x0 - cx:x1 - cx]
         disk = (xx * xx + yy * yy) <= radius * radius
         ys, xs = np.nonzero(disk)
-        self.set_pixels(ys + y0, xs + x0, pid)
-        return len(ys)
+        return self.set_pixels(ys + y0, xs + x0, pid)
 
-    def flood_fill(self, x: int, y: int, pid: int) -> int:
+    def flood_fill(self, x: int, y: int, pid: int):
         """Fill the connected same-color region around (x, y) with province
         `pid` (scanline BFS on numpy rows — no per-pixel Python loops).
-        Returns the number of repainted pixels."""
+        Returns the changed-pixels delta of `set_pixels`."""
         self.ensure_bitmap()
+        empty = (np.empty(0, np.int32), np.empty(0, np.int32),
+                 np.empty(0, np.uint32))
         h, w = self._codes.shape
         if not (0 <= x < w and 0 <= y < h):
-            return 0
+            return empty
         seed_code = int(self._codes[y, x])
         target = self.by_id.get(pid)
         if target is None:
             raise KeyError(f"Province {pid} not defined")
         if seed_code == target.code:
-            return 0
+            return empty
         # Work on the bbox of the seed color to keep rows short.
         seed_def = self.by_code.get(seed_code)
         bbox = self.bbox_of(seed_def.id) if seed_def is not None else None
@@ -635,8 +694,7 @@ class MapService:
         mask = self._codes[by0:by1 + 1, bx0:bx1 + 1] == seed_code
         region = _flood_region(mask, y - by0, x - bx0)
         ys, xs = np.nonzero(region)
-        self.set_pixels(ys + by0, xs + bx0, pid)
-        return len(ys)
+        return self.set_pixels(ys + by0, xs + bx0, pid)
 
     # ------------------------------------------------------- province splitting
     def split_province(self, pid: int, k: int, *, seed: int | None = None,
