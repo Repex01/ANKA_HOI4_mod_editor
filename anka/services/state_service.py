@@ -338,35 +338,29 @@ class StateService:
         the caller (it writes ``STATE_<id>`` via the loc catalog). Provinces may be
         seeded now or added later on the map."""
         sid = self.next_state_id()
-        state = Block()
-        state.add("id", Scalar(str(sid)))
-        state.add("name", Scalar(f"STATE_{sid}", quoted=True))
-        state.add("manpower", Scalar("0"))
-        if category:
-            state.add("state_category", Scalar(category))
-        history = Block()
-        if owner:
-            history.set("owner", Scalar(owner))
-            history.add("add_core_of", Scalar(owner))
-        state.add("history", history)
-        state.add("provinces", Block([Scalar(str(p)) for p in (provinces or [])]))
-        root = Block()
-        root.add("state", state)
+        root = build_state_root(sid, name, owner, category, provinces or [])
+        ref = self.write_state_root(sid, root, name=name)
+        if self._cache is not None:                # keep the tree in sync immediately
+            self._cache[sid] = StateInfo(sid, name or f"STATE_{sid}", owner or None,
+                                         ref.path, True, list(provinces or []),
+                                         [owner] if owner else [])
+        return ref
 
-        slug = re.sub(r"[^0-9A-Za-z_-]+", "_", name).strip("_") or f"STATE_{sid}"
-        rel = f"{GAME_DIRS.HISTORY_STATES}/{sid}-{slug}.txt"
+    def write_state_root(self, state_id: int, root: "Block", name: str = "",
+                         rel_file: "str | None" = None) -> "StateDocRef":
+        """Write a state document into the mod. `rel_file` forces an exact relative path
+        (used to overwrite an original file at the same name so HOI4 overrides it);
+        otherwise the path is ``history/states/<id>-<slug>.txt``."""
+        if rel_file is not None:
+            rel = rel_file
+        else:
+            slug = re.sub(r"[^0-9A-Za-z_-]+", "_", name).strip("_") or f"STATE_{state_id}"
+            rel = f"{GAME_DIRS.HISTORY_STATES}/{state_id}-{slug}.txt"
         target = _ensure_filename_case(self.ctx.mod.path / rel)
         target.parent.mkdir(parents=True, exist_ok=True)
         dump_file(root, target)
-
-        ref = StateDocRef(rel_file=rel, source_root=self.ctx.mod.path,
-                          is_vanilla=False, state_id=sid)
-        # Keep the light StateInfo cache in sync so the tree shows it immediately.
-        if self._cache is not None:
-            self._cache[sid] = StateInfo(sid, name or f"STATE_{sid}", owner or None,
-                                         target, True, list(provinces or []),
-                                         [owner] if owner else [])
-        return ref
+        return StateDocRef(rel_file=rel, source_root=self.ctx.mod.path,
+                           is_vanilla=False, state_id=state_id)
 
     def delete_doc(self, ref: "StateDocRef") -> None:
         if ref.is_vanilla:
@@ -679,3 +673,64 @@ class StateDef(BlockView):
                 b.items = [it for it in b.items
                            if not (isinstance(it, Pair) and it.key == key
                                    and it.value is prov_block)]
+
+
+def build_state_root(state_id: int, name: str, owner: str, category: str,
+                     provinces: "list[int]") -> Block:
+    """Build a minimal ``state = { ... }`` document Block (id, name, manpower 0,
+    category, history owner/core, provinces). Shared by create_state and generation."""
+    state = Block()
+    state.add("id", Scalar(str(state_id)))
+    state.add("name", Scalar(name or f"STATE_{state_id}", quoted=True))
+    state.add("manpower", Scalar("0"))
+    if category:
+        state.add("state_category", Scalar(category))
+    history = Block()
+    if owner:
+        history.set("owner", Scalar(owner))
+        history.add("add_core_of", Scalar(owner))
+    state.add("history", history)
+    state.add("provinces", Block([Scalar(str(p)) for p in provinces]))
+    root = Block()
+    root.add("state", state)
+    return root
+
+
+# State-level industry buildings split proportionally when carving out a new state
+# (population = manpower, industry = these factories, plus every resource).
+INDUSTRY_BUILDINGS = ("industrial_complex", "arms_factory", "dockyard")
+
+
+def split_state_assets(src: "StateDef", dst: "StateDef", taken: int, total: int) -> None:
+    """Move a proportional share (``taken/total`` of the source, floored) of manpower,
+    resources and industry from `src` into `dst`. The source keeps the remainder, so it
+    effectively rounds *up* — matching how carving N provinces out of a state works."""
+    if total <= 0 or taken <= 0:
+        return
+    mp = src.manpower
+    move = mp * taken // total
+    if move:
+        src.set_manpower(mp - move)
+        dst.set_manpower(dst.manpower + move)
+    for name, amount in list(src.resources.items()):
+        amt = int(amount)
+        m = amt * taken // total
+        if m:
+            dst.set_resource(name, int(dst.resources.get(name, 0)) + m)
+            src.set_resource(name, amt - m)
+    src_b = src.state_buildings
+    for building in INDUSTRY_BUILDINGS:
+        lvl = int(src_b.get(building, 0))
+        m = lvl * taken // total
+        if m:
+            dst.set_state_building(building,
+                                   int(dst.state_buildings.get(building, 0)) + m)
+            src.set_state_building(building, lvl - m)
+
+
+def transfer_victory_points(src: "StateDef", dst: "StateDef", pids: set[int]) -> None:
+    """Move every victory point whose province is in `pids` from `src` to `dst`."""
+    move = [(p, v) for p, v in src.victory_points if p in pids]
+    if move:
+        src.set_victory_points([(p, v) for p, v in src.victory_points if p not in pids])
+        dst.set_victory_points(dst.victory_points + move)

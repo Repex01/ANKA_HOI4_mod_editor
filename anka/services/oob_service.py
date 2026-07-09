@@ -275,7 +275,8 @@ class Division(BlockView):
         return v.as_float(default) if isinstance(v, Scalar) else default
 
     def _set_factor(self, key: str, value: float, default: float) -> None:
-        value = max(0.0, min(1.0, value))
+        # Round to 2 decimals so the slider writes tidy 0.64 / 0.5, not 0.643116.
+        value = round(max(0.0, min(1.0, value)), 2)
         if abs(value - default) < 1e-6:
             self.block.remove(key)
         else:

@@ -103,8 +103,8 @@ class NewStateDialog(BaseDialog):
     editor turns on assign mode so the user can paint provinces in."""
 
     def __init__(self, master, editor, on_submit: Callable[[dict], None],
-                 seed_count: int = 0):
-        super().__init__(master, editor, editor.t("map.new_state"), (400, 260))
+                 seed_count: int = 0, split_resources: bool = True):
+        super().__init__(master, editor, editor.t("map.new_state"), (410, 300))
         self._on_submit = on_submit
 
         body = ttk.Frame(self, style="Card.TFrame", padding=14)
@@ -133,22 +133,201 @@ class NewStateDialog(BaseDialog):
                      values=cats, width=18).grid(row=2, column=1, sticky="w",
                                                  padx=(8, 0), pady=3)
 
+        self._split_var = tk.BooleanVar(value=split_resources)
+        ttk.Checkbutton(body, text=self.t("map.split_resources"),
+                        style="Card.TCheckbutton", variable=self._split_var).grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
         hint = (self.t("map.new_state_seed", count=seed_count) if seed_count
                 else self.t("map.new_state_empty"))
-        ttk.Label(body, text=hint, style="CardMuted.TLabel", wraplength=340,
-                  justify="left").grid(row=3, column=0, columnspan=2, sticky="w",
+        ttk.Label(body, text=hint, style="CardMuted.TLabel", wraplength=360,
+                  justify="left").grid(row=4, column=0, columnspan=2, sticky="w",
                                        pady=(8, 0))
         self.buttons_row(body, self.t("common.create")).grid(
-            row=4, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+            row=5, column=0, columnspan=2, sticky="ew", pady=(10, 0))
 
     def _submit(self) -> None:
         fields = {
             "name": self._name_var.get().strip(),
             "owner": self._owner_var.get().strip().upper(),
             "category": self._cat_var.get().strip(),
+            "split_resources": self._split_var.get(),
         }
         self.destroy()
         self._on_submit(fields)
+
+
+class GenerateStatesDialog(BaseDialog):
+    """Partition the selected land provinces into N new states, with a live preview
+    (each cluster a colour) before applying."""
+
+    PREVIEW = (460, 260)
+
+    def __init__(self, master, editor, provs: list[int],
+                 on_apply: Callable[[list[int], list, dict], None],
+                 split_resources: bool = True, total_states: int = 0,
+                 selected_states: int = 0):
+        super().__init__(master, editor, editor.t("map.gen_states"), (520, 620))
+        self.resizable(True, True)
+        self._provs = list(provs)
+        self._on_apply = on_apply
+        self._groups: list[list[int]] | None = None
+        self._photo: ImageTk.PhotoImage | None = None
+        self._state = "idle"
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=12)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(1, weight=1)
+        body.rowconfigure(6, weight=1)
+
+        ttk.Label(body, text=self.t("map.gen_states_stats", total=total_states,
+                                    selected=selected_states),
+                  style="CardMuted.TLabel").grid(row=0, column=0, columnspan=2,
+                                                 sticky="w", pady=(0, 6))
+
+        row0 = ttk.Frame(body, style="Card.TFrame")
+        row0.grid(row=1, column=0, columnspan=2, sticky="ew")
+        ttk.Label(row0, text=self.t("map.gen_states_count"),
+                  style="Card.TLabel").pack(side="left")
+        self._count_var = tk.IntVar(value=min(2, len(provs)))
+        ttk.Spinbox(row0, from_=1, to=max(1, len(provs)), width=5,
+                    textvariable=self._count_var).pack(side="left", padx=(4, 12))
+        ttk.Label(row0, text="seed:", style="Card.TLabel").pack(side="left")
+        self._seed_var = tk.StringVar(value="0")
+        ttk.Entry(row0, textvariable=self._seed_var, width=8).pack(side="left", padx=4)
+
+        row1 = ttk.Frame(body, style="Card.TFrame")
+        row1.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Label(row1, text=self.t("map.owner"), style="Card.TLabel").pack(side="left")
+        self._owner_var = tk.StringVar()
+        ttk.Entry(row1, textvariable=self._owner_var, width=6).pack(side="left",
+                                                                    padx=(4, 12))
+        ttk.Label(row1, text=self.t("map.category"),
+                  style="Card.TLabel").pack(side="left")
+        cats = editor.state_categories()
+        self._cat_var = tk.StringVar(value="rural" if "rural" in cats
+                                     else (cats[0] if cats else "rural"))
+        ttk.Combobox(row1, textvariable=self._cat_var, state="readonly", width=14,
+                     values=cats).pack(side="left", padx=4)
+
+        self._split_var = tk.BooleanVar(value=split_resources)
+        ttk.Checkbutton(body, text=self.t("map.split_resources"),
+                        style="Card.TCheckbutton", variable=self._split_var).grid(
+            row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self._borders_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(body, text=self.t("map.gen_within_borders"),
+                        style="Card.TCheckbutton", variable=self._borders_var).grid(
+            row=4, column=0, columnspan=2, sticky="w")
+        self._match_cat_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(body, text=self.t("map.gen_match_categories"),
+                        style="Card.TCheckbutton", variable=self._match_cat_var).grid(
+            row=5, column=0, columnspan=2, sticky="w")
+
+        self._canvas = tk.Canvas(body, width=self.PREVIEW[0], height=self.PREVIEW[1],
+                                 bg=self.palette.surface_alt, highlightthickness=0,
+                                 bd=0)
+        self._canvas.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self._progress = ttk.Label(body, text=self.t("map.gen_states_hint",
+                                                     count=len(provs)),
+                                   style="CardMuted.TLabel", wraplength=460)
+        self._progress.grid(row=7, column=0, columnspan=2, sticky="w", pady=(4, 2))
+
+        bar = ttk.Frame(body, style="Card.TFrame")
+        bar.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        ttk.Button(bar, text=self.t("common.cancel"),
+                   command=self.destroy).pack(side="right", padx=(6, 0))
+        self._apply_btn = ttk.Button(bar, text=self.t("common.apply"),
+                                     style="Accent.TButton", state="disabled",
+                                     command=self._apply)
+        self._apply_btn.pack(side="right")
+        self._gen_btn = ttk.Button(bar, text="⚡ " + self.t("map.split_generate"),
+                                   command=self._generate)
+        self._gen_btn.pack(side="left")
+
+    # ---------------------------------------------------------------- generate
+    def _generate(self) -> None:
+        if self._state == "working":
+            return
+        raw = self._seed_var.get().strip()
+        if raw:
+            try:
+                seed = int(raw)
+            except ValueError:
+                seed = 0
+        else:
+            import random
+            seed = random.randrange(1_000_000)
+        self._seed_var.set(str(seed))
+        n = max(1, min(int(self._count_var.get() or 1), len(self._provs)))
+        borders = self._borders_var.get()
+        self._state = "working"
+        self._apply_btn.configure(state="disabled")
+        self._gen_btn.configure(state="disabled")
+        self._progress.configure(text=self.t("map.split_working"))
+
+        def work():
+            try:
+                self._result = self.editor.partition_provinces(
+                    self._provs, n, seed, within_borders=borders)
+            except Exception as exc:                           # noqa: BLE001
+                self._result = exc
+            self._state = "done"
+
+        threading.Thread(target=work, daemon=True).start()
+        self._poll()
+
+    def _poll(self) -> None:
+        if self._state == "working":
+            self.after(120, self._poll)
+            return
+        if self._state != "done":
+            return
+        self._state = "idle"
+        self._gen_btn.configure(state="normal")
+        result = self._result
+        if isinstance(result, Exception):
+            self._progress.configure(text=str(result))
+            return
+        self._groups = result
+        self._progress.configure(text=self.t("map.gen_states_ready",
+                                             count=len(self._groups)))
+        self._apply_btn.configure(state="normal")
+        self._draw_preview()
+        # The clustering is deterministic per seed — auto-increment so a repeat click
+        # produces a fresh variant (the exact seed used stays reproducible).
+        try:
+            self._seed_var.set(str(int(self._seed_var.get() or "0") + 1))
+        except ValueError:
+            self._seed_var.set("0")
+
+    def _draw_preview(self) -> None:
+        if not self._groups:
+            return
+        img = self.editor.generate_states_preview(self._provs, self._groups)
+        if img is None:
+            return
+        w, h = img.size
+        cw = max(self._canvas.winfo_width(), self.PREVIEW[0])
+        ch = max(self._canvas.winfo_height(), self.PREVIEW[1])
+        scale = min(cw / w, ch / h)
+        img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))),
+                         Image.NEAREST)
+        self._photo = ImageTk.PhotoImage(img)
+        self._canvas.delete("all")
+        self._canvas.create_image(cw // 2, ch // 2, image=self._photo, anchor="center")
+
+    def _apply(self) -> None:
+        if not self._groups:
+            return
+        fields = {
+            "owner": self._owner_var.get().strip().upper(),
+            "category": self._cat_var.get().strip(),
+            "split_resources": self._split_var.get(),
+            "match_categories": self._match_cat_var.get(),
+        }
+        groups = self._groups
+        self.destroy()
+        self._on_apply(self._provs, groups, fields)
 
 
 class AdjacencyDialog(BaseDialog):

@@ -20,7 +20,7 @@ import numpy as np
 from ...services.adjacency_service import AdjacencyService
 from ...services.building_service import BuildingService
 from ...services.map_refs import ResourceService, StateCategoryService
-from ...services.map_service import RENDER_MODES, MapService
+from ...services.map_service import MIN_PROVINCE_AREA, RENDER_MODES, MapService
 from ...services.map_zones import StrategicRegionService, SupplyAreaService
 from ...services.state_service import StateService
 from ...services.terrain_service import TerrainService
@@ -29,12 +29,13 @@ from ..base import EditorModule, EditorRegistry
 from .canvas import MapCanvas
 from .commands import (TOUCH_DEFS, TOUCH_STATES, CommandStack, CompoundCommand,
                        CreateDefCommand, PixelsCommand, SetDefCommand,
-                       StateProvincesCommand, ZoneMembersCommand)
+                       StateDocsCommand, StateProvincesCommand, ZoneMembersCommand)
 from .inspector import ProvinceInspector, StateInspector
 
-# Tools in toolbar / hotkey order (1–4). RENDER_MODES drives the F1–F4 hotkeys.
-_TOOLS = ("select", "brush", "fill", "picker")
-_TOOL_ICONS = {"select": "⭘", "brush": "🖌", "fill": "🪣", "picker": "💉"}
+# Tools in toolbar / hotkey order (1–5). RENDER_MODES drives the F1–F4 hotkeys.
+_TOOLS = ("select", "state", "brush", "fill", "picker")
+_TOOL_ICONS = {"select": "⭘", "state": "⭘⭘", "brush": "🖌",
+               "fill": "🪣", "picker": "💉"}
 
 
 @EditorRegistry.register
@@ -132,6 +133,13 @@ class MapEditor(EditorModule):
         # hotkeys fire without first having to click (they only reach a focused
         # widget). Guard: don't steal focus from a text field being edited.
         self.canvas.canvas.bind("<Enter>", self._focus_map, add="+")
+
+        # Selected-province counter, pinned to the map's bottom-right corner.
+        self._sel_count = tk.Label(self.canvas, text="", bd=0, padx=8, pady=2,
+                                   bg=self.palette.surface, fg=self.palette.text_muted,
+                                   font=("Segoe UI", 9))
+        self._sel_count.place(relx=1.0, rely=1.0, anchor="se", x=-4, y=-4)
+        self._update_sel_count()
 
         self._loading_lbl = ttk.Label(center, text=self.t("map.loading"),
                                       style="Muted.TLabel")
@@ -248,10 +256,13 @@ class MapEditor(EditorModule):
         self._tool_btns: dict[str, ttk.Button] = {}
         for i, name in enumerate(_TOOLS):
             btn = ttk.Button(bar, text=f"{_TOOL_ICONS[name]} {i + 1}",
-                             command=lambda n=name: self._set_tool(n), width=4)
+                             command=lambda n=name: self._set_tool(n), width=5)
             btn.pack(side="left", padx=1)
             attach_help(btn, self.t, "map.tools", self.palette)
             self._tool_btns[name] = btn
+        self._ground_only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(bar, text=self.t("map.ground_only"), style="Card.TCheckbutton",
+                        variable=self._ground_only).pack(side="left", padx=(8, 0))
         self._radius_var = tk.IntVar(value=6)
         ttk.Spinbox(bar, from_=1, to=64, width=4,
                     textvariable=self._radius_var).pack(side="left", padx=(6, 2))
@@ -260,14 +271,23 @@ class MapEditor(EditorModule):
         self._target_lbl = ttk.Label(bar, text=self.t("map.no_brush"),
                                      style="Muted.TLabel")
         self._target_lbl.pack(side="left")
-        ttk.Button(bar, text="➕ " + self.t("map.new_province"),
-                   command=self._new_province).pack(side="left", padx=6)
-        ttk.Button(bar, text="🗺 " + self.t("map.new_state"),
-                   command=self._new_state).pack(side="left", padx=(0, 6))
-        split_btn = ttk.Button(bar, text="⚡ " + self.t("map.split_area"),
+        # Stack the create / generate pairs into two-row columns to save toolbar width.
+        new_col = ttk.Frame(bar, style="TFrame")
+        new_col.pack(side="left", padx=(6, 2))
+        ttk.Button(new_col, text="➕ " + self.t("map.new_province"), width=13,
+                   command=self._new_province).pack(fill="x")
+        ttk.Button(new_col, text="🗺 " + self.t("map.new_state"), width=13,
+                   command=self._new_state).pack(fill="x", pady=(2, 0))
+        gen_col = ttk.Frame(bar, style="TFrame")
+        gen_col.pack(side="left", padx=2)
+        split_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.split_area"), width=14,
                                command=self._split_selection)
-        split_btn.pack(side="left", padx=2)
+        split_btn.pack(fill="x")
         attach_help(split_btn, self.t, "map.split", self.palette)
+        gen_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.gen_states"), width=14,
+                             command=self._generate_states)
+        gen_btn.pack(fill="x", pady=(2, 0))
+        attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
         ttk.Button(bar, text="⇄ " + self.t("map.adjacencies"),
                    command=self._open_adjacencies).pack(side="left", padx=2)
         self._btn_problems = ttk.Button(bar, text="⚠", command=self._toggle_problems)
@@ -378,6 +398,7 @@ class MapEditor(EditorModule):
         self.canvas.fit_map()
         self.reload_tree()
         self.canvas.canvas.focus_set()      # hotkeys work right after loading
+        self._update_sel_count()            # show the total province count
 
     def _focus_map(self, _event=None) -> None:
         """Give the map keyboard focus unless a text entry is currently being edited."""
@@ -480,6 +501,7 @@ class MapEditor(EditorModule):
             if bbox is not None:
                 self.canvas.zoom_to_bbox(bbox)
         self._sync_inspectors(focus="province")
+        self._update_sel_count()
 
     def _flush_inspectors(self) -> None:
         self.state_inspector.flush_pending()
@@ -528,6 +550,13 @@ class MapEditor(EditorModule):
         return (min(b[0] for b in boxes), min(b[1] for b in boxes),
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
 
+    def _selectable(self, pid: int) -> bool:
+        """With "select only ground" on, sea/lake provinces can't be selected."""
+        if not self._ground_only.get():
+            return True
+        d = self.map.by_id.get(pid)
+        return d is not None and d.type == "land"
+
     def _map_click(self, mx: int, my: int, event) -> None:
         if not self.map.loaded:
             return
@@ -535,9 +564,15 @@ class MapEditor(EditorModule):
         if self._assign_mode and pid is not None:
             self.assign_province_to_state(pid)
             return
+        if self._tool == "state":
+            if pid is not None:
+                shift = bool(getattr(event, "state", 0) & 0x0001)
+                self._select_state_provinces(pid, add=shift)
+            return
         shift = bool(getattr(event, "state", 0) & 0x0001)
         if shift and self._tool == "select" and pid is not None:
-            self._toggle_multi(pid)
+            if self._selectable(pid):
+                self._toggle_multi(pid)
             return
         if self._tool == "picker":
             if pid is not None:
@@ -547,11 +582,38 @@ class MapEditor(EditorModule):
             self._fill_at(mx, my)
             return
         self._multi_sel.clear()
-        if pid is None:
+        if pid is None or not self._selectable(pid):
             self._selected_province = None
             self.canvas.set_selection(set())
+            self._update_sel_count()
             return
         self.select_province(pid)
+
+    def _select_state_provinces(self, pid: int, add: bool = False) -> None:
+        """State tool: select the clicked province's whole state. A plain click selects
+        only that state; Shift-click (`add`) toggles it in the multi-selection — a
+        second Shift-click on the same state deselects it."""
+        prov_state, _ = self.map._political_maps()
+        sid = prov_state.get(pid)
+        if sid is None:
+            self._status.configure(text=self.t("map.no_state"))
+            return
+        st = self.states.get(sid)
+        provinces = {p for p in (st.provinces if st else [pid])
+                     if self._selectable(p)}
+        if not provinces:
+            return
+        self._selected_province = None
+        if add:
+            current = set(self._multi_sel)
+            if provinces <= current:      # already selected → Shift-click deselects
+                current -= provinces
+            else:
+                current |= provinces
+            self._multi_sel = current
+        else:
+            self._multi_sel = provinces   # plain click: select only this state
+        self._show_multi_selection()
 
     # -------------------------------------------------------- multi-selection
     def _toggle_multi(self, pid: int) -> None:
@@ -573,14 +635,39 @@ class MapEditor(EditorModule):
         x1, y1 = min(w - 1, x1), min(h - 1, y1)
         if x0 > x1 or y0 > y1:
             return
+        hit: set[int] = set()
         for code in np.unique(self.map.codes[y0:y1 + 1, x0:x1 + 1]):
             d = self.map.by_code.get(int(code))
-            if d is not None and d.id != 0:
-                self._multi_sel.add(d.id)
+            if d is not None and d.id != 0 and self._selectable(d.id):
+                hit.add(d.id)
+        # State tool: a rubber band selects whole states, not loose provinces.
+        if self._tool == "state":
+            hit = self._expand_to_states(hit)
+        self._multi_sel |= hit
         self._show_multi_selection()
+
+    def _expand_to_states(self, pids: set[int]) -> set[int]:
+        """Grow a set of provinces to every province of the states they belong to
+        (respecting 'select only ground'). Provinces with no state are kept as-is."""
+        prov_state, _ = self.map._political_maps()
+        out: set[int] = set()
+        seen: set[int] = set()
+        for p in pids:
+            sid = prov_state.get(p)
+            if sid is None:
+                out.add(p)
+                continue
+            if sid in seen:
+                continue
+            seen.add(sid)
+            st = self.states.get(sid)
+            provinces = set(st.provinces) if st else {p}
+            out |= {q for q in provinces if self._selectable(q)}
+        return out
 
     def _show_multi_selection(self) -> None:
         self.canvas.set_selection(set(self._multi_sel))
+        self._update_sel_count()
         if self._multi_sel:
             area = sum(self.map.area_of(p) for p in self._multi_sel)
             self._status.configure(text=self.t("map.multi_selected",
@@ -596,6 +683,20 @@ class MapEditor(EditorModule):
                     if self._selected_province is not None else set())
             self.canvas.set_selection(keep, highlight=self.canvas.highlight)
             self._status.configure(text="")
+            self._update_sel_count()
+
+    def _update_sel_count(self) -> None:
+        """Bottom-right counter: total provinces normally; 'selected / total' while a
+        multi-selection is active."""
+        if not hasattr(self, "_sel_count"):
+            return
+        total = sum(1 for pid in self.map.by_id if pid != 0) if self.map.loaded else 0
+        if self._multi_sel:
+            text = self.t("map.selected_count",
+                          count=len(self._multi_sel), total=total)
+        else:
+            text = self.t("map.province_total", total=total)
+        self._sel_count.configure(text=text)
 
     # ----------------------------------------------------------- paint tools
     def _set_tool(self, name: str) -> None:
@@ -604,8 +705,8 @@ class MapEditor(EditorModule):
         for tool, btn in self._tool_btns.items():
             btn.configure(style="Accent.TButton" if tool == name else "TButton")
         self.canvas.canvas.configure(
-            cursor={"brush": "pencil", "fill": "spraycan",
-                    "picker": "target"}.get(name, "crosshair"))
+            cursor={"brush": "pencil", "fill": "spraycan", "picker": "target",
+                    "state": "hand2"}.get(name, "crosshair"))
 
     def set_brush_target(self, pid: int) -> None:
         d = self.map.by_id.get(pid)
@@ -715,6 +816,7 @@ class MapEditor(EditorModule):
                       if (d := self.map.by_id.get(p)) is not None and d.type == "land")
 
         def submit(fields: dict) -> None:
+            self.split_resources_pref = fields["split_resources"]
             ref = self.states.create_state(name=fields["name"], owner=fields["owner"],
                                            category=fields["category"], provinces=seed)
             sid = ref.state_id
@@ -723,7 +825,8 @@ class MapEditor(EditorModule):
             if fields["name"]:
                 self.state_loc_set(f"STATE_{sid}", fields["name"])
             if seed:
-                self._detach_provinces_from_others(seed, keep_state=sid)
+                self._absorb_provinces(doc, seed,
+                                       split_resources=fields["split_resources"])
             self.map.invalidate_political()
             self._value_options.pop("province_free", None)
             self._refresh_tree()
@@ -732,32 +835,279 @@ class MapEditor(EditorModule):
                 self._set_assign_mode(True)
             self._status.configure(text=self.t("map.state_created", id=sid))
 
-        NewStateDialog(self._insp_host, self, submit, seed_count=len(seed))
+        NewStateDialog(self._insp_host, self, submit, seed_count=len(seed),
+                       split_resources=getattr(self, "split_resources_pref", True))
 
-    def _detach_provinces_from_others(self, pids: list[int], keep_state: int) -> None:
-        """Remove `pids` from every state other than `keep_state` (a land province
-        must belong to exactly one state); vanilla donors are copied into the mod."""
-        by_state: dict[int, list[int]] = {}
+    def _absorb_provinces(self, new_doc, pids: list[int], *,
+                          split_resources: bool) -> None:
+        """Move `pids` into `new_doc`'s state, removing them from their previous
+        states (a land province belongs to exactly one state). Optionally split each
+        source's manpower / industry / resources proportionally, and always carry over
+        any victory points sitting on the moved provinces. Vanilla donors are copied
+        into the mod first."""
+        from ...services.state_service import (split_state_assets,
+                                               transfer_victory_points)
+        new_state = new_doc.state
+        if new_state is None:
+            return
         pid_set = set(pids)
+        by_state: dict[int, list[int]] = {}
         for st in self.states.list_states():
-            if st.id == keep_state:
+            if st.id == new_state.id:
                 continue
             overlap = [p for p in st.provinces if p in pid_set]
             if overlap:
                 by_state[st.id] = overlap
-        for sid, ps in by_state.items():
+        for sid, taken in by_state.items():
             ref = self.states.doc_ref_for(sid)
             if ref is None:
                 continue
             if ref.is_vanilla:
                 ref = self.states.copy_to_mod(ref)
-            doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
-            if doc.state is None:
+            src_doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
+            src = src_doc.state
+            if src is None:
                 continue
-            for p in ps:
-                doc.state.remove_province(p)
-            self.mark_dirty(doc)
-            self.states.refresh_info(doc)
+            if split_resources:
+                split_state_assets(src, new_state, len(taken), len(src.provinces))
+            transfer_victory_points(src, new_state, pid_set)
+            for p in taken:
+                src.remove_province(p)
+            self.mark_dirty(src_doc)
+            self.states.refresh_info(src_doc)
+        self.mark_dirty(new_doc)
+        self.states.refresh_info(new_doc)
+
+    def _generate_states(self) -> None:
+        """Auto-partition the selected land provinces into N new states (the state-
+        level analogue of 'generate area': clusters provinces instead of pixels)."""
+        if not self.map.loaded:
+            return
+        sel = set(self._multi_sel)
+        if self._selected_province is not None:
+            sel.add(self._selected_province)
+        provs = sorted(p for p in sel
+                       if (d := self.map.by_id.get(p)) is not None and d.type == "land")
+        if len(provs) < 2:
+            messagebox.showinfo("ANKA", self.t("map.gen_states_need_selection"))
+            return
+        prov_state, _ = self.map._political_maps()
+        selected_states = len({prov_state.get(p) for p in provs
+                               if prov_state.get(p) is not None})
+        from .dialogs import GenerateStatesDialog
+        GenerateStatesDialog(
+            self._insp_host, self, provs, self._apply_generate_states,
+            split_resources=getattr(self, "split_resources_pref", True),
+            total_states=len(self.states.list_states()),
+            selected_states=selected_states)
+
+    def _apply_generate_states(self, provs: list[int], groups: list[list[int]],
+                               fields: dict) -> None:
+        """Create one new state per cluster, undoably. States the selection fully
+        empties are reused: the new clusters take their ids first (then contiguous new
+        ids), so state numbering stays gap-free — HOI4 errors on id gaps."""
+        from ...services.state_service import (StateDef, build_state_root,
+                                               split_state_assets,
+                                               transfer_victory_points)
+        self.split_resources_pref = fields["split_resources"]
+        prov_set = set(provs)
+        prov_state, _ = self.map._political_maps()          # province → original state
+        all_states = self.states.list_states()
+        old_max = max((st.id for st in all_states), default=0)
+
+        # Identify the source states (those overlapping the selection) and the eventual
+        # mod path of each; note which the selection empties completely (freed ids).
+        refs_by_id = {r.state_id: r
+                      for r in self.states.list_docs(include_vanilla=True)}
+        source_ids: list[int] = []
+        freed_ids: list[int] = []
+        src_rel: dict[int, str] = {}          # source id -> its original relative path
+        affected: set[str] = set()
+        for st in all_states:
+            if not any(p in prov_set for p in st.provinces):
+                continue
+            ref = refs_by_id.get(st.id)
+            if ref is None:
+                continue
+            source_ids.append(st.id)
+            src_rel[st.id] = ref.rel_file
+            affected.add(str(self.context.mod.path / ref.rel_file))
+            if set(st.provinces) <= prov_set:
+                freed_ids.append(st.id)
+        freed_ids.sort()
+        # Snapshot BEFORE copying vanilla sources into the mod, so undo of a vanilla
+        # source removes its mod override entirely rather than leaving a copy.
+        before = self._snapshot_paths(affected)
+
+        # Now load each source's mod-side doc (copying vanilla in) and its category.
+        source_docs: dict[int, object] = {}
+        src_category: dict[int, str] = {}
+        for sid in source_ids:
+            ref = refs_by_id[sid]
+            if ref.is_vanilla:
+                ref = self.states.copy_to_mod(ref)
+            doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
+            source_docs[sid] = doc
+            if doc.state is not None:
+                src_category[sid] = doc.state.state_category
+
+        n = len(groups)
+        final_ids = freed_ids[:n] + [old_max + 1 + k
+                                     for k in range(max(0, n - len(freed_ids)))]
+        match = fields.get("match_categories", False)
+
+        # Phase 1 — build each new state and pull its share of assets from the sources.
+        new_roots: list = []
+        for gi, group in enumerate(groups):
+            fid = final_ids[gi]
+            cat = (self._dominant_category(group, prov_state, src_category,
+                                           fields["category"])
+                   if match else fields["category"])
+            root = build_state_root(fid, "", fields["owner"], cat, group)
+            new_state = StateDef(root.get_block("state"))
+            by_src: dict[int, list[int]] = {}
+            for p in group:
+                by_src.setdefault(prov_state.get(p), []).append(p)
+            for sid, taken in by_src.items():
+                sdoc = source_docs.get(sid)
+                if sdoc is None or sdoc.state is None:
+                    continue
+                src = sdoc.state
+                if fields["split_resources"]:
+                    split_state_assets(src, new_state, len(taken), len(src.provinces))
+                transfer_victory_points(src, new_state, set(taken))
+                for p in taken:
+                    src.remove_province(p)
+            new_roots.append((fid, root))
+
+        # Phase 2 — write to disk. A reused id keeps its source's original filename so
+        # HOI4 overrides that state; new ids get an auto-generated name.
+        reused = set(final_ids)
+        for sid, sdoc in source_docs.items():
+            path = str(sdoc.ref.path)
+            if sdoc.state is not None and sdoc.state.provinces:
+                self.states.save_doc(sdoc)        # partially emptied → keep reduced
+            elif sid not in reused:
+                sdoc.ref.path.unlink(missing_ok=True)  # emptied & id not reused → delete
+            # emptied & id reused → left as-is; the new write below overwrites it
+            self._dirty.discard(path)
+            self._dirty_docs.pop(path, None)
+        for fid, root in new_roots:
+            ref = self.states.write_state_root(fid, root, rel_file=src_rel.get(fid))
+            affected.add(str(ref.path))
+        self.states.invalidate()
+        cache = getattr(self.states, "_doc_cache", None)
+        if cache is not None:
+            cache.clear()
+
+        after = self._snapshot_paths(affected)
+        for p in affected:
+            before.setdefault(p, None)
+        self._record(StateDocsCommand(before, after))
+
+        self.map.invalidate_political()
+        self._value_options.pop("province_free", None)
+        self._multi_sel.clear()
+        self._state_doc = None
+        self._selected_state = None
+        self._refresh_tree()
+        if final_ids:
+            self.select_state(final_ids[0], zoom=True)
+        self._status.configure(text=self.t("map.states_created", count=n))
+
+    def _dominant_category(self, group: list[int], prov_state: dict,
+                           src_category: dict, default: str) -> str:
+        """The category of the original state contributing the most provinces to this
+        cluster (so a split state's pieces inherit sensible categories)."""
+        counts: dict[str, int] = {}
+        for p in group:
+            cat = src_category.get(prov_state.get(p))
+            if cat:
+                counts[cat] = counts.get(cat, 0) + 1
+        return max(counts, key=counts.get) if counts else default
+
+    def _snapshot_paths(self, paths) -> dict:
+        from pathlib import Path
+        out: dict = {}
+        for p in paths:
+            pp = Path(p)
+            out[str(pp)] = pp.read_text(encoding="utf-8") if pp.exists() else None
+        return out
+
+    def _flush_state_paths(self, paths) -> None:
+        for p in list(paths):
+            doc = self._dirty_docs.get(p)
+            if doc is not None:
+                try:
+                    self.states.save_doc(doc)
+                except Exception:                              # noqa: BLE001
+                    pass
+                self._dirty.discard(p)
+                self._dirty_docs.pop(p, None)
+
+    def partition_provinces(self, provs: list[int], n: int, seed: int = 0,
+                            within_borders: bool = False) -> list[list[int]]:
+        """Cluster `provs` into groups. Normally the whole selection is split into `n`
+        clusters; with `within_borders` each existing state is split into `n` pieces
+        separately (clusters never cross a state border — i.e. just split states)."""
+        if not within_borders:
+            return self._cluster_pixels(provs, n, seed)
+        prov_state, _ = self.map._political_maps()
+        by_state: dict[int, list[int]] = {}
+        for p in provs:
+            by_state.setdefault(prov_state.get(p), []).append(p)
+        out: list[list[int]] = []
+        for i, (_sid, sprovs) in enumerate(
+                sorted(by_state.items(), key=lambda kv: (kv[0] is None, kv[0]))):
+            out.extend(self._cluster_pixels(sprovs, min(n, len(sprovs)), seed + i))
+        return out
+
+    def _cluster_pixels(self, provs: list[int], n: int, seed: int) -> list[list[int]]:
+        """Grow `n` regions over the provinces' pixels, then assign each province
+        wholesale to the cluster owning most of its pixels."""
+        from ...services.region_gen import split_region
+        bbox = self._state_bbox(set(provs))
+        if bbox is None or n <= 1:
+            return [list(provs)]
+        x0, y0, x1, y1 = bbox
+        codes = self.map.codes[y0:y1 + 1, x0:x1 + 1]
+        sel_codes = [self.map.by_id[p].code for p in provs]
+        mask = np.isin(codes, sel_codes)
+        labels = split_region(mask, n, seed=seed)
+        groups: dict[int, list[int]] = {}
+        for p in provs:
+            pm = (codes == self.map.by_id[p].code) & (labels > 0)
+            lab = int(np.bincount(labels[pm].ravel()).argmax()) if pm.any() else 1
+            groups.setdefault(lab, []).append(p)
+        return [g for _lab, g in sorted(groups.items()) if g]
+
+    def generate_states_preview(self, provs: list[int], groups: list[list[int]]):
+        """Build a PIL preview image of the province clustering (each group a colour)."""
+        from PIL import Image
+        bbox = self._state_bbox(set(provs))
+        if bbox is None:
+            return None
+        x0, y0, x1, y1 = bbox
+        codes = self.map.codes[y0:y1 + 1, x0:x1 + 1]
+        colors = self.map.free_colors(len(groups)) or [(200, 80, 80)]
+        rgb = np.full((codes.shape[0], codes.shape[1], 3), (45, 47, 56), np.uint8)
+        for gi, group in enumerate(groups):
+            codeset = [self.map.by_id[p].code for p in group]
+            rgb[np.isin(codes, codeset)] = colors[gi % len(colors)]
+        return Image.fromarray(rgb, "RGB")
+
+    def _delete_empty_states(self, sids: set[int]) -> None:
+        """Delete in-mod states from `sids` that no longer hold any province."""
+        for sid in sids:
+            st = self.states.get(sid)
+            if st is not None and st.provinces:
+                continue
+            ref = self.states.doc_ref_for(sid)
+            if ref is None or ref.is_vanilla:
+                continue
+            self.states.delete_doc(ref)
+            self._dirty.discard(str(ref.path))
+            self._dirty_docs.pop(str(ref.path), None)
 
     # ------------------------------------------------------- province splitting
     def split_province_dialog(self, pid: int) -> None:
@@ -1257,6 +1607,13 @@ class MapEditor(EditorModule):
             except Exception as exc:                      # noqa: BLE001
                 messagebox.showerror("ANKA", self.t("focuses.err.save",
                                                     error=str(exc)))
+        tiny = self.map.small_provinces() if self.map.loaded else []
+        if tiny:
+            messagebox.showerror("ANKA", self.t(
+                "map.err.tiny_provinces", min=MIN_PROVINCE_AREA, count=len(tiny),
+                ids=", ".join(str(i) for i in tiny[:15])
+                + ("…" if len(tiny) > 15 else "")))
+            return
         try:
             written = self.map.save()
             if self.adjacencies.dirty:
@@ -1281,7 +1638,10 @@ class MapEditor(EditorModule):
                     pass
             self._dirty.discard(path)
             self._dirty_docs.pop(path, None)
-        if self.map.dirty_bmp or self.map.dirty_csv:
-            self.map.save()
-        if self.adjacencies.dirty:
-            self.adjacencies.save()
+        # Never persist a broken map (provinces below the minimum area) on the way
+        # out — the user must fix and save explicitly (they'll get the error there).
+        if not (self.map.small_provinces() if self.map.loaded else []):
+            if self.map.dirty_bmp or self.map.dirty_csv:
+                self.map.save()
+            if self.adjacencies.dirty:
+                self.adjacencies.save()

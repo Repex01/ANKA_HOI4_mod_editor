@@ -140,4 +140,9 @@ class ThemeManager:
 
         s.configure("Vertical.TScrollbar", background=p.surface_alt, troughcolor=p.bg,
                     bordercolor=p.bg, arrowcolor=p.text_muted)
+        # Sliders: dark trough (darker than the card surface) + accent handle.
+        s.configure("Horizontal.TScale", background=p.accent, troughcolor=p.bg,
+                    bordercolor=p.border, lightcolor=p.accent, darkcolor=p.accent)
+        s.map("Horizontal.TScale",
+              background=[("active", p.accent), ("disabled", p.surface_alt)])
         s.configure("Drop.TFrame", background=p.surface_alt)

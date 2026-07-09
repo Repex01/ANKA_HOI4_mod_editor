@@ -359,10 +359,12 @@ class CountriesEditor(EditorModule):
         self._oob_none_label = self.t("countries.oob_none")
         oob_values = [self._oob_none_label] + self.service.list_oob_files()
         self._oob_vars: dict[str, tk.StringVar] = {}
+        self._oob_combos: dict[str, ttk.Combobox] = {}
         for kind in ("land", "naval", "air"):
             var = tk.StringVar()
             self._oob_vars[kind] = var
-            self._combo_field(tab, row, self.t(f"countries.oob_{kind}"), var, oob_values, width=28); row += 1
+            self._oob_combos[kind] = self._combo_field(
+                tab, row, self.t(f"countries.oob_{kind}"), var, oob_values, width=28); row += 1
         self._pol_oob = self._oob_vars["land"]  # back-compat alias
 
         ttk.Button(tab, text=self.t("common.save"), style="Accent.TButton",
@@ -644,8 +646,11 @@ class CountriesEditor(EditorModule):
             var.set(str(pops.get(group, "")))
         self._update_pop_sum()
 
-        # OOB (land / naval / air)
+        # OOB (land / naval / air) — refresh the file list so OOBs created in the
+        # OOB editor this session show up without reopening the mod.
+        oob_values = [self._oob_none_label] + self.service.list_oob_files()
         for kind, var in self._oob_vars.items():
+            self._oob_combos[kind].configure(values=oob_values)
             var.set(self.service.get_oob(ref.tag, kind) or self._oob_none_label)
 
         # technologies (tech, condition) entries
@@ -1109,10 +1114,12 @@ class CountriesEditor(EditorModule):
         ttk.Entry(parent, textvariable=var, width=width).grid(row=row, column=1, sticky="w", padx=8, pady=4)
 
     def _combo_field(self, parent, row: int, label: str, var: tk.StringVar,
-                     values: list[str], width: int = 18) -> None:
+                     values: list[str], width: int = 18) -> ttk.Combobox:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", padx=16, pady=4)
-        ttk.Combobox(parent, textvariable=var, values=values, state="readonly",
-                     width=width).grid(row=row, column=1, sticky="w", padx=8, pady=4)
+        combo = ttk.Combobox(parent, textvariable=var, values=values, state="readonly",
+                             width=width)
+        combo.grid(row=row, column=1, sticky="w", padx=8, pady=4)
+        return combo
 
     def _update_pop_sum(self) -> None:
         total = 0

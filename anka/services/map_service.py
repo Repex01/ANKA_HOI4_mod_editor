@@ -25,6 +25,10 @@ from .mapgen_colors import iter_colors, load_pool
 
 MAP_DIR = "map"
 
+# Minimum pixel footprint for a valid province — smaller ones (e.g. from an over-eager
+# split) are rejected at save time.
+MIN_PROVINCE_AREA = 8
+
 # Fallback colors for the render LUTs.
 _ORPHAN_RGB = (255, 0, 220)        # bmp color with no definition.csv row
 _SEA_RGB = (38, 57, 87)            # sea/lake in owner & state modes
@@ -333,6 +337,21 @@ class MapService:
         if idx is None:
             return 0
         return int(np.count_nonzero(self._inv == idx))
+
+    def small_provinces(self, min_area: int = MIN_PROVINCE_AREA) -> list[int]:
+        """Defined provinces painted with 1..min_area-1 pixels — too small to be valid
+        (a HOI4 province needs a meaningful footprint). One bincount pass over the dense
+        index, so it's cheap even on the full map. Unpainted (0-pixel) provinces are not
+        flagged — they simply have no dense index yet."""
+        self.ensure_bitmap()
+        counts = np.bincount(self._inv.ravel())
+        out: list[int] = []
+        for idx, cnt in enumerate(counts):
+            if 0 < cnt < min_area:
+                d = self.by_code.get(self._ucodes[idx])
+                if d is not None and d.id != 0:
+                    out.append(d.id)
+        return sorted(out)
 
     def neighbors_of(self, pid: int) -> list[int]:
         """Province ids pixel-adjacent to `pid` (4-connectivity)."""
@@ -799,9 +818,26 @@ class MapService:
                 deltas.append((dys, dxs, dold, self.by_id[pid_l].code))
         for pid in pids:
             self._bboxes.pop(pid, None)
+        # Auto-detect coastal for every land province produced/reshaped by the split:
+        # a province is coastal iff it now borders a sea province.
+        for pid_l in ids:
+            self._recompute_coastal(pid_l)
         orphaned = [p for p in pids if p not in used and self.area_of(p) == 0]
         return SplitResult(ids=ids, donors=donors, new_defs=new_defs,
                            deltas=deltas, orphaned=orphaned)
+
+    def _recompute_coastal(self, pid: int) -> None:
+        """Set a land province's ``coastal`` flag from its current sea adjacency."""
+        d = self.by_id.get(pid)
+        if d is None or d.type != "land":
+            return
+        self._bboxes.pop(pid, None)
+        is_coastal = any((nd := self.by_id.get(n)) is not None and nd.type == "sea"
+                         for n in self.neighbors_of(pid))
+        if d.coastal != is_coastal:
+            d.coastal = is_coastal
+            d.dirty = True
+            self.dirty_csv = True
 
     def split_province(self, pid: int, k: int, *, seed: int | None = None,
                        strategy: str = "organic", smooth_passes: int = 2,

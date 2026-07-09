@@ -157,6 +157,46 @@ class ZoneMembersCommand(Command):
         service.save_doc(doc)
 
 
+class StateDocsCommand(Command):
+    """Full before/after file snapshots of every state document a bulk operation
+    creates, deletes or edits (generate states). Reliable where the field/province
+    commands can't express file creation & deletion; each snapshot maps a file path
+    to its text (``None`` = the file is absent)."""
+
+    label_key = "map.cmd.gen_states"
+    touches = frozenset({TOUCH_STATES})
+
+    def __init__(self, before: dict, after: dict):
+        self.before = dict(before)
+        self.after = dict(after)
+
+    def undo(self, editor) -> None:
+        self._apply(editor, self.before)
+
+    def redo(self, editor) -> None:
+        self._apply(editor, self.after)
+
+    def _apply(self, editor, snapshot: dict) -> None:
+        from pathlib import Path
+        for path_str, text in snapshot.items():
+            p = Path(path_str)
+            if text is None:
+                p.unlink(missing_ok=True)
+            else:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(text, encoding="utf-8")
+            editor._dirty.discard(path_str)
+            editor._dirty_docs.pop(path_str, None)
+        # State caches now point at stale content — drop them so the tree and
+        # inspector re-read from disk on the refresh that follows.
+        editor.states.invalidate()
+        cache = getattr(editor.states, "_doc_cache", None)
+        if cache is not None:
+            cache.clear()
+        editor._state_doc = None
+        editor._selected_state = None
+
+
 class CompoundCommand(Command):
     """Children are redone in order and undone in reverse."""
 
