@@ -18,7 +18,11 @@ class ModEditorScreen(ttk.Frame):
         super().__init__(master, style="TFrame")
         self.app = app
         self.mod = mod
-        self.context = ModContext(mod=mod, game_path=Path(app.settings.current.game_path))
+        self.context = ModContext(
+            mod=mod,
+            game_path=Path(app.settings.current.game_path),
+            dependencies=app.repo.resolve_dependencies(mod),
+        )
         self.services = EditorServices(t=app.t, theme=app.theme, settings=app.settings)
 
         self._modules = [cls(self.context, self.services) for cls in EditorRegistry.all()]

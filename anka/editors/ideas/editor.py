@@ -39,7 +39,8 @@ class IdeasEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = IdeaService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         self._resolver_ready = threading.Event()
@@ -450,9 +451,10 @@ class IdeasEditor(EditorModule):
         else:
             self.delete_idea()
 
-    def import_icon(self, path, idea: IdeaDef) -> str | None:
+    def import_icon(self, path, idea: IdeaDef, keep_size: bool = False) -> str | None:
         try:
-            dds, _gfx = self.context.icons.add_idea_icon(path, idea.id)
+            dds, _gfx = self.context.icons.add_idea_icon(path, idea.id,
+                                                         resize=not keep_size)
         except Exception as exc:
             messagebox.showerror("ANKA", self.t("focuses.err.icon", error=str(exc)))
             return None

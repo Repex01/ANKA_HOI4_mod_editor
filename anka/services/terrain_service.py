@@ -48,7 +48,7 @@ class TerrainService:
     def _load(self) -> dict[str, TerrainCat]:
         cats: dict[str, TerrainCat] = {}
         # Game first, mod second: same-name categories are overridden by the mod.
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(TERRAIN_DIR):
             folder = root / TERRAIN_DIR
             if not folder.is_dir():
                 continue

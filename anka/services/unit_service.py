@@ -37,7 +37,7 @@ class UnitService:
     def _load(self) -> dict[str, UnitType]:
         out: dict[str, UnitType] = {}
         # game first, then mod (mod overrides on name clash)
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots("common/units"):
             folder = root / "common/units"
             if not folder.is_dir():
                 continue

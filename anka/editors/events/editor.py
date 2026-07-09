@@ -80,7 +80,8 @@ class EventsEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = EventService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         self._resolver_ready = threading.Event()

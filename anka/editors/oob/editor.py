@@ -73,6 +73,8 @@ class OobEditor(EditorModule):
                    command=self._new_template).pack(side="left", padx=4)
         ttk.Button(bar, text="🗂 " + self.t("oob.new_file"),
                    command=self._new_file).pack(side="left", padx=2)
+        ttk.Button(bar, text="🏷 " + self.t("oob.names.button"),
+                   command=self._open_names).pack(side="left", padx=2)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
@@ -294,6 +296,19 @@ class OobEditor(EditorModule):
 
         TextPromptDialog(self._tree, self, self.t("oob.new_template"),
                          self.t("oob.template_name"), submit, pattern=r"^.+$")
+
+    def _open_names(self) -> None:
+        from .names_dialog import DivisionNamesDialog
+        DivisionNamesDialog(self._tree, self)
+
+    def division_names_groups(self) -> list[str]:
+        """All name-group keys (mod + dependencies + vanilla) for the template's
+        ``division_names_group`` picker."""
+        from ...services.division_names_service import DivisionNamesService
+        keys: set[str] = set()
+        for ref in DivisionNamesService(self.context).list_docs(include_vanilla=True):
+            keys.update(ref.groups)
+        return sorted(keys)
 
     def _copy_to_mod(self) -> None:
         ref = getattr(self, "_copy_ref", None)

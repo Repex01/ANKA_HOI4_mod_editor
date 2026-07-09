@@ -32,6 +32,10 @@ from .commands import (TOUCH_DEFS, TOUCH_STATES, CommandStack, CompoundCommand,
                        StateProvincesCommand, ZoneMembersCommand)
 from .inspector import ProvinceInspector, StateInspector
 
+# Tools in toolbar / hotkey order (1–4). RENDER_MODES drives the F1–F4 hotkeys.
+_TOOLS = ("select", "brush", "fill", "picker")
+_TOOL_ICONS = {"select": "⭘", "brush": "🖌", "fill": "🪣", "picker": "💉"}
+
 
 @EditorRegistry.register
 class MapEditor(EditorModule):
@@ -54,9 +58,19 @@ class MapEditor(EditorModule):
         self.strat_regions = StrategicRegionService(context)
         self.loc = LocCatalog(context.mod.path, context.game_path,
                               vanilla_filter="state",
-                              default_pattern="anka_states_l_{lang}.yml")
+                              default_pattern="anka_states_l_{lang}.yml",
+                              dep_roots=context.dependency_paths)
+        # Victory-point names (key VICTORY_POINTS_<province>) live in their own
+        # vanilla files (victory_points_l_*.yml), so they need a separate catalog.
+        self.vp_loc = LocCatalog(context.mod.path, context.game_path,
+                                 vanilla_filter="victory",
+                                 default_pattern="anka_victory_points_l_{lang}.yml",
+                                 dep_roots=context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
+        # Victory-point names are edited per language, chosen in the inspector; starts
+        # at the app language but can be switched to localise VPs for any language.
+        self.vp_language = self.loc_language
         self._items: dict[str, tuple] = {}
         self._selected_province: int | None = None
         self._selected_state: int | None = None
@@ -104,8 +118,20 @@ class MapEditor(EditorModule):
         for widget in (self.canvas.canvas, self._tree):
             widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
             widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
+            # F1–F4 switch render mode, 1–4 switch tool (only while the map/tree has
+            # focus, so typing digits in inspector fields is unaffected).
+            for i, mode in enumerate(RENDER_MODES):
+                widget.bind(f"<F{i + 1}>",
+                            lambda e, m=mode: (self._set_mode(m), "break")[1])
+            for i, tool in enumerate(_TOOLS):
+                widget.bind(f"<Key-{i + 1}>",
+                            lambda e, tl=tool: (self._set_tool(tl), "break")[1])
         self.canvas.canvas.bind("<Escape>",
                                 lambda e: self.clear_multi_selection())
+        # Grab keyboard focus when the pointer enters the map so the mode/tool
+        # hotkeys fire without first having to click (they only reach a focused
+        # widget). Guard: don't steal focus from a text field being edited.
+        self.canvas.canvas.bind("<Enter>", self._focus_map, add="+")
 
         self._loading_lbl = ttk.Label(center, text=self.t("map.loading"),
                                       style="Muted.TLabel")
@@ -220,10 +246,9 @@ class MapEditor(EditorModule):
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
                                                    padx=6, pady=2)
         self._tool_btns: dict[str, ttk.Button] = {}
-        for name, icon in (("select", "⭘"), ("brush", "🖌"),
-                           ("fill", "🪣"), ("picker", "💉")):
-            btn = ttk.Button(bar, text=f"{icon}",
-                             command=lambda n=name: self._set_tool(n), width=3)
+        for i, name in enumerate(_TOOLS):
+            btn = ttk.Button(bar, text=f"{_TOOL_ICONS[name]} {i + 1}",
+                             command=lambda n=name: self._set_tool(n), width=4)
             btn.pack(side="left", padx=1)
             attach_help(btn, self.t, "map.tools", self.palette)
             self._tool_btns[name] = btn
@@ -237,6 +262,8 @@ class MapEditor(EditorModule):
         self._target_lbl.pack(side="left")
         ttk.Button(bar, text="➕ " + self.t("map.new_province"),
                    command=self._new_province).pack(side="left", padx=6)
+        ttk.Button(bar, text="🗺 " + self.t("map.new_state"),
+                   command=self._new_state).pack(side="left", padx=(0, 6))
         split_btn = ttk.Button(bar, text="⚡ " + self.t("map.split_area"),
                                command=self._split_selection)
         split_btn.pack(side="left", padx=2)
@@ -300,18 +327,25 @@ class MapEditor(EditorModule):
             self._nb.grid_remove()
             self._placeholder.grid()
             return
+        # Remember the tab the user was on so a new selection keeps it (only falling
+        # back to `focus` / the sole available tab when that tab isn't available now).
+        try:
+            prev = {0: "province", 1: "state"}.get(self._nb.index(self._nb.select()))
+        except Exception:
+            prev = None
         self._placeholder.grid_remove()
         self._nb.grid()
-        self._nb.tab(0, state="normal" if which in ("province", "both") else "disabled")
-        self._nb.tab(1, state="normal" if which in ("state", "both") else "disabled")
-        if focus == "province" and which in ("province", "both"):
-            self._nb.select(0)
-        elif focus == "state" and which in ("state", "both"):
-            self._nb.select(1)
-        elif which == "province":
-            self._nb.select(0)
-        elif which == "state":
-            self._nb.select(1)
+        avail = {"province": which in ("province", "both"),
+                 "state": which in ("state", "both")}
+        self._nb.tab(0, state="normal" if avail["province"] else "disabled")
+        self._nb.tab(1, state="normal" if avail["state"] else "disabled")
+        if prev and avail.get(prev):
+            target = prev                      # preserve the current tab
+        elif focus and avail.get(focus):
+            target = focus
+        else:
+            target = "province" if avail["province"] else "state"
+        self._nb.select(0 if target == "province" else 1)
 
     # ----------------------------------------------------------------- loading
     def _start_loading(self) -> None:
@@ -343,6 +377,16 @@ class MapEditor(EditorModule):
         self._loading_lbl.grid_remove()
         self.canvas.fit_map()
         self.reload_tree()
+        self.canvas.canvas.focus_set()      # hotkeys work right after loading
+
+    def _focus_map(self, _event=None) -> None:
+        """Give the map keyboard focus unless a text entry is currently being edited."""
+        try:
+            focused = self.canvas.canvas.focus_get()
+        except KeyError:
+            focused = None
+        if not isinstance(focused, (tk.Entry, ttk.Entry, tk.Text, ttk.Spinbox)):
+            self.canvas.canvas.focus_set()
 
     def _map_size(self):
         return self.map.size if self.map.loaded else None
@@ -584,13 +628,16 @@ class MapEditor(EditorModule):
         if pid is None or pid not in self.map.by_id:
             self._last_paint = None
             return
-        radius = max(1, int(self._radius_var.get() or 1))
+        # Spinbox value is the brush *size*: size 1 paints a single pixel (radius 0),
+        # size 2 a small plus, etc. The disk radius is therefore size - 1.
+        size = max(1, int(self._radius_var.get() or 1))
+        radius = size - 1
         # Interpolate along the stroke so fast drags leave no gaps.
         points = [(mx, my)]
         if self._last_paint is not None:
             lx, ly = self._last_paint
             dist = max(abs(mx - lx), abs(my - ly))
-            step = max(1, radius)
+            step = max(1, size)
             if dist > step:
                 n = dist // step
                 points = [(lx + (mx - lx) * (i + 1) // (n + 1),
@@ -655,6 +702,62 @@ class MapEditor(EditorModule):
             self._status.configure(text=self.t("map.province_created", id=d.id))
 
         NewProvinceDialog(self._insp_host, self, submit, like=like)
+
+    def _new_state(self) -> None:
+        if not self.map.loaded:
+            return
+        from .dialogs import NewStateDialog
+        # Land provinces currently selected seed the new state; sea/lake excluded.
+        sel = set(self._multi_sel)
+        if self._selected_province is not None:
+            sel.add(self._selected_province)
+        seed = sorted(p for p in sel
+                      if (d := self.map.by_id.get(p)) is not None and d.type == "land")
+
+        def submit(fields: dict) -> None:
+            ref = self.states.create_state(name=fields["name"], owner=fields["owner"],
+                                           category=fields["category"], provinces=seed)
+            sid = ref.state_id
+            doc = self.states.load(ref)
+            self.mark_dirty(doc)
+            if fields["name"]:
+                self.state_loc_set(f"STATE_{sid}", fields["name"])
+            if seed:
+                self._detach_provinces_from_others(seed, keep_state=sid)
+            self.map.invalidate_political()
+            self._value_options.pop("province_free", None)
+            self._refresh_tree()
+            self.select_state(sid, zoom=bool(seed))
+            if not seed:                      # no provinces yet — let the user paint them
+                self._set_assign_mode(True)
+            self._status.configure(text=self.t("map.state_created", id=sid))
+
+        NewStateDialog(self._insp_host, self, submit, seed_count=len(seed))
+
+    def _detach_provinces_from_others(self, pids: list[int], keep_state: int) -> None:
+        """Remove `pids` from every state other than `keep_state` (a land province
+        must belong to exactly one state); vanilla donors are copied into the mod."""
+        by_state: dict[int, list[int]] = {}
+        pid_set = set(pids)
+        for st in self.states.list_states():
+            if st.id == keep_state:
+                continue
+            overlap = [p for p in st.provinces if p in pid_set]
+            if overlap:
+                by_state[st.id] = overlap
+        for sid, ps in by_state.items():
+            ref = self.states.doc_ref_for(sid)
+            if ref is None:
+                continue
+            if ref.is_vanilla:
+                ref = self.states.copy_to_mod(ref)
+            doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
+            if doc.state is None:
+                continue
+            for p in ps:
+                doc.state.remove_province(p)
+            self.mark_dirty(doc)
+            self.states.refresh_info(doc)
 
     # ------------------------------------------------------- province splitting
     def split_province_dialog(self, pid: int) -> None:
@@ -1054,6 +1157,13 @@ class MapEditor(EditorModule):
         if text:
             self.loc.set(key, self.loc_language, text)
 
+    def vp_loc_get(self, province: int) -> str:
+        return self.vp_loc.get(f"VICTORY_POINTS_{province}", self.vp_language) or ""
+
+    def vp_loc_set(self, province: int, text: str) -> None:
+        if text:
+            self.vp_loc.set(f"VICTORY_POINTS_{province}", self.vp_language, text)
+
     def state_categories(self) -> list[str]:
         return self.state_cats.names()
 
@@ -1125,6 +1235,11 @@ class MapEditor(EditorModule):
 
     def _mode_changed(self, _event=None) -> None:
         mode = self._mode_by_label.get(self._mode_var.get(), "provinces")
+        self.canvas.set_mode(mode)
+
+    def _set_mode(self, mode: str) -> None:
+        """Switch render mode (F1–F4 hotkeys / programmatic), syncing the combobox."""
+        self._mode_var.set(self.t(f"map.mode.{mode}"))
         self.canvas.set_mode(mode)
 
     # ------------------------------------------------------------------ saving

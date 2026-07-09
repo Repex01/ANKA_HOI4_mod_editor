@@ -97,6 +97,60 @@ class NewProvinceDialog(BaseDialog):
         self._on_submit(fields)
 
 
+class NewStateDialog(BaseDialog):
+    """Metadata for a brand-new state (id is allocated by the service). If provinces
+    are selected on the map they seed the state; otherwise it starts empty and the
+    editor turns on assign mode so the user can paint provinces in."""
+
+    def __init__(self, master, editor, on_submit: Callable[[dict], None],
+                 seed_count: int = 0):
+        super().__init__(master, editor, editor.t("map.new_state"), (400, 260))
+        self._on_submit = on_submit
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=14)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(1, weight=1)
+
+        ttk.Label(body, text=self.t("map.state_name"), style="CardMuted.TLabel").grid(
+            row=0, column=0, sticky="w", pady=3)
+        self._name_var = tk.StringVar()
+        name_entry = ttk.Entry(body, textvariable=self._name_var, width=22)
+        name_entry.grid(row=0, column=1, sticky="ew", padx=(8, 0), pady=3)
+        name_entry.focus_set()
+
+        ttk.Label(body, text=self.t("map.owner"), style="CardMuted.TLabel").grid(
+            row=1, column=0, sticky="w", pady=3)
+        self._owner_var = tk.StringVar()
+        ttk.Entry(body, textvariable=self._owner_var, width=8).grid(
+            row=1, column=1, sticky="w", padx=(8, 0), pady=3)
+
+        ttk.Label(body, text=self.t("map.category"), style="CardMuted.TLabel").grid(
+            row=2, column=0, sticky="w", pady=3)
+        cats = editor.state_categories()
+        self._cat_var = tk.StringVar(value="rural" if "rural" in cats
+                                     else (cats[0] if cats else "rural"))
+        ttk.Combobox(body, textvariable=self._cat_var, state="readonly",
+                     values=cats, width=18).grid(row=2, column=1, sticky="w",
+                                                 padx=(8, 0), pady=3)
+
+        hint = (self.t("map.new_state_seed", count=seed_count) if seed_count
+                else self.t("map.new_state_empty"))
+        ttk.Label(body, text=hint, style="CardMuted.TLabel", wraplength=340,
+                  justify="left").grid(row=3, column=0, columnspan=2, sticky="w",
+                                       pady=(8, 0))
+        self.buttons_row(body, self.t("common.create")).grid(
+            row=4, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+
+    def _submit(self) -> None:
+        fields = {
+            "name": self._name_var.get().strip(),
+            "owner": self._owner_var.get().strip().upper(),
+            "category": self._cat_var.get().strip(),
+        }
+        self.destroy()
+        self._on_submit(fields)
+
+
 class AdjacencyDialog(BaseDialog):
     """Table over ``map/adjacencies.csv``: straits, canals, impassable borders.
     Edits go to the service (saved with the editor's 💾)."""

@@ -56,7 +56,7 @@ class AdjacencyService:
         name = "adjacencies.csv"
         if self._map is not None:
             name = self._map.map_filenames().get("adjacencies", name)
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots("map"):
             candidate = root / "map" / name
             if candidate.is_file():
                 return candidate
@@ -107,7 +107,7 @@ class AdjacencyService:
         name = "adjacency_rules.txt"
         if self._map is not None:
             name = self._map.map_filenames().get("adjacency_rules", name)
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots("map"):
             path = root / "map" / name
             if not path.is_file():
                 continue

@@ -38,8 +38,12 @@ class IconService:
         focus_name: str,
         gfx_file: str = "anka_focuses.gfx",
         compressed: bool = False,
+        resize: bool = True,
     ) -> tuple[Path, Path]:
         """Generate ``GFX_focus_<focus_name>`` and register it. Returns (dds, gfx).
+
+        With ``resize=False`` the source image is written at its original dimensions
+        instead of the standard focus-icon size.
 
         Alongside the base sprite a ``GFX_focus_<name>_shine`` is registered in
         ``anka_focuses_shine.gfx`` (mirroring vanilla ``goals_shine.gfx``) — without
@@ -47,7 +51,7 @@ class IconService:
         sprite = f"GFX_focus_{focus_name}"
         rel_texture = f"{GAME_DIRS.GFX_GOALS}/{focus_name}.dds"
         result = self._add_icon(source, sprite, rel_texture, gfx_file,
-                                FOCUS_ICON_SIZE, compressed)
+                                FOCUS_ICON_SIZE if resize else None, compressed)
         self._register_shine(sprite, rel_texture)
         return result
 
@@ -90,13 +94,14 @@ class IconService:
         decision_name: str,
         gfx_file: str = "anka_decisions.gfx",
         compressed: bool = False,
+        resize: bool = True,
     ) -> tuple[Path, Path]:
         """Generate ``GFX_decision_<decision_name>`` and register it (no shine —
-        decisions have none). Returns (dds, gfx)."""
+        decisions have none). ``resize=False`` keeps the source dimensions."""
         sprite = f"GFX_decision_{decision_name}"
         rel_texture = f"{GAME_DIRS.GFX_DECISIONS}/{decision_name}.dds"
         return self._add_icon(source, sprite, rel_texture, gfx_file,
-                              DECISION_ICON_SIZE, compressed)
+                              DECISION_ICON_SIZE if resize else None, compressed)
 
     # --- event pictures ----------------------------------------------------
     def add_event_picture(
@@ -122,10 +127,12 @@ class IconService:
         idea_name: str,
         gfx_file: str = "anka_ideas.gfx",
         compressed: bool = False,
+        resize: bool = True,
     ) -> tuple[Path, Path]:
         sprite = f"GFX_idea_{idea_name}"
         rel_texture = f"{GAME_DIRS.GFX_IDEAS}/{idea_name}.dds"
-        return self._add_icon(source, sprite, rel_texture, gfx_file, IDEA_ICON_SIZE, compressed)
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              IDEA_ICON_SIZE if resize else None, compressed)
 
     # --- leader portraits ------------------------------------------------
     def add_leader_portrait(

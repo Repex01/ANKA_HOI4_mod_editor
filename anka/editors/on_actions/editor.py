@@ -31,14 +31,16 @@ class OnActionsEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = OnActionService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         # on_actions have no vanilla localisation; the catalog only backs
         # tooltip keys the user writes inside scripts.
         self.loc = LocCatalog(context.mod.path, context.game_path,
                               vanilla_filter="\x00none",
-                              default_pattern="anka_on_actions_l_{lang}.yml")
+                              default_pattern="anka_on_actions_l_{lang}.yml",
+                              dep_roots=context.dependency_paths)
         self._resolver_ready = threading.Event()
         self._mod_docs: list = []
         self._vanilla_refs: list = []

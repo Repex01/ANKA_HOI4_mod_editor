@@ -21,7 +21,7 @@ class TechnologyService:
     def list_techs(self, refresh: bool = False) -> list[str]:
         if self._cache is None or refresh:
             names: set[str] = set()
-            for root in (self.ctx.game_path, self.ctx.mod.path):
+            for root in self.ctx.override_roots(self.TECH_DIR):
                 folder = root / self.TECH_DIR
                 if not folder.is_dir():
                     continue

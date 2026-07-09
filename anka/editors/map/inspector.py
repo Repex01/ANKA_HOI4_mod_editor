@@ -10,6 +10,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from ...config.constants import HOI4_LANGUAGES
 from ...services.state_service import StateDocument
 from ..common.dialogs import PdxPreviewDialog, SinglePickDialog
 from ..common.inspector_base import InspectorBase
@@ -562,21 +563,39 @@ class StateInspector(InspectorBase):
         st = self.state
         if st is None:
             return
+        # Language selector: VP names are localised per language independently.
+        langrow = ttk.Frame(self._vp_frame, style="Card.TFrame")
+        langrow.pack(fill="x", pady=(0, 3))
+        ttk.Label(langrow, text=self.t("map.vp_language"),
+                  style="CardMuted.TLabel").pack(side="left")
+        self._vp_lang_var = tk.StringVar(value=self.owner.vp_language)
+        lang_combo = ttk.Combobox(langrow, textvariable=self._vp_lang_var,
+                                  state="readonly", width=12,
+                                  values=list(HOI4_LANGUAGES))
+        lang_combo.pack(side="left", padx=6)
+        lang_combo.bind("<<ComboboxSelected>>", lambda e: self._change_vp_language())
         for i, (prov, val) in enumerate(st.victory_points):
             rowf = ttk.Frame(self._vp_frame, style="Card.TFrame")
             rowf.pack(fill="x", pady=1)
             ttk.Label(rowf, text=str(prov), style="Card.TLabel",
-                      width=10).pack(side="left")
+                      width=6).pack(side="left")
             var = tk.StringVar(value=str(val))
-            spin = ttk.Spinbox(rowf, from_=1, to=50, width=5, textvariable=var,
+            spin = ttk.Spinbox(rowf, from_=1, to=50, width=4, textvariable=var,
                                command=lambda i=i: None)
-            spin.pack(side="left", padx=6)
+            spin.pack(side="left", padx=(4, 0))
             var.trace_add("write", lambda *_a, i=i, v=var: self._debounce(
                 f"vp{i}", lambda: self._commit_vp(i, v)))
+            # Victory-point name (localisation VICTORY_POINTS_<province>). It is a loc
+            # edit written straight to the mod, so it is allowed even on a read-only state.
+            name_var = tk.StringVar(value=self.owner.vp_loc_get(prov))
+            ttk.Entry(rowf, textvariable=name_var, width=13).pack(
+                side="left", padx=(4, 0))
+            name_var.trace_add("write", lambda *_a, p=prov, v=name_var: self._debounce(
+                f"vpn{p}", lambda: self.owner.vp_loc_set(p, v.get())))
             if self._editable:
                 btn = tk.Label(rowf, text="✕", cursor="hand2",
                                bg=self.palette.surface, fg=self.palette.text_muted)
-                btn.pack(side="left")
+                btn.pack(side="left", padx=(4, 0))
                 btn.bind("<Button-1>", lambda e, i=i: self._remove_vp(i))
         if self._editable:
             ttk.Button(self._vp_frame, text="＋ " + self.t("map.add_vp"),
@@ -623,6 +642,12 @@ class StateInspector(InspectorBase):
 
         SinglePickDialog(self, self.owner, self.t("map.pick_province"),
                          options, picked)
+
+    def _change_vp_language(self) -> None:
+        """Switch the language VP names are read/written in, then reload the rows."""
+        self.flush_pending()          # land any pending name edit in the old language
+        self.owner.vp_language = self._vp_lang_var.get()
+        self._refresh_vps()
 
     # --------------------------------------------------------------- resources
     def _refresh_resources(self) -> None:

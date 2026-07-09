@@ -31,7 +31,8 @@ class DecisionsEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = DecisionService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         self._resolver_ready = threading.Event()
@@ -429,9 +430,10 @@ class DecisionsEditor(EditorModule):
         else:
             self.delete_decision()
 
-    def import_icon(self, path, decision: Decision) -> str | None:
+    def import_icon(self, path, decision: Decision, keep_size: bool = False) -> str | None:
         try:
-            dds, _gfx = self.context.icons.add_decision_icon(path, decision.id)
+            dds, _gfx = self.context.icons.add_decision_icon(path, decision.id,
+                                                             resize=not keep_size)
         except Exception as exc:
             messagebox.showerror("ANKA", self.t("focuses.err.icon", error=str(exc)))
             return None

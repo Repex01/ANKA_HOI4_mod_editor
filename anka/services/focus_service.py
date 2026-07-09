@@ -18,6 +18,7 @@ from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
 from ..core.pdx import parse as pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
+from ._layerdocs import layered_docs
 
 # Focus flags that are tri-state in script: absent = game default.
 FOCUS_FLAG_DEFAULTS = {
@@ -460,9 +461,10 @@ class FocusService:
         scan — for the ``complete_national_focus`` / focus-id pickers."""
         ids: list[str] = []
         seen: set[str] = set()
-        roots = [self.ctx.mod.path]
-        if include_vanilla:
-            roots.append(self.ctx.game_path)
+        # All layers (mod + dependencies, plus base game when include_vanilla).
+        roots = self.ctx.override_roots(GAME_DIRS.NATIONAL_FOCUS)
+        if not include_vanilla:
+            roots = [r for r in roots if r != self.ctx.game_path]
         for root in roots:
             folder = root / GAME_DIRS.NATIONAL_FOCUS
             if not folder.is_dir():
@@ -482,16 +484,11 @@ class FocusService:
 
     # --- listing -----------------------------------------------------------
     def list_trees(self, include_vanilla: bool = False) -> list[FocusTreeRef]:
-        mod_refs = self._scan_dir(self.ctx.mod.path, is_vanilla=False)
-        vanilla_refs = self._scan_dir(self.ctx.game_path, is_vanilla=True)
-        mod_files = {r.rel_file.lower() for r in mod_refs}
-        for ref in mod_refs:
-            if any(v.rel_file.lower() == ref.rel_file.lower() for v in vanilla_refs):
-                ref.edited = True
-        out = list(mod_refs)
-        if include_vanilla:
-            out.extend(v for v in vanilla_refs if v.rel_file.lower() not in mod_files)
-        return sorted(out, key=lambda r: (r.is_vanilla, r.id.lower()))
+        return layered_docs(
+            self.ctx, GAME_DIRS.NATIONAL_FOCUS, self._scan_dir,
+            include_vanilla=include_vanilla,
+            set_edited=lambda r: setattr(r, "edited", True),
+            sort_key=lambda r: (r.is_vanilla, r.id.lower()))
 
     def _scan_dir(self, root: Path, is_vanilla: bool) -> list[FocusTreeRef]:
         folder = root / GAME_DIRS.NATIONAL_FOCUS
@@ -932,7 +929,7 @@ class FocusService:
         if self._filters is not None:
             return self._filters
         found: set[str] = set()
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.NATIONAL_FOCUS):
             folder = root / GAME_DIRS.NATIONAL_FOCUS
             if not folder.is_dir():
                 continue

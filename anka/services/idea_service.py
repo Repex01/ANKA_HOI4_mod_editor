@@ -35,6 +35,7 @@ from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
 from ..core.pdx import parse as pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
+from ._layerdocs import layered_docs
 from ._locutil import LocCatalog
 from ._pdxview import BlockView
 
@@ -314,20 +315,16 @@ class IdeaService:
         self._cat_defs_cache: dict[str, CategoryDef] | None = None
         self.loc = LocCatalog(context.mod.path, context.game_path,
                               vanilla_filter="idea",
-                              default_pattern="anka_ideas_l_{lang}.yml")
+                              default_pattern="anka_ideas_l_{lang}.yml",
+                              dep_roots=context.dependency_paths)
 
     # --- listing -----------------------------------------------------------
     def list_docs(self, include_vanilla: bool = False) -> list[IdeaDocRef]:
-        mod_refs = self._scan_dir(self.ctx.mod.path, False)
-        vanilla_refs = self._scan_dir(self.ctx.game_path, True)
-        mod_files = {r.rel_file.lower() for r in mod_refs}
-        for ref in mod_refs:
-            if any(v.rel_file.lower() == ref.rel_file.lower() for v in vanilla_refs):
-                ref.edited = True
-        out = list(mod_refs)
-        if include_vanilla:
-            out.extend(v for v in vanilla_refs if v.rel_file.lower() not in mod_files)
-        return sorted(out, key=lambda r: (r.is_vanilla, r.rel_file.lower()))
+        return layered_docs(
+            self.ctx, GAME_DIRS.IDEAS, self._scan_dir,
+            include_vanilla=include_vanilla,
+            set_edited=lambda r: setattr(r, "edited", True),
+            sort_key=lambda r: (r.is_vanilla, r.rel_file.lower()))
 
     def _scan_dir(self, root: Path, is_vanilla: bool) -> list[IdeaDocRef]:
         folder = root / GAME_DIRS.IDEAS

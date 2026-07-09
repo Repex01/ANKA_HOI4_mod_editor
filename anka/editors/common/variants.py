@@ -251,7 +251,7 @@ class VariantListEditor(ttk.Frame):
                 self._on_change()
                 self._rebuild()
 
-            def imported(path) -> None:
+            def imported(path, keep_size: bool = False) -> None:
                 if self._on_import is None:
                     return
                 sprite = self._on_import(path)
@@ -291,7 +291,7 @@ class VariantListEditor(ttk.Frame):
             self._on_change()
             self._rebuild()
 
-        def imported(path) -> None:
+        def imported(path, keep_size: bool = False) -> None:
             if self._on_import is None:
                 return
             sprite = self._on_import(path)

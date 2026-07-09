@@ -529,8 +529,8 @@ class FocusInspector(ttk.Frame):
             self._refresh_icon()
             self.owner.refresh_canvas()
 
-        def imported(path) -> None:
-            sprite = self.owner.import_icon(path, focus)
+        def imported(path, keep_size: bool = False) -> None:
+            sprite = self.owner.import_icon(path, focus, keep_size=keep_size)
             if sprite:
                 picked(sprite)
 

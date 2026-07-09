@@ -173,7 +173,7 @@ class MapService:
 
     def map_file(self, name: str) -> Path | None:
         """Resolve ``map/<name>`` mod-first, then the base game."""
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots(MAP_DIR):
             candidate = root / MAP_DIR / name
             if candidate.is_file():
                 return candidate
@@ -384,11 +384,15 @@ class MapService:
         if self._tag_colors is None:
             from .country_service import CountryService
             from ..core.pdx import Block, parse_file
+            from ..config.constants import GAME_DIRS
             svc = CountryService(self.ctx)
             colors: dict[str, tuple[int, int, int]] = {}
-            block = (svc._colors_block(self.ctx.mod.path)
-                     or svc._colors_block(self.ctx.game_path))
-            if block is not None:
+            # colors.txt across every layer, lowest→highest priority so a higher
+            # layer (dependency, then the edited mod) overrides a tag's color.
+            for root in self.ctx.override_roots(GAME_DIRS.COUNTRY_COLORS):
+                block = svc._colors_block(root)
+                if block is None:
+                    continue
                 for pair in block.pairs():
                     if not isinstance(pair.value, Block):
                         continue

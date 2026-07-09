@@ -491,7 +491,8 @@ class CountriesEditor(EditorModule):
             self._effects_loc_cat = LocCatalog(
                 self.context.mod.path, self.context.game_path,
                 vanilla_filter="anka_country_effects",
-                default_pattern="anka_country_effects_l_{lang}.yml")
+                default_pattern="anka_country_effects_l_{lang}.yml",
+                dep_roots=self.context.dependency_paths)
         return self._effects_loc_cat
 
     def loc_get(self, key: str, language: str) -> str:

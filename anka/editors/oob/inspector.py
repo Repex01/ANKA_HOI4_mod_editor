@@ -19,6 +19,7 @@ from ...services.oob_service import (
     DivisionTemplate,
     can_add_regiment,
     can_remove_regiment,
+    experience_level_key,
 )
 from ..common import InspectorBase, PdxPreviewDialog, SinglePickDialog, TextPromptDialog
 
@@ -50,6 +51,16 @@ class TemplateInspector(InspectorBase):
         self._name_entry.grid(row=0, column=0, sticky="ew")
         ttk.Button(name_row, text="✎", width=3, command=self._rename).grid(
             row=0, column=1, padx=(4, 0))
+
+        # division_names_group — attach the template to a name group
+        ttk.Label(b, text=self.t("oob.names_group"), style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", pady=3)
+        self._group_var = tk.StringVar()
+        self._group_combo = ttk.Combobox(b, textvariable=self._group_var)
+        self._group_combo.grid(row=r, column=1, sticky="ew", padx=(8, 0), pady=3); r += 1
+        self._group_var.trace_add("write",
+                                  lambda *_: self._debounce("group", self._commit_group))
+        self._group_combo.bind("<<ComboboxSelected>>", lambda e: self._commit_group())
 
         # grid host
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
@@ -99,6 +110,9 @@ class TemplateInspector(InspectorBase):
             self._name_entry.delete(0, "end")
             self._name_entry.insert(0, template.name)
             self._name_entry.configure(state="readonly")
+            self._group_combo.configure(values=self.owner.division_names_groups(),
+                                        state="normal" if editable else "disabled")
+            self._group_var.set(template.names_group)
             self._cols = [list(c) for c in template.columns()]
             self._support = list(template.support())
             self._status.configure(text="")
@@ -184,6 +198,12 @@ class TemplateInspector(InspectorBase):
         self.template.set_support(self._support)
         self.owner.mark_dirty(self.doc)
         self._render_grid()
+
+    def _commit_group(self) -> None:
+        if self._loading or self.template is None or not self._editable:
+            return
+        self.template.names_group = self._group_var.get().strip()
+        self.owner.mark_dirty(self.doc)
 
     def _add_regiment(self, col: int) -> None:
         if not self._guard():
@@ -333,13 +353,68 @@ class FileInspector(InspectorBase):
         ttk.Label(form, text=self.t("oob.custom_name"), style="CardMuted.TLabel").grid(
             row=2, column=0, sticky="w", pady=2)
         self._dname_var = tk.StringVar()
-        dn_e = ttk.Entry(form, textvariable=self._dname_var)
-        dn_e.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=2)
+        self._dname_entry = ttk.Entry(form, textvariable=self._dname_var)
+        self._dname_entry.grid(row=2, column=1, sticky="ew", padx=(8, 0), pady=2)
         self._dname_var.trace_add("write", lambda *_: self._debounce("dname", self._commit_div))
-        dn_e.bind("<FocusOut>", lambda e: self._commit_div())
+        self._dname_entry.bind("<FocusOut>", lambda e: self._commit_div())
+
+        # Ordered naming: assign this division a specific number so it takes the name
+        # for that number from the matching division-names group (see Division names).
+        self._ordered_var = tk.BooleanVar(value=False)
+        ord_row = ttk.Frame(form, style="Card.TFrame")
+        ord_row.grid(row=3, column=0, columnspan=2, sticky="w", pady=2)
+        ttk.Checkbutton(ord_row, text=self.t("oob.ordered_name"),
+                        style="Card.TCheckbutton", variable=self._ordered_var,
+                        command=self._toggle_ordered).pack(side="left")
+        ttk.Label(ord_row, text=self.t("oob.name_order"),
+                  style="CardMuted.TLabel").pack(side="left", padx=(10, 4))
+        self._order_var = tk.StringVar(value="1")
+        self._order_spin = ttk.Spinbox(ord_row, from_=1, to=9999, width=6,
+                                       textvariable=self._order_var,
+                                       command=self._commit_div)
+        self._order_spin.pack(side="left")
+        self._order_var.trace_add("write",
+                                  lambda *_: self._debounce("order", self._commit_div))
+
+        # Starting factors (0..1). Experience additionally shows the veterancy tier.
+        self._exp_var = tk.DoubleVar(value=0.0)
+        self._exp_status = self._factor_row(form, 4, "oob.start_experience",
+                                            self._exp_var, status=True)
+        self._mp_var = tk.DoubleVar(value=1.0)
+        self._factor_row(form, 5, "oob.start_manpower", self._mp_var)
+        self._eq_var = tk.DoubleVar(value=1.0)
+        self._factor_row(form, 6, "oob.start_equipment", self._eq_var)
+
         self._del_div_btn = ttk.Button(form, text="🗑 " + self.t("oob.remove_division"),
                                        command=self._remove_division)
-        self._del_div_btn.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self._del_div_btn.grid(row=7, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+    def _factor_row(self, parent, row, label_key, var, status: bool = False):
+        ttk.Label(parent, text=self.t(label_key), style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=2)
+        wrap = ttk.Frame(parent, style="Card.TFrame")
+        wrap.grid(row=row, column=1, sticky="ew", padx=(8, 0), pady=2)
+        wrap.columnconfigure(0, weight=1)
+        scale = ttk.Scale(wrap, from_=0.0, to=1.0, variable=var, orient="horizontal")
+        scale.grid(row=0, column=0, sticky="ew")
+        val_lbl = ttk.Label(wrap, text="", style="CardMuted.TLabel", width=4)
+        val_lbl.grid(row=0, column=1, padx=(6, 0))
+        status_lbl = None
+        if status:
+            status_lbl = ttk.Label(wrap, text="", style="Card.TLabel", width=9)
+            status_lbl.grid(row=0, column=2, padx=(6, 0))
+        var.trace_add("write", lambda *_a: self._on_factor(var, val_lbl, status_lbl))
+        return status_lbl
+
+    def _on_factor(self, var, val_lbl, status_lbl) -> None:
+        try:
+            value = float(var.get())
+        except (tk.TclError, ValueError):
+            return
+        val_lbl.configure(text=f"{value:.2f}")
+        if status_lbl is not None:
+            status_lbl.configure(text=self.t(f"oob.exp.{experience_level_key(value)}"))
+        self._debounce("factors", self._commit_div)
 
     def show(self, doc, editable: bool) -> None:
         self.flush_pending()
@@ -381,15 +456,47 @@ class FileInspector(InspectorBase):
             self._tmpl_combo.set(self._division.template)
             self._loc_var.set(self._division.location)
             self._dname_var.set(self._division.custom_name)
+            ordered = self._division.is_name_ordered
+            self._ordered_var.set(ordered)
+            self._order_var.set(str(self._division.name_order or 1))
+            self._update_ordered_state()
+            self._exp_var.set(self._division.start_experience_factor)
+            self._mp_var.set(self._division.start_manpower_factor)
+            self._eq_var.set(self._division.start_equipment_factor)
         finally:
             self._loading = False
+
+    def _toggle_ordered(self) -> None:
+        """Ordered naming and a literal custom name are mutually exclusive."""
+        self._update_ordered_state()
+        self._commit_div()
+
+    def _update_ordered_state(self) -> None:
+        ordered = self._ordered_var.get()
+        self._order_spin.configure(state="normal" if ordered and self._editable
+                                   else "disabled")
+        self._dname_entry.configure(state="disabled" if ordered else "normal")
 
     def _commit_div(self) -> None:
         if not self._guard() or self._division is None:
             return
         self._division.template = self._tmpl_combo.get()
         self._division.location = self._loc_var.get().strip()
-        self._division.custom_name = self._dname_var.get().strip()
+        if self._ordered_var.get():
+            try:
+                order = int(self._order_var.get() or 1)
+            except ValueError:
+                order = 1
+            self._division.set_ordered_name(order)
+        else:
+            self._division.set_ordered_name(None)
+            self._division.custom_name = self._dname_var.get().strip()
+        try:
+            self._division.start_experience_factor = float(self._exp_var.get())
+            self._division.start_manpower_factor = float(self._mp_var.get())
+            self._division.start_equipment_factor = float(self._eq_var.get())
+        except (tk.TclError, ValueError):
+            pass
         self.owner.mark_dirty(self.doc)
         # refresh just the row text/values
         for iid, d in self._div_index.items():

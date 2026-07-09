@@ -59,7 +59,7 @@ class StateService:
         names = self._state_names()
         states: dict[int, StateInfo] = {}
         # Game first, mod second so mod overrides win.
-        for root, in_mod in ((self.ctx.game_path, False), (self.ctx.mod.path, True)):
+        for root, in_mod in self.ctx.override_layers(GAME_DIRS.HISTORY_STATES):
             folder = root / GAME_DIRS.HISTORY_STATES
             if not folder.is_dir():
                 continue
@@ -105,7 +105,7 @@ class StateService:
             return self._names
         from ..core.localisation import LocFile
         names: dict[int, str] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.LOCALISATION):
             loc_dir = root / GAME_DIRS.LOCALISATION
             if not loc_dir.is_dir():
                 continue
@@ -214,31 +214,39 @@ class StateService:
 
     # ================== block-backed documents (map editor) ==================
     def list_docs(self, include_vanilla: bool = True) -> list["StateDocRef"]:
-        """Mod-first refs of every state file; vanilla files overridden by the
-        mod (same rel path, case-insensitive) are skipped and the mod ref is
-        marked `edited`."""
+        """Refs of every state file across all layers (base game → dependencies →
+        edited mod). A higher layer's file overrides a lower one with the same name
+        (case-insensitive); the edited mod's own files are editable, everything below
+        (dependencies included) is read-only. Dependency files are always listed (the
+        active base); only pure base-game files honour `include_vanilla`."""
+        layers = self.ctx.override_layers(GAME_DIRS.HISTORY_STATES)   # low→high
+        # Names present strictly below each layer, so an override can be flagged.
+        below: dict[Path, set[str]] = {}
+        acc: set[str] = set()
+        names: dict[Path, set[str]] = {}
+        for root, _is_mod in layers:
+            d = root / GAME_DIRS.HISTORY_STATES
+            names[root] = {f.name.lower() for f in d.glob("*.txt")} if d.is_dir() else set()
+            below[root] = set(acc)
+            acc |= names[root]
+
         refs: list[StateDocRef] = []
         seen: set[str] = set()
-        vanilla_rels = set()
-        game_dir = self.ctx.game_path / GAME_DIRS.HISTORY_STATES
-        if game_dir.is_dir():
-            vanilla_rels = {f.name.lower() for f in game_dir.glob("*.txt")}
-        mod_dir = self.ctx.mod.path / GAME_DIRS.HISTORY_STATES
-        if mod_dir.is_dir():
-            for file in sorted(mod_dir.glob("*.txt")):
-                rel = f"{GAME_DIRS.HISTORY_STATES}/{file.name}"
-                refs.append(StateDocRef(rel_file=rel, source_root=self.ctx.mod.path,
-                                        is_vanilla=False,
-                                        edited=file.name.lower() in vanilla_rels,
-                                        state_id=self._quick_state_id(file)))
-                seen.add(file.name.lower())
-        if include_vanilla and game_dir.is_dir():
-            for file in sorted(game_dir.glob("*.txt")):
-                if file.name.lower() in seen:
+        for root, is_mod in reversed(layers):                        # high→low
+            if root == self.ctx.game_path and not include_vanilla:
+                continue
+            folder = root / GAME_DIRS.HISTORY_STATES
+            if not folder.is_dir():
+                continue
+            for file in sorted(folder.glob("*.txt")):
+                low = file.name.lower()
+                if low in seen:                # overridden by a higher layer
                     continue
+                seen.add(low)
                 rel = f"{GAME_DIRS.HISTORY_STATES}/{file.name}"
-                refs.append(StateDocRef(rel_file=rel, source_root=self.ctx.game_path,
-                                        is_vanilla=True,
+                refs.append(StateDocRef(rel_file=rel, source_root=root,
+                                        is_vanilla=not is_mod,
+                                        edited=is_mod and low in below[root],
                                         state_id=self._quick_state_id(file)))
         return refs
 
@@ -314,6 +322,51 @@ class StateService:
             target.write_bytes(ref.path.read_bytes())
         return StateDocRef(rel_file=ref.rel_file, source_root=self.ctx.mod.path,
                            is_vanilla=False, edited=True, state_id=ref.state_id)
+
+    def next_state_id(self) -> int:
+        """Smallest free state id above every existing one (across all layers)."""
+        ids = [r.state_id for r in self.list_docs(include_vanilla=True)
+               if r.state_id is not None]
+        return (max(ids) + 1) if ids else 1
+
+    def create_state(self, *, name: str = "", owner: str = "",
+                     category: str = "rural",
+                     provinces: "list[int] | None" = None) -> "StateDocRef":
+        """Create a brand-new, editable state file in the mod and return its ref.
+
+        The id is auto-allocated (`next_state_id`); the localised *name text* is left to
+        the caller (it writes ``STATE_<id>`` via the loc catalog). Provinces may be
+        seeded now or added later on the map."""
+        sid = self.next_state_id()
+        state = Block()
+        state.add("id", Scalar(str(sid)))
+        state.add("name", Scalar(f"STATE_{sid}", quoted=True))
+        state.add("manpower", Scalar("0"))
+        if category:
+            state.add("state_category", Scalar(category))
+        history = Block()
+        if owner:
+            history.set("owner", Scalar(owner))
+            history.add("add_core_of", Scalar(owner))
+        state.add("history", history)
+        state.add("provinces", Block([Scalar(str(p)) for p in (provinces or [])]))
+        root = Block()
+        root.add("state", state)
+
+        slug = re.sub(r"[^0-9A-Za-z_-]+", "_", name).strip("_") or f"STATE_{sid}"
+        rel = f"{GAME_DIRS.HISTORY_STATES}/{sid}-{slug}.txt"
+        target = _ensure_filename_case(self.ctx.mod.path / rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(root, target)
+
+        ref = StateDocRef(rel_file=rel, source_root=self.ctx.mod.path,
+                          is_vanilla=False, state_id=sid)
+        # Keep the light StateInfo cache in sync so the tree shows it immediately.
+        if self._cache is not None:
+            self._cache[sid] = StateInfo(sid, name or f"STATE_{sid}", owner or None,
+                                         target, True, list(provinces or []),
+                                         [owner] if owner else [])
+        return ref
 
     def delete_doc(self, ref: "StateDocRef") -> None:
         if ref.is_vanilla:

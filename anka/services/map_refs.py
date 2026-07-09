@@ -39,7 +39,7 @@ class StateCategoryService:
 
     def _load(self) -> dict[str, StateCategoryDef]:
         defs: dict[str, StateCategoryDef] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(STATE_CATEGORY_DIR):
             folder = root / STATE_CATEGORY_DIR
             if not folder.is_dir():
                 continue
@@ -95,7 +95,7 @@ class ResourceService:
 
     def _load(self) -> dict[str, ResourceDef]:
         defs: dict[str, ResourceDef] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(RESOURCES_DIR):
             folder = root / RESOURCES_DIR
             if not folder.is_dir():
                 continue

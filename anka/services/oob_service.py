@@ -28,6 +28,7 @@ from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
 from ..core.pdx import parse as pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
+from ._layerdocs import layered_docs
 from ._pdxview import BlockView
 
 MAX_COLS = 5
@@ -103,6 +104,21 @@ class DivisionTemplate(BlockView):
     @name.setter
     def name(self, value: str) -> None:
         self.block.set("name", Scalar(value, quoted=True))
+
+    @property
+    def names_group(self) -> str:
+        """``division_names_group`` — the name group this template's divisions draw
+        their names from (overrides the automatic for_countries/division_types match)."""
+        v = self.block.get("division_names_group")
+        return v.raw if isinstance(v, Scalar) else ""
+
+    @names_group.setter
+    def names_group(self, value: str) -> None:
+        value = value.strip()
+        if value:
+            self.block.set("division_names_group", Scalar(value))
+        else:
+            self.block.remove("division_names_group")
 
     # --- regiments as a column model ---------------------------------------
     def columns(self) -> list[list[str]]:
@@ -206,15 +222,101 @@ class Division(BlockView):
         else:
             self.block.remove("name")
 
+    # --- ordered naming ----------------------------------------------------
+    # ``division_name = { is_name_ordered = yes name_order = N }`` makes the division
+    # take its name from the matching names_divisions group's ``ordered = { N = ... }``
+    # entry (fallback_name with %d = N otherwise). It is mutually exclusive with a
+    # literal ``name`` — a division has one or the other.
+    @property
+    def is_name_ordered(self) -> bool:
+        b = self.block.get_block("division_name")
+        return b is not None and b.get_scalar("is_name_ordered", "").lower() == "yes"
+
+    @property
+    def name_order(self) -> int | None:
+        b = self.block.get_block("division_name")
+        if b is None:
+            return None
+        v = b.get("name_order")
+        return v.as_int() if isinstance(v, Scalar) else None
+
+    def set_ordered_name(self, order: int | None) -> None:
+        """`order` None clears ordered naming; otherwise write the ``division_name``
+        block and drop any literal ``name`` (the two are mutually exclusive)."""
+        if order is None:
+            self.block.remove("division_name")
+            return
+        block = self.block.get_block("division_name")
+        if block is None:
+            block = Block()
+            self.block.set("division_name", block)
+        block.set("is_name_ordered", Scalar("yes"))
+        block.set("name_order", Scalar(str(int(order))))
+        self.block.remove("name")
+
     def display_name(self) -> str:
         if self.custom_name:
             return self.custom_name
+        if self.is_name_ordered and self.name_order is not None:
+            return f"#{self.name_order}"
         dn = self.block.get_block("division_name")
         if dn is not None:
             order = dn.get_scalar("name_order")
             if order:
                 return f"#{order}"
         return self.template or "—"
+
+    # --- starting factors (0..1) -------------------------------------------
+    # ``start_experience_factor`` (default 0), ``start_manpower_factor`` and
+    # ``start_equipment_factor`` (default 1). Written only when they differ from the
+    # game default, keeping files tidy.
+    def _factor(self, key: str, default: float) -> float:
+        v = self.block.get(key)
+        return v.as_float(default) if isinstance(v, Scalar) else default
+
+    def _set_factor(self, key: str, value: float, default: float) -> None:
+        value = max(0.0, min(1.0, value))
+        if abs(value - default) < 1e-6:
+            self.block.remove(key)
+        else:
+            self.block.set(key, Scalar(f"{value:g}"))
+
+    @property
+    def start_experience_factor(self) -> float:
+        return self._factor("start_experience_factor", 0.0)
+
+    @start_experience_factor.setter
+    def start_experience_factor(self, value: float) -> None:
+        self._set_factor("start_experience_factor", value, 0.0)
+
+    @property
+    def start_manpower_factor(self) -> float:
+        return self._factor("start_manpower_factor", 1.0)
+
+    @start_manpower_factor.setter
+    def start_manpower_factor(self, value: float) -> None:
+        self._set_factor("start_manpower_factor", value, 1.0)
+
+    @property
+    def start_equipment_factor(self) -> float:
+        return self._factor("start_equipment_factor", 1.0)
+
+    @start_equipment_factor.setter
+    def start_equipment_factor(self, value: float) -> None:
+        self._set_factor("start_equipment_factor", value, 1.0)
+
+
+# Division experience-level bands by ``start_experience_factor`` (0..1). Keys map to
+# oob.exp.<key> localisation. Boundaries per the HOI4 division experience tiers.
+_EXPERIENCE_BANDS = ((0.1, "green"), (0.3, "trained"), (0.75, "regular"),
+                     (0.9, "veteran"), (1.01, "elite"))
+
+
+def experience_level_key(factor: float) -> str:
+    for hi, key in _EXPERIENCE_BANDS:
+        if factor < hi:
+            return key
+    return "elite"
 
 
 # ---------------------------------------------------------------------------
@@ -290,16 +392,11 @@ class OobService:
 
     # --- listing -----------------------------------------------------------
     def list_docs(self, include_vanilla: bool = False) -> list[OobDocRef]:
-        mod_refs = self._scan_dir(self.ctx.mod.path, False)
-        vanilla_refs = self._scan_dir(self.ctx.game_path, True)
-        mod_files = {r.rel_file.lower() for r in mod_refs}
-        for ref in mod_refs:
-            if any(v.rel_file.lower() == ref.rel_file.lower() for v in vanilla_refs):
-                ref.edited = True
-        out = list(mod_refs)
-        if include_vanilla:
-            out.extend(v for v in vanilla_refs if v.rel_file.lower() not in mod_files)
-        return sorted(out, key=lambda r: (r.is_vanilla, r.rel_file.lower()))
+        return layered_docs(
+            self.ctx, "history/units", self._scan_dir,
+            include_vanilla=include_vanilla,
+            set_edited=lambda r: setattr(r, "edited", True),
+            sort_key=lambda r: (r.is_vanilla, r.rel_file.lower()))
 
     def _scan_dir(self, root: Path, is_vanilla: bool) -> list[OobDocRef]:
         folder = root / "history/units"

@@ -29,7 +29,7 @@ class IdeologyService:
     def list_groups(self) -> list[Ideology]:
         groups: dict[str, Ideology] = {}
         # Game first as the baseline, then mod (mod overrides / extends).
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.IDEOLOGIES):
             for ideo in self._read_dir(root):
                 groups[ideo.name] = ideo
         # Stable, vanilla-ish ordering with extras appended.

@@ -287,7 +287,7 @@ class IconPickerDialog(BaseDialog):
 
     def __init__(self, master, editor, resolver, current: str,
                  on_pick: Callable[[str], None],
-                 on_import: Callable[[object], None] | None = None,
+                 on_import: Callable[[object, bool], None] | None = None,
                  prefixes: tuple[str, ...] = ("GFX_focus_", "GFX_goal_")):
         super().__init__(master, editor, editor.t("focuses.pick_icon"), (720, 560))
         self._resolver = resolver
@@ -339,9 +339,17 @@ class IconPickerDialog(BaseDialog):
         self._counter = ttk.Label(bottom, text="", style="CardMuted.TLabel")
         self._counter.pack(side="left")
         if on_import is not None:
-            zone = ImageDropZone(bottom, on_import, prompt=self.t("focuses.import_icon"),
+            # "No resize" keeps the source image at its original dimensions instead of
+            # the standard fixed icon size. The flag is passed as on_import's 2nd arg.
+            self._keep_size = tk.BooleanVar(value=False)
+            zone = ImageDropZone(bottom,
+                                 lambda p: on_import(p, self._keep_size.get()),
+                                 prompt=self.t("focuses.import_icon"),
                                  preview_size=(88, 66), palette=self.palette)
             zone.pack(side="right")
+            ttk.Checkbutton(bottom, text=self.t("focuses.import_no_resize"),
+                            style="Card.TCheckbutton",
+                            variable=self._keep_size).pack(side="right", padx=8)
         ttk.Button(bottom, text=self.t("common.cancel"),
                    command=self.destroy).pack(side="right", padx=8)
         self._refresh()

@@ -36,7 +36,7 @@ class TraitService:
 
     def _scan(self, rel_dir: str) -> list[str]:
         names: set[str] = set()
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(rel_dir):
             folder = root / rel_dir
             if not folder.is_dir():
                 continue

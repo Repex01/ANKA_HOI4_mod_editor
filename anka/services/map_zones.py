@@ -92,22 +92,20 @@ class _ZoneService:
         self._doc_cache: dict[str, tuple[float, ZoneDocument]] = {}
 
     def list_docs(self) -> list[ZoneDocRef]:
+        # Across every layer (base game → dependencies → edited mod); a higher layer's
+        # file overrides a lower one with the same name. Only the edited mod's files
+        # are editable, dependency/game files are read-only.
         refs: list[ZoneDocRef] = []
         seen: set[str] = set()
-        mod_dir = self.ctx.mod.path / self.DIR
-        if mod_dir.is_dir():
-            for file in sorted(mod_dir.glob("*.txt")):
-                refs.append(ZoneDocRef(f"{self.DIR}/{file.name}",
-                                       self.ctx.mod.path, False,
-                                       self._quick_id(file)))
-                seen.add(file.name.lower())
-        game_dir = self.ctx.game_path / self.DIR
-        if game_dir.is_dir():
-            for file in sorted(game_dir.glob("*.txt")):
+        for root, is_mod in reversed(self.ctx.override_layers(self.DIR)):  # high→low
+            folder = root / self.DIR
+            if not folder.is_dir():
+                continue
+            for file in sorted(folder.glob("*.txt")):
                 if file.name.lower() in seen:
                     continue
-                refs.append(ZoneDocRef(f"{self.DIR}/{file.name}",
-                                       self.ctx.game_path, True,
+                seen.add(file.name.lower())
+                refs.append(ZoneDocRef(f"{self.DIR}/{file.name}", root, not is_mod,
                                        self._quick_id(file)))
         return refs
 

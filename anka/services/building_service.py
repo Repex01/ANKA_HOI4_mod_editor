@@ -48,7 +48,7 @@ class BuildingService:
     # ------------------------------------------------------------------ load
     def _load(self) -> dict[str, BuildingDef]:
         defs: dict[str, BuildingDef] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(BUILDINGS_DIR):
             folder = root / BUILDINGS_DIR
             if not folder.is_dir():
                 continue

@@ -60,7 +60,8 @@ class CharacterService:
         self._chars: dict[str, CharacterModel] | None = None
         self._recruited: dict[str, list[str]] | None = None
         self._names: dict[str, str] | None = None
-        self._sprites = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self._sprites = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
 
     # --- file location ---------------------------------------------------
     def characters_file(self, tag: str) -> Path:
@@ -82,7 +83,7 @@ class CharacterService:
     def _scan_all(self) -> dict[str, CharacterModel]:
         names = self._name_map()
         result: dict[str, CharacterModel] = {}
-        for root, in_mod in ((self.ctx.game_path, False), (self.ctx.mod.path, True)):
+        for root, in_mod in self.ctx.override_layers(GAME_DIRS.CHARACTERS):
             folder = root / GAME_DIRS.CHARACTERS
             if not folder.is_dir():
                 continue
@@ -128,7 +129,7 @@ class CharacterService:
         if self._recruited is not None and not refresh:
             return self._recruited
         recruited: dict[str, list[str]] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.HISTORY_COUNTRIES):
             folder = root / GAME_DIRS.HISTORY_COUNTRIES
             if not folder.is_dir():
                 continue
@@ -163,7 +164,7 @@ class CharacterService:
         if self._names is not None:
             return self._names
         names: dict[str, str] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.LOCALISATION):
             loc_dir = root / GAME_DIRS.LOCALISATION
             if not loc_dir.is_dir():
                 continue
@@ -179,7 +180,7 @@ class CharacterService:
 
     def get_name_loc(self, name_key: str, language: str) -> str:
         """The character's display name in `language` (mod wins over vanilla)."""
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots(GAME_DIRS.LOCALISATION):
             yml = find_loc_file_with_key(root, language, name_key,
                                          name_hints=("character",) if root == self.ctx.game_path else ())
             if yml is not None:
@@ -195,7 +196,7 @@ class CharacterService:
         path = loc_write_target(
             self.ctx.mod.path, self.ctx.game_path, language, name_key,
             f"{GAME_DIRS.LOCALISATION}/{language}/anka_characters_l_{language}.yml",
-            name_hints=("character",))
+            name_hints=("character",), dep_roots=self.ctx.dependency_paths)
         loc = LocFile.load(path) if path.exists() else LocFile(language)
         loc.set(name_key, value)
         loc.save(path)

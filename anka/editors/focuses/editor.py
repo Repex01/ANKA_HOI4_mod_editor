@@ -37,7 +37,8 @@ class FocusesEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = FocusService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path)
+        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
+                                               context.dependency_paths)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         self._refs: list[FocusTreeRef] = []
@@ -786,10 +787,12 @@ class FocusesEditor(EditorModule):
         self.mark_dirty()
         self.refresh_canvas()
 
-    def import_icon(self, path, focus: Focus) -> str | None:
-        """Convert a dropped image into GFX_focus_<id> (DDS + sprite registration)."""
+    def import_icon(self, path, focus: Focus, keep_size: bool = False) -> str | None:
+        """Convert a dropped image into GFX_focus_<id> (DDS + sprite registration).
+        `keep_size` writes the image at its original dimensions (no resize)."""
         try:
-            dds, _gfx = self.context.icons.add_focus_icon(path, focus.id)
+            dds, _gfx = self.context.icons.add_focus_icon(path, focus.id,
+                                                          resize=not keep_size)
         except Exception as exc:
             messagebox.showerror("ANKA", self.t("focuses.err.icon", error=str(exc)))
             return None

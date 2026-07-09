@@ -1,16 +1,22 @@
 """General editor: the default landing tab for a mod.
 
-Shows the mod's descriptor metadata and a quick content summary (how many
-countries, ideas, events, ... the mod defines) so the user has an at-a-glance
-overview before diving into a specific editor. Read-only; cheap counts come from
-each service's lightweight listing.
+Shows the mod's descriptor metadata, a quick content summary (how many countries,
+ideas, events, ... the mod defines) and the mod's **dependencies** — the sub-mods it
+is layered on top of. Dependencies can be added from / removed against the list of
+installed mods; changes are written straight back into the ``.mod`` descriptor.
+
+Load order is game → dependencies (in listed order) → this mod, with later layers
+overriding earlier ones, so an edited file in this mod always wins over the same file
+in a dependency, which in turn wins over the base game.
 """
 from __future__ import annotations
 
 from tkinter import ttk
 
+from ...services.mod_repository import ModRepository
 from ...ui.widgets import ScrollableFrame
 from ..base import EditorModule, EditorRegistry
+from ..common.dialogs import MultiPickDialog
 
 
 @EditorRegistry.register
@@ -54,6 +60,22 @@ class GeneralEditor(EditorModule):
                       justify="left").grid(row=r, column=1, sticky="w", padx=(12, 0),
                                            pady=2); r += 1
 
+        # --- dependencies ---------------------------------------------------
+        ttk.Separator(body).grid(row=r, column=0, columnspan=2, sticky="ew",
+                                 pady=12); r += 1
+        ttk.Label(body, text=t("general.section.dependencies"),
+                  style="Heading.TLabel").grid(row=r, column=0, columnspan=2,
+                                               sticky="w", pady=(0, 2)); r += 1
+        ttk.Label(body, text=t("general.deps.hint"), style="CardMuted.TLabel",
+                  wraplength=560, justify="left").grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(0, 6)); r += 1
+        self._deps_box = ttk.Frame(body, style="Card.TFrame")
+        self._deps_box.grid(row=r, column=0, columnspan=2, sticky="ew"); r += 1
+        self._deps_error = ttk.Label(body, text="", style="CardMuted.TLabel",
+                                     wraplength=560, justify="left")
+        self._deps_error.grid(row=r, column=0, columnspan=2, sticky="w"); r += 1
+        self._render_deps()
+
         # --- content summary ------------------------------------------------
         ttk.Separator(body).grid(row=r, column=0, columnspan=2, sticky="ew",
                                  pady=12); r += 1
@@ -66,6 +88,67 @@ class GeneralEditor(EditorModule):
         # defer the (cheap but disk-touching) counts so the tab paints instantly
         outer.after(50, self._fill_summary)
         return outer
+
+    # --- dependencies ------------------------------------------------------
+    def _repo(self) -> ModRepository:
+        return ModRepository(self.services.settings.current)
+
+    def _render_deps(self) -> None:
+        for w in self._deps_box.winfo_children():
+            w.destroy()
+        t = self.t
+        deps = self.context.mod.dependencies
+        installed = {m.name for m in self._repo().list_mods()}
+        if not deps:
+            ttk.Label(self._deps_box, text=t("general.deps.none"),
+                      style="CardMuted.TLabel").pack(anchor="w", pady=(0, 4))
+        for name in deps:
+            row = ttk.Frame(self._deps_box, style="Card.TFrame")
+            row.pack(fill="x", anchor="w", pady=1)
+            ttk.Button(row, text="✕", width=2,
+                       command=lambda n=name: self._remove_dep(n)).pack(side="left")
+            ttk.Label(row, text=name, style="Card.TLabel").pack(side="left", padx=8)
+            if name not in installed:
+                ttk.Label(row, text=t("general.deps.missing"),
+                          style="CardMuted.TLabel").pack(side="left", padx=4)
+        ttk.Button(self._deps_box, text="＋ " + t("general.deps.add"),
+                   command=self._add_deps).pack(anchor="w", pady=(6, 0))
+
+    def _add_deps(self) -> None:
+        mod = self.context.mod
+        current = set(mod.dependencies)
+        candidates = sorted({
+            m.name for m in self._repo().list_mods()
+            if m.name and m.id != mod.id and m.name != mod.name
+            and m.name not in current
+        })
+        if not candidates:
+            self._deps_error.configure(text=self.t("general.deps.no_candidates"))
+            return
+        self._deps_error.configure(text="")
+        MultiPickDialog(self._deps_box, self, self.t("general.deps.pick"),
+                        candidates, self._on_added)
+
+    def _on_added(self, selected: list[str]) -> None:
+        if selected:
+            self._save_deps(self.context.mod.dependencies + list(selected))
+
+    def _remove_dep(self, name: str) -> None:
+        self._save_deps([d for d in self.context.mod.dependencies if d != name])
+
+    def _save_deps(self, names: list[str]) -> None:
+        # De-duplicate while preserving load order.
+        ordered = list(dict.fromkeys(names))
+        repo = self._repo()
+        try:
+            repo.save_dependencies(self.context.mod, ordered)
+        except (OSError, FileNotFoundError):
+            self._deps_error.configure(text=self.t("general.deps.save_failed"))
+            return
+        # Re-resolve so newly opened editor tabs layer the dependency content in.
+        self.context.dependencies = repo.resolve_dependencies(self.context.mod)
+        self._deps_error.configure(text=self.t("general.deps.reopen_note"))
+        self._render_deps()
 
     def _fill_summary(self) -> None:
         t = self.t

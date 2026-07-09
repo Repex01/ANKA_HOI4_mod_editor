@@ -63,8 +63,16 @@ class CountryService:
 
     # --- tags ------------------------------------------------------------
     def list_tags(self, include_vanilla: bool = False) -> list[CountryRef]:
-        refs = {r.tag: r for r in self._read_tag_dir(self.ctx.mod.path, is_vanilla=False)}
-        vanilla = {r.tag: r for r in self._read_tag_dir(self.ctx.game_path, is_vanilla=True)}
+        # Layered sources, lowest→highest priority: base game, dependency mods, then
+        # the edited mod. Dependency countries are part of the active mod set (the base
+        # this mod builds on), so they are always listed — read-only, like vanilla —
+        # while pure base-game tags stay behind `include_vanilla`.
+        refs: dict[str, CountryRef] = {}          # deps + edited mod (mod overrides)
+        vanilla: dict[str, CountryRef] = {}       # base game only
+        for root, is_mod in self.ctx.override_layers(GAME_DIRS.COUNTRY_TAGS):
+            target = vanilla if root == self.ctx.game_path else refs
+            for r in self._read_tag_dir(root, is_vanilla=not is_mod):
+                target[r.tag] = r                 # later layer wins (mod over deps)
 
         # Vanilla tags the mod edits (history/colors/characters/flags) are shown even
         # when vanilla is hidden, flagged as edited.
@@ -148,7 +156,7 @@ class CountryService:
             return None
 
     def get_color(self, ref: CountryRef) -> CountryColor:
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots(GAME_DIRS.COUNTRY_COLORS):
             block = self._colors_block(root)
             if block is None:
                 continue
@@ -271,7 +279,7 @@ class CountryService:
         result = {"name": "", "definite": "", "adjective": "",
                   "party": "", "party_long": "", "party_desc": ""}
         suffixes = {"_DEF": "definite", "_ADJ": "adjective"}
-        for root in (self.ctx.game_path, self.ctx.mod.path):  # mod overrides game
+        for root in self.ctx.override_roots(GAME_DIRS.LOCALISATION):  # mod overrides game
             loc_dir = root / GAME_DIRS.LOCALISATION / language
             if not loc_dir.is_dir():
                 continue
@@ -299,7 +307,7 @@ class CountryService:
     def get_names(self, tag: str) -> dict[str, str]:
         """Map language -> base display name (for quick listings)."""
         names: dict[str, str] = {}
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots(GAME_DIRS.LOCALISATION):
             loc_dir = root / GAME_DIRS.LOCALISATION
             if not loc_dir.is_dir():
                 continue
@@ -327,7 +335,7 @@ class CountryService:
         country_path = _loc_write_target(
             self.ctx.mod.path, self.ctx.game_path, language, base,
             f"{GAME_DIRS.LOCALISATION}/{language}/anka_countries_l_{language}.yml",
-            name_hints=("countries",))
+            name_hints=("countries",), dep_roots=self.ctx.dependency_paths)
         loc = LocFile.load(country_path) if country_path.exists() else LocFile(language)
         if name:
             loc.set(base, name)
@@ -343,7 +351,7 @@ class CountryService:
             party_path = _loc_write_target(
                 self.ctx.mod.path, self.ctx.game_path, language, party_key,
                 f"{GAME_DIRS.LOCALISATION}/{language}/anka_parties_l_{language}.yml",
-                name_hints=("part",))
+                name_hints=("part",), dep_roots=self.ctx.dependency_paths)
             ploc = LocFile.load(party_path) if party_path.exists() else LocFile(language)
             if party:
                 ploc.set(party_key, party)
@@ -451,7 +459,7 @@ class CountryService:
     def list_oob_files(self) -> list[str]:
         """OOB file stems available in history/units (mod + game)."""
         names: set[str] = set()
-        for root in (self.ctx.game_path, self.ctx.mod.path):
+        for root in self.ctx.override_roots("history/units"):
             folder = root / "history/units"
             if folder.is_dir():
                 names.update(f.stem for f in folder.glob("*.txt"))
@@ -734,7 +742,7 @@ class CountryService:
             return False
 
     def _find_history_file(self, tag: str) -> Path | None:
-        for root in (self.ctx.mod.path, self.ctx.game_path):
+        for root in self.ctx.search_roots(GAME_DIRS.HISTORY_COUNTRIES):
             folder = root / GAME_DIRS.HISTORY_COUNTRIES
             if not folder.is_dir():
                 continue

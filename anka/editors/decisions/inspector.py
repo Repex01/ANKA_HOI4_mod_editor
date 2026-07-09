@@ -322,8 +322,8 @@ class DecisionInspector(InspectorBase):
             self.owner.mark_dirty(self.doc)
             self._refresh_icon()
 
-        def imported(path) -> None:
-            sprite = self.owner.import_icon(path, decision)
+        def imported(path, keep_size: bool = False) -> None:
+            sprite = self.owner.import_icon(path, decision, keep_size=keep_size)
             if sprite:
                 picked(sprite)
 

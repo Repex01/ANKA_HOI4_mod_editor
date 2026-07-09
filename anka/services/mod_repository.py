@@ -10,6 +10,7 @@ Descriptors are themselves Paradox script, so the PDX parser reads them.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..config.settings import Settings
@@ -63,6 +64,8 @@ class ModRepository:
                     supported_version=meta.get("supported_version", ""),
                     remote_file_id=meta.get("remote_file_id", ""),
                     is_local=is_local,
+                    dependencies=meta.get("dependencies", []),
+                    replace_paths=meta.get("replace_paths", []),
                 )
             )
         return mods
@@ -133,12 +136,59 @@ class ModRepository:
                     supported_version=meta.get("supported_version", ""),
                     remote_file_id=meta.get("remote_file_id", folder.name),
                     is_local=False,
+                    dependencies=meta.get("dependencies", []),
+                    replace_paths=meta.get("replace_paths", []),
                 )
             )
         return mods
 
     def get(self, mod_id: str) -> Mod | None:
         return next((m for m in self.list_mods() if m.id == mod_id), None)
+
+    # --- dependencies ----------------------------------------------------
+    def resolve_dependencies(self, mod: Mod) -> list[Mod]:
+        """Map a mod's ``dependencies`` (mod *names*) to the installed mods that
+        provide them, in the descriptor's load order. Names that match no installed
+        mod — or that would point back at ``mod`` itself — are skipped (they simply
+        contribute no override layer)."""
+        if not mod.dependencies:
+            return []
+        by_name: dict[str, Mod] = {}
+        for candidate in self.list_mods():
+            by_name.setdefault(candidate.name, candidate)
+        resolved: list[Mod] = []
+        for name in mod.dependencies:
+            target = by_name.get(name)
+            if target is not None and target.id != mod.id:
+                resolved.append(target)
+        return resolved
+
+    def save_dependencies(self, mod: Mod, names: list[str]) -> None:
+        """Persist ``dependencies`` back to the mod's ``.mod`` descriptor and update
+        the in-memory `mod`. Rewrites only the dependencies block, preserving the rest
+        of the descriptor (comments, field order, formatting)."""
+        desc = mod.descriptor_path
+        if desc is None or not desc.exists():
+            raise FileNotFoundError("mod has no writable descriptor")
+        text = desc.read_text(encoding="utf-8-sig")
+        if names:
+            body = "\n".join(f'\t"{n}"' for n in names)
+            block = "dependencies = {\n" + body + "\n}"
+        else:
+            block = ""
+        # Values are quoted strings, so the block never contains a nested "}".
+        pattern = re.compile(r"[ \t]*dependencies\s*=\s*\{[^}]*\}[ \t]*\n?",
+                             re.IGNORECASE)
+        if pattern.search(text):
+            replacement = (block + "\n") if block else ""
+            new_text = pattern.sub(replacement, text, count=1)
+        elif block:
+            sep = "" if text.endswith("\n") or not text else "\n"
+            new_text = text + sep + block + "\n"
+        else:
+            new_text = text
+        desc.write_text(new_text, encoding="utf-8")
+        mod.dependencies = list(names)
 
 
 def _resolve_path(raw: str, base: Path) -> Path | None:
@@ -170,13 +220,22 @@ def _is_under(path: Path | None, ancestor: Path | None) -> bool:
 
 
 def _parse_descriptor(path: Path) -> dict:
-    """Extract descriptor fields into a plain dict via the PDX parser."""
+    """Extract descriptor fields into a plain dict via the PDX parser.
+
+    ``replace_path`` is special: HOI4 allows it to appear many times (one folder each),
+    so every occurrence is collected into the ``replace_paths`` list rather than the
+    later ones clobbering the earlier."""
     root: Block = parse_file(path)
     out: dict = {}
+    replace_paths: list[str] = []
     for pair in root.pairs():
         value = pair.value
-        if isinstance(value, Scalar):
+        if pair.key == "replace_path" and isinstance(value, Scalar):
+            replace_paths.append(value.raw)
+        elif isinstance(value, Scalar):
             out[pair.key] = value.raw
         elif isinstance(value, Block):  # tags = { ... }
             out[pair.key] = value.array_values()
+    if replace_paths:
+        out["replace_paths"] = replace_paths
     return out

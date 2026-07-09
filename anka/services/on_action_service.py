@@ -20,6 +20,7 @@ from ..core.pdx import Block, Pair, dump_file, dumps, parse_file
 from ..core.pdx import parse as pdx_parse
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
+from ._layerdocs import layered_docs
 
 ON_ACTIONS_DIR = "common/on_actions"
 DEFAULT_REL_FILE = f"{ON_ACTIONS_DIR}/anka_on_actions.txt"
@@ -138,30 +139,19 @@ class OnActionService:
 
     # -------------------------------------------------------------------- scan
     def list_docs(self, include_vanilla: bool = True) -> list[OnActionDocRef]:
-        refs: list[OnActionDocRef] = []
-        seen: set[str] = set()
-        vanilla_names = set()
-        game_dir = self.ctx.game_path / ON_ACTIONS_DIR
-        if game_dir.is_dir():
-            vanilla_names = {f.name.lower() for f in game_dir.glob("*.txt")}
-        mod_dir = self.ctx.mod.path / ON_ACTIONS_DIR
-        if mod_dir.is_dir():
-            for file in sorted(mod_dir.glob("*.txt")):
-                refs.append(OnActionDocRef(
-                    rel_file=f"{ON_ACTIONS_DIR}/{file.name}",
-                    source_root=self.ctx.mod.path, is_vanilla=False,
-                    edited=file.name.lower() in vanilla_names,
-                    names=self._quick_scan(file)))
-                seen.add(file.name.lower())
-        if include_vanilla and game_dir.is_dir():
-            for file in sorted(game_dir.glob("*.txt")):
-                if file.name.lower() in seen:
-                    continue
-                refs.append(OnActionDocRef(
-                    rel_file=f"{ON_ACTIONS_DIR}/{file.name}",
-                    source_root=self.ctx.game_path, is_vanilla=True,
-                    names=self._quick_scan(file)))
-        return refs
+        return layered_docs(
+            self.ctx, ON_ACTIONS_DIR, self._scan_dir,
+            include_vanilla=include_vanilla,
+            set_edited=lambda r: setattr(r, "edited", True))
+
+    def _scan_dir(self, root: Path, is_vanilla: bool) -> list[OnActionDocRef]:
+        folder = root / ON_ACTIONS_DIR
+        if not folder.is_dir():
+            return []
+        return [OnActionDocRef(rel_file=f"{ON_ACTIONS_DIR}/{file.name}",
+                               source_root=root, is_vanilla=is_vanilla,
+                               names=self._quick_scan(file))
+                for file in sorted(folder.glob("*.txt"))]
 
     @staticmethod
     def _quick_scan(file: Path) -> list[str]:

@@ -45,14 +45,18 @@ class LocCatalog:
     """
 
     def __init__(self, mod_root: Path, game_root: Path,
-                 vanilla_filter: str, default_pattern: str):
+                 vanilla_filter: str, default_pattern: str,
+                 dep_roots: "tuple[Path, ...] | list[Path]" = ()):
         self.mod_root = Path(mod_root)
         self.game_root = Path(game_root)
+        # Dependency mod roots (load order, lowest→highest priority). Their loc is a
+        # read-only base like vanilla, but ranks above the game and is indexed in full.
+        self.dep_roots = [Path(r) for r in dep_roots]
         self._filter = vanilla_filter.lower()
         self._default = default_pattern            # e.g. "anka_decisions_l_{lang}.yml"
         self._cache: dict[str, dict[str, str]] = {}
         self._files: dict[str, dict[str, Path]] = {}      # lang -> key -> mod file
-        self._vanilla: dict[str, dict[str, Path]] = {}    # lang -> key -> game file
+        self._vanilla: dict[str, dict[str, Path]] = {}    # lang -> key -> base (game/dep) file
 
     # --- read ---------------------------------------------------------------
     def get(self, key: str, language: str) -> str | None:
@@ -79,6 +83,19 @@ class LocCatalog:
                 for entry in loc.entries():
                     index[entry.key] = entry.value
                     vfiles.setdefault(entry.key, yml)
+        # Dependency loc (full, low→high priority) — a read-only base above vanilla.
+        for dep in self.dep_roots:
+            dep_dir = dep / _LOC_DIR
+            if not dep_dir.is_dir():
+                continue
+            for yml in sorted(dep_dir.rglob(f"*_l_{language}.yml")):
+                try:
+                    loc = LocFile.load(yml)
+                except OSError:
+                    continue
+                for entry in loc.entries():
+                    index[entry.key] = entry.value
+                    vfiles[entry.key] = yml          # higher base overrides game record
         files = self._files.setdefault(language, {})
         mod_dir = self.mod_root / _LOC_DIR
         if mod_dir.is_dir():
@@ -111,10 +128,20 @@ class LocCatalog:
         self._cache[language][key] = value
         return path
 
+    def _base_root_of(self, source: Path) -> Path:
+        """Which base root (a dependency, else the game) a base loc file lives under."""
+        for root in (*self.dep_roots, self.game_root):
+            try:
+                source.relative_to(root)
+                return root
+            except ValueError:
+                continue
+        return self.game_root
+
     def _override_vanilla(self, source: Path, language: str) -> Path:
-        """Copy a vanilla .yml into the mod (same relative path => engine override)
-        and remap all its keys to the copy."""
-        target = ensure_filename_case(self.mod_root / source.relative_to(self.game_root))
+        """Copy a base (vanilla or dependency) .yml into the mod at the same relative
+        path (=> engine override) and remap all its keys to the copy."""
+        target = ensure_filename_case(self.mod_root / source.relative_to(self._base_root_of(source)))
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(source.read_bytes())
@@ -154,23 +181,27 @@ class LocCatalog:
 
 def loc_write_target(mod_root: Path, game_root: Path, language: str, key: str,
                      default_rel: str,
-                     name_hints: tuple[str, ...] = ()) -> Path:
+                     name_hints: tuple[str, ...] = (),
+                     dep_roots: "tuple[Path, ...] | list[Path]" = ()) -> Path:
     """The mod file `key` should be written to:
 
     1. a mod file that already defines the key (edit in place);
-    2. else, when a *vanilla* file defines it — a copy of that file inside the mod at
-       the same relative path (created here on first use), so the whole file overrides
-       the original instead of colliding with it;
+    2. else, when a *base* file (dependency, else vanilla) defines it — a copy of that
+       file inside the mod at the same relative path (created here on first use), so the
+       whole file overrides the original instead of colliding with it;
     3. else ANKA's own file at `default_rel` (a brand-new key).
     """
     hit = find_loc_file_with_key(mod_root, language, key)
     if hit is not None:
         return hit
-    vanilla = find_loc_file_with_key(game_root, language, key, name_hints)
-    if vanilla is not None:
-        target = ensure_filename_case(mod_root / vanilla.relative_to(game_root))
-        if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(vanilla.read_bytes())
-        return target
+    # Highest-priority base first: dependencies (load order reversed), then the game.
+    for base in (*reversed(list(dep_roots)), game_root):
+        hints = name_hints if base == game_root else ()
+        src = find_loc_file_with_key(base, language, key, hints)
+        if src is not None:
+            target = ensure_filename_case(mod_root / src.relative_to(base))
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(src.read_bytes())
+            return target
     return mod_root / default_rel

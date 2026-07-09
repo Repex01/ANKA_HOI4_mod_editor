@@ -107,14 +107,17 @@ class SpriteResolver:
         self._map: dict[str, Path] | None = None
 
     @classmethod
-    def for_mod(cls, mod_path: Path, game_path: Path) -> "SpriteResolver":
-        """Build the standard root list: DLC folders, then game, then mod (highest)."""
+    def for_mod(cls, mod_path: Path, game_path: Path,
+                deps: list[Path] | None = None) -> "SpriteResolver":
+        """Build the standard root list: DLC folders, then game, then dependency mods
+        (in load order), then the edited mod (highest priority)."""
         roots: list[Path] = []
         for dlc_parent in ("dlc", "integrated_dlc"):
             parent = game_path / dlc_parent
             if parent.is_dir():
                 roots.extend(sorted(p for p in parent.iterdir() if p.is_dir()))
         roots.append(game_path)
+        roots.extend(deps or [])
         roots.append(mod_path)
         return cls(roots)
 

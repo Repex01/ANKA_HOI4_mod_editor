@@ -206,7 +206,7 @@ class BlockTreeEditor(ttk.Frame):
         if isinstance(item, Pair) and isinstance(item.value, Block):
             self._render_container(owner_block, item, parent, depth, kinds)
         elif isinstance(item, Pair):
-            self._render_leaf(owner_block, item, parent, parent_key)
+            self._render_leaf(owner_block, item, parent, parent_key, kinds)
         elif isinstance(item, Scalar):
             self._render_bare(owner_block, item, parent, parent_key)
         elif isinstance(item, Block):                 # rare: anonymous block
@@ -244,16 +244,43 @@ class BlockTreeEditor(ttk.Frame):
             var.trace_add("write", lambda *_: (setattr(pair, "key", var.get().strip()),
                                                self._on_change()))
 
+    def _op_editable(self, pair: Pair, kinds: tuple[str, ...]) -> bool:
+        """Whether this leaf may use comparison operators. Only triggers can; an
+        effect is always a plain ``key = value`` assignment.
+
+        * Effect-only context  -> never editable.
+        * Trigger-only context -> always editable (e.g. inside ``limit``).
+        * Mixed context        -> decide per key: triggers (and unknown keys, which
+          may be scripted-variable comparisons) are editable, effects are not.
+        """
+        if "trigger" not in kinds:
+            return False
+        if kinds == ("trigger",):
+            return True
+        item = ScriptCatalog.find(pair.key)
+        return item is None or item.kind != "effect"
+
     def _render_leaf(self, owner_block: Block, pair: Pair, parent,
-                     parent_key: str = "") -> None:
+                     parent_key: str = "",
+                     kinds: tuple[str, ...] | None = None) -> None:
+        kinds = self.kinds if kinds is None else kinds
         row = self._row(parent)
         self._key_widget(row, pair)
 
-        op_var = tk.StringVar(value=pair.op)
-        op = ttk.Combobox(row, textvariable=op_var, values=_OPS, width=3, state="readonly")
-        op.pack(side="left", padx=3)
-        op_var.trace_add("write", lambda *_: (setattr(pair, "op", op_var.get()),
-                                              self._on_change()))
+        # Comparison operators (<, >, <=, >=, !=) are only meaningful for triggers.
+        # Effects are always plain assignments, so their operator is a fixed "="
+        # label the user cannot change (see hoi4 wiki: Triggers vs Effects).
+        if self._op_editable(pair, kinds):
+            op_var = tk.StringVar(value=pair.op)
+            op = ttk.Combobox(row, textvariable=op_var, values=_OPS, width=3,
+                              state="readonly")
+            op.pack(side="left", padx=3)
+            op_var.trace_add("write", lambda *_: (setattr(pair, "op", op_var.get()),
+                                                  self._on_change()))
+        else:
+            if pair.op != "=":
+                pair.op = "="          # normalise any stray operator on an effect
+            ttk.Label(row, text="=", style="Card.TLabel").pack(side="left", padx=3)
 
         scalar = pair.value
         val_var = tk.StringVar(value=scalar.raw)
@@ -353,12 +380,30 @@ class BlockTreeEditor(ttk.Frame):
                    command=lambda: self._remove(owner_block, item)).pack(side="right", padx=2)
         body = ttk.Frame(box, style="Card.TFrame")
         body.pack(fill="x", padx=(18, 4), pady=(0, 4))
-        # A `limit` block holds trigger conditions only — never effects — even inside
-        # an effect script; that restriction propagates to everything nested below it.
-        child_kinds = ("trigger",) if (pair is not None and pair.key == "limit") else kinds
         self._render_block(block, body, depth + 1,
                            parent_key=pair.key if pair is not None else "",
-                           kinds=child_kinds)
+                           kinds=self._child_kinds(pair, kinds))
+
+    def _child_kinds(self, pair: Pair | None, kinds: tuple[str, ...]) -> tuple[str, ...]:
+        """Narrow the allowed script kinds when descending into a known container, so
+        the operator rule (triggers only) reaches parameter sub-keys the catalog does
+        not list on their own (``type``, ``ideology``, ``instant_build`` …).
+
+        A ``limit`` / logic-trigger block holds trigger conditions only — never
+        effects — even inside an effect script; a known effect/trigger keyword forces
+        its whole subtree to that kind. Unknown containers keep the parent's kinds.
+        """
+        if pair is None:
+            return kinds
+        key = pair.key
+        if key == "limit" or key in _CONTAINERS["trigger"]:
+            return ("trigger",)
+        if key in _CONTAINERS["effect"]:
+            return ("effect",)
+        item = ScriptCatalog.find(key)
+        if item is not None and item.kind in ("effect", "trigger"):
+            return (item.kind,)
+        return kinds
 
     def _add_hover(self, box: tk.Frame) -> None:
         """Highlight only the innermost container under the pointer (accent border, a
