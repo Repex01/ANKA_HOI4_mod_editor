@@ -858,3 +858,99 @@ class StateInspector(InspectorBase):
                                                   id=self.state.id if self.state else "?")):
             return
         self.owner.delete_state(self.doc)
+
+
+class BatchStateInspector(InspectorBase):
+    """Edit shared fields (owner / controller / category) across many states at once —
+    shown when a multi-selection of states is active. Empty fields are left untouched."""
+
+    KEEP = "— keep —"
+
+    def __init__(self, master, owner):
+        super().__init__(master, owner)
+        self.state_ids: list[int] = []
+        self._build()
+
+    def _build(self) -> None:
+        b = self.body
+        r = 0
+        self._title = ttk.Label(b, text="", style="Heading.TLabel")
+        self._title.grid(row=r, column=0, columnspan=3, sticky="w", pady=(0, 2)); r += 1
+        ttk.Label(b, text=self.t("map.batch_hint"), style="CardMuted.TLabel",
+                  wraplength=300, justify="left").grid(
+            row=r, column=0, columnspan=3, sticky="w", pady=(0, 8)); r += 1
+
+        self._owner_var = self._pick_row(r, self.t("map.owner")); r += 1
+        self._ctrl_var = self._pick_row(r, self.t("map.controller")); r += 1
+
+        ttk.Label(b, text=self.t("map.category"), style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", pady=3)
+        self._cat_var = tk.StringVar(value=self.KEEP)
+        ttk.Combobox(b, textvariable=self._cat_var, state="readonly", width=18,
+                     values=[self.KEEP] + self.owner.state_categories()).grid(
+            row=r, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=3); r += 1
+
+        ttk.Button(b, text=self.t("map.batch_apply"), style="Accent.TButton",
+                   command=self._apply).grid(row=r, column=0, columnspan=3,
+                                             sticky="ew", pady=(10, 0)); r += 1
+
+        # Cores act immediately (a core is a set membership, not a single value):
+        # type/pick a tag, then add it to or remove it from every selected state.
+        ttk.Separator(b).grid(row=r, column=0, columnspan=3, sticky="ew", pady=8); r += 1
+        ttk.Label(b, text=self.t("map.cores"), style="Heading.TLabel").grid(
+            row=r, column=0, columnspan=3, sticky="w", pady=(0, 3)); r += 1
+        core_row = ttk.Frame(b, style="Card.TFrame")
+        core_row.grid(row=r, column=0, columnspan=3, sticky="ew")
+        self._core_var = tk.StringVar()
+        ttk.Entry(core_row, textvariable=self._core_var, width=6).pack(side="left")
+        ttk.Button(core_row, text="…", width=3,
+                   command=lambda: self._pick_country(self._core_var)).pack(side="left",
+                                                                            padx=(4, 0))
+        ttk.Button(core_row, text="＋ " + self.t("map.batch_add_core"),
+                   command=lambda: self._core_op(add=True)).pack(side="left", padx=(8, 0))
+        ttk.Button(core_row, text="－ " + self.t("map.batch_remove_core"),
+                   command=lambda: self._core_op(add=False)).pack(side="left", padx=4)
+
+    def _pick_row(self, row: int, label: str) -> tk.StringVar:
+        b = self.body
+        ttk.Label(b, text=label, style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", pady=3)
+        var = tk.StringVar()
+        ttk.Entry(b, textvariable=var, width=8).grid(
+            row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        ttk.Button(b, text="…", width=3,
+                   command=lambda: self._pick_country(var)).grid(
+            row=row, column=2, sticky="w", padx=(4, 0))
+        return var
+
+    def _pick_country(self, var: tk.StringVar) -> None:
+        SinglePickDialog(self, self.owner, self.t("map.owner"),
+                         self.owner.value_options("country"),
+                         lambda v: var.set(v), current=var.get().strip())
+
+    def show(self, state_ids: list[int]) -> None:
+        self.state_ids = list(state_ids)
+        self._title.configure(text=self.t("map.batch_title", count=len(state_ids)))
+        self._owner_var.set("")
+        self._ctrl_var.set("")
+        self._cat_var.set(self.KEEP)
+
+    def _apply(self) -> None:
+        if not self.state_ids:
+            return
+        owner = self._owner_var.get().strip().upper() or None
+        ctrl = self._ctrl_var.get().strip().upper() or None
+        cat = self._cat_var.get()
+        cat = None if cat == self.KEEP else cat
+        if owner is None and ctrl is None and cat is None:
+            return
+        self.owner.batch_apply_states(self.state_ids, owner, ctrl, cat)
+
+    def _core_op(self, add: bool) -> None:
+        tag = self._core_var.get().strip().upper()
+        if not tag or not self.state_ids:
+            return
+        if add:
+            self.owner.batch_cores(self.state_ids, add=tag)
+        else:
+            self.owner.batch_cores(self.state_ids, remove=tag)

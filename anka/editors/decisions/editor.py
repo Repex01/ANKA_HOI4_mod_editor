@@ -441,6 +441,29 @@ class DecisionsEditor(EditorModule):
         self.resolver.add(sprite, dds)
         return sprite
 
+    def import_category_icon(self, path, category_name: str,
+                             keep_size: bool = False) -> str | None:
+        try:
+            dds, _gfx = self.context.icons.add_decision_category_icon(
+                path, category_name, resize=not keep_size)
+        except Exception as exc:
+            messagebox.showerror("ANKA", self.t("focuses.err.icon", error=str(exc)))
+            return None
+        sprite = f"GFX_decision_category_{category_name}"
+        self.resolver.add(sprite, dds)
+        return sprite
+
+    def import_category_picture(self, path, category_name: str) -> str | None:
+        try:
+            dds, _gfx = self.context.icons.add_decision_category_picture(
+                path, category_name)
+        except Exception as exc:
+            messagebox.showerror("ANKA", self.t("focuses.err.icon", error=str(exc)))
+            return None
+        sprite = f"GFX_decision_cat_{category_name}"
+        self.resolver.add(sprite, dds)
+        return sprite
+
     # ----------------------------------------------------------- shared protocol
     def known_ids(self) -> list[str]:
         ids = [d.id for doc in self._mod_docs for d in doc.decisions()]

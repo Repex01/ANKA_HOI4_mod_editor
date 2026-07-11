@@ -224,8 +224,9 @@ class DecisionInspector(InspectorBase):
             self._loaded_name = self.owner.service.name_of(key, lang)
             self._loaded_desc = self.owner.service.desc_of(key, lang)
             self._name_var.set("" if self._loaded_name == key else self._loaded_name)
+            self._desc.configure(state="normal")   # a disabled Text ignores edits
             self._desc.delete("1.0", "end")
-            self._desc.insert("1.0", self._loaded_desc)
+            self._desc.insert("1.0", self._loaded_desc.replace("\\n", "\n"))
             for name, var in self._num_vars.items():
                 var.set(decision.get_raw(name))
             for name, var in self._flags.items():
@@ -276,7 +277,8 @@ class DecisionInspector(InspectorBase):
         name = self._name_var.get().strip()
         desc = self._desc.get("1.0", "end").strip()
         cur_name = self.owner.service.name_of(key, lang)
-        cur_desc = self.owner.service.desc_of(key, lang)
+        # loc stores line breaks as literal \n; the Text widget holds real ones
+        cur_desc = self.owner.service.desc_of(key, lang).replace("\\n", "\n")
         write_name = name if name and name != cur_name else None
         write_desc = desc if desc != cur_desc and (desc or cur_desc) else None
         if write_name is not None or write_desc is not None:
@@ -391,6 +393,15 @@ class CategoryInspector(InspectorBase):
         self._name_var.trace_add("write", lambda *_: self._debounce("loc", self._commit_loc, 1200))
         entry.bind("<FocusOut>", lambda e: self._commit_loc())
 
+        ttk.Label(b, text=self.t("focuses.inspector.desc"),
+                  style="CardMuted.TLabel").grid(row=r, column=0, sticky="nw", pady=3)
+        self._desc = tk.Text(b, height=3, wrap="word", bg=self.palette.surface_alt,
+                             fg=self.palette.text, insertbackground=self.palette.text,
+                             relief="flat", font=("Segoe UI", 10))
+        self._desc.grid(row=r, column=1, sticky="ew", padx=(8, 0), pady=3); r += 1
+        self._desc.bind("<KeyRelease>", lambda e: self._debounce("loc", self._commit_loc, 1200))
+        self._desc.bind("<FocusOut>", lambda e: self._commit_loc())
+
         # icon / picture
         ttk.Label(b, text=self.t("focuses.inspector.icon"),
                   style="CardMuted.TLabel").grid(row=r, column=0, sticky="w", pady=3)
@@ -484,6 +495,10 @@ class CategoryInspector(InspectorBase):
         self._loading = True
         value = self.owner.service.name_of(name, self._lang.get())
         self._name_var.set("" if value == name else value)
+        desc = self.owner.service.desc_of(name, self._lang.get())
+        self._desc.configure(state="normal")   # a disabled Text ignores edits
+        self._desc.delete("1.0", "end")
+        self._desc.insert("1.0", desc.replace("\\n", "\n"))
         self._loading = was
 
     def _commit_loc(self) -> None:
@@ -491,11 +506,18 @@ class CategoryInspector(InspectorBase):
             return
         name = self.category.name if self.category is not None \
             else self.owner.selected_category_name
-        text = self._name_var.get().strip()
-        if not name or not text:
+        if not name:
             return
-        if text != self.owner.service.name_of(name, self._lang.get()):
-            self.owner.service.set_loc(name, self._lang.get(), text, None)
+        lang = self._lang.get()
+        text = self._name_var.get().strip()
+        desc = self._desc.get("1.0", "end").strip()
+        cur_name = self.owner.service.name_of(name, lang)
+        # loc stores line breaks as literal \n; the Text widget holds real ones
+        cur_desc = self.owner.service.desc_of(name, lang).replace("\\n", "\n")
+        write_name = text if text and text != cur_name else None
+        write_desc = desc if desc != cur_desc and (desc or cur_desc) else None
+        if write_name is not None or write_desc is not None:
+            self.owner.service.set_loc(name, lang, write_name, write_desc)
             self.owner.refresh_tree_labels()
 
     def _refresh_picture(self) -> None:
@@ -514,8 +536,13 @@ class CategoryInspector(InspectorBase):
             self.owner.mark_dirty(self.doc)
             self._refresh_picture()
 
+        def imported(path, _keep_size: bool = False) -> None:
+            sprite = self.owner.import_category_picture(path, category.name)
+            if sprite:
+                picked(sprite)
+
         IconPickerDialog(self, self.owner, self.owner.resolver,
-                         category.get_raw("picture"), picked, None,
+                         category.get_raw("picture"), picked, imported,
                          prefixes=("GFX_decision_cat_",))
 
     def _clear_picture(self) -> None:
@@ -545,8 +572,14 @@ class CategoryInspector(InspectorBase):
             self._icon_btn.configure(image=self._icon_preview(category.sprite_name()))
             self._icon_name.configure(text=category.icon or "—")
 
+        def imported(path, keep_size: bool = False) -> None:
+            sprite = self.owner.import_category_icon(path, category.name,
+                                                     keep_size=keep_size)
+            if sprite:
+                picked(sprite)
+
         IconPickerDialog(self, self.owner, self.owner.resolver, category.icon,
-                         picked, None, prefixes=("GFX_decision_category_",))
+                         picked, imported, prefixes=("GFX_decision_category_",))
 
     def _edit_script(self, name: str) -> None:
         category = self.category

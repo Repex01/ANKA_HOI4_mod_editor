@@ -49,6 +49,12 @@ class LocFile:
         return list(self._entries.values())
 
     def set(self, key: str, value: str, version: int = 0) -> "LocFile":
+        # A literal line break inside a value would split the entry across
+        # lines and corrupt the file (the parser reads line-wise, like the
+        # game). Store the HOI4 escape ``\n`` instead — editors translate it
+        # back to a real newline for display.
+        value = (value.replace("\r\n", "\n").replace("\r", "\n")
+                 .replace("\n", "\\n"))
         if key in self._entries:
             self._entries[key].value = value
         else:

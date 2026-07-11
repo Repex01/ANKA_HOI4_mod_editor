@@ -89,8 +89,10 @@ def _balance_braces(text: str) -> str:
             i = j
             continue
         if ch == '"':
-            j = text.find('"', i + 1)
-            j = n if j == -1 else j + 1
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1   # skip escaped chars (\" \\)
+            j = n if j >= n else j + 1
             out.append(text[i:j])
             i = j
             continue

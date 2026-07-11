@@ -11,6 +11,8 @@ from pathlib import Path
 # Project root = parent of the `anka` package directory.
 _ROOT = Path(__file__).resolve().parents[2]
 
+# Basic constants
+VERSION = "0.4"
 
 class Paths:
     ROOT: Path = _ROOT

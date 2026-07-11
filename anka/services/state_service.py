@@ -704,7 +704,11 @@ INDUSTRY_BUILDINGS = ("industrial_complex", "arms_factory", "dockyard")
 def split_state_assets(src: "StateDef", dst: "StateDef", taken: int, total: int) -> None:
     """Move a proportional share (``taken/total`` of the source, floored) of manpower,
     resources and industry from `src` into `dst`. The source keeps the remainder, so it
-    effectively rounds *up* — matching how carving N provinces out of a state works."""
+    effectively rounds *up* — matching how carving N provinces out of a state works.
+
+    Infrastructure is the exception: it is a state-wide quality level, not a stockpile,
+    so it is *copied* to the new state (kept identical to the source) rather than split.
+    """
     if total <= 0 or taken <= 0:
         return
     mp = src.manpower
@@ -726,6 +730,11 @@ def split_state_assets(src: "StateDef", dst: "StateDef", taken: int, total: int)
             dst.set_state_building(building,
                                    int(dst.state_buildings.get(building, 0)) + m)
             src.set_state_building(building, lvl - m)
+    # Copy infrastructure unchanged (source keeps its level; new state matches it).
+    infra = int(src_b.get("infrastructure", 0))
+    if infra:
+        dst.set_state_building("infrastructure",
+                               max(infra, int(dst.state_buildings.get("infrastructure", 0))))
 
 
 def transfer_victory_points(src: "StateDef", dst: "StateDef", pids: set[int]) -> None:

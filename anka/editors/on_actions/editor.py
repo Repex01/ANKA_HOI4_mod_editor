@@ -97,6 +97,8 @@ class OnActionsEditor(EditorModule):
         self._btn_list.pack(side="left")
         ttk.Button(bar, text="➕ " + self.t("on_actions.new_entry"),
                    command=self._new_entry).pack(side="left", padx=4)
+        ttk.Button(bar, text="🗎 " + self.t("on_actions.new_file"),
+                   command=self._new_file).pack(side="left", padx=2)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
@@ -119,7 +121,7 @@ class OnActionsEditor(EditorModule):
         ttk.Entry(panel, textvariable=self._search).grid(
             row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self._vanilla = tk.BooleanVar(value=False)
-        ttk.Checkbutton(panel, text=self.t("decisions.show_vanilla"),
+        ttk.Checkbutton(panel, text=self.t("on_actions.show_vanilla"),
                         style="Card.TCheckbutton", variable=self._vanilla,
                         command=self.reload_tree).grid(row=1, column=0,
                                                        sticky="w", pady=(0, 6))
@@ -204,8 +206,10 @@ class OnActionsEditor(EditorModule):
                      payload_doc) -> None:
             rows = [(i, name) for i, name in enumerate(names)
                     if not query or query in name.lower()]
-            if not rows and (not query or query not in rel_file.lower()):
+            if not rows and query and query not in rel_file.lower():
                 return
+            if not rows and not query and is_vanilla:
+                return          # empty mod files stay visible (fresh files)
             file_iid = f"f::{rel_file}"
             label = rel_file.rsplit("/", 1)[-1]
             self._tree.insert("", "end", iid=file_iid, text=label,
@@ -260,12 +264,18 @@ class OnActionsEditor(EditorModule):
 
     # ------------------------------------------------------------------ actions
     def _new_entry(self) -> None:
-        known = self.known_names()
-        options = [(n, n) for n in known]
+        # Every canonical hook (base) plus an <base>_TAG variant for hooks that
+        # support a per-country tag. Concrete tag hooks (on_monthly_AFG) are never
+        # listed — the _TAG entry opens the tag picker instead.
+        options: list[tuple[str, str]] = []
+        for base, supports_tag in self.service.known_actions():
+            options.append((base, base))
+            if supports_tag:
+                options.append((f"{base}_TAG", f"__tag__{base}"))
         options.append((f"✏ {self.t('on_actions.custom_name')}", "__custom__"))
 
         def create(name: str) -> None:
-            doc = self.service.mod_target_doc()
+            doc = self._target_doc()
             self.service.add_entry(doc, name)
             if all(d.ref.path != doc.ref.path for d in self._mod_docs):
                 self._mod_docs.append(doc)
@@ -278,17 +288,56 @@ class OnActionsEditor(EditorModule):
                 self._tree.selection_set(iid)
                 self._tree.see(iid)
 
+        def pick_tag(base: str) -> None:
+            countries = self.value_options("country")
+            if not countries:
+                return
+            SinglePickDialog(self._tree, self, self.t("on_actions.pick_tag"),
+                             countries, lambda tag: create(f"{base}_{tag}"))
+
         def picked(value: str) -> None:
             if value == "__custom__":
                 TextPromptDialog(self._tree, self,
                                  self.t("on_actions.new_entry"),
                                  self.t("on_actions.name_label"), create,
                                  initial="on_", pattern=r"^on_\w+$")
+            elif value.startswith("__tag__"):
+                pick_tag(value[len("__tag__"):])
             else:
                 create(value)
 
         SinglePickDialog(self._tree, self, self.t("on_actions.new_entry"),
                          options, picked)
+
+    def _target_doc(self):
+        """The mod file new entries go to: the currently selected mod file
+        (or the file of the selected entry), else the first mod file, else a
+        fresh default file."""
+        sel = self._tree.selection()
+        payload = self._items.get(sel[0]) if sel else None
+        if payload is not None:
+            doc = payload[1]
+            if hasattr(doc, "entries") and not doc.ref.is_vanilla:
+                return doc
+        return self.service.mod_target_doc()
+
+    def _new_file(self) -> None:
+        def create(name: str) -> None:
+            doc = self.service.create_doc(name)
+            if any(d.ref.path == doc.ref.path for d in self._mod_docs):
+                return
+            self._mod_docs.append(doc)
+            self.mark_dirty(doc)
+            self.save_all()
+            self.reload_tree()
+            iid = f"f::{doc.ref.rel_file}"
+            if self._tree.exists(iid):
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
+
+        TextPromptDialog(self._tree, self, self.t("on_actions.new_file"),
+                         self.t("on_actions.file_label"), create,
+                         pattern=r"^[\w.-]+$")
 
     def _copy_to_mod(self) -> None:
         ref = getattr(self, "_copy_ref", None)

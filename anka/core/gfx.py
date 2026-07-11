@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .guitypes.views import SpriteView
 from .pdx import Block, Pair, Scalar, dump_file, parse_file
 
 
@@ -165,3 +166,103 @@ class SpriteResolver:
         lows = tuple(p.lower() for p in prefixes)
         return sorted(n for n in self._map
                       if not lows or n.lower().startswith(lows))
+
+
+class SpriteDef:
+    """One catalog entry: a full sprite definition anchored to its content root
+    (texture paths inside a .gfx are relative to the root that ships it)."""
+
+    __slots__ = ("view", "root")
+
+    def __init__(self, view: SpriteView, root: Path):
+        self.view = view
+        self.root = root
+
+    @property
+    def name(self) -> str:
+        return self.view.name
+
+    @property
+    def kind(self) -> str:
+        return self.view.type_key.lower()
+
+    def texture_path(self, key: str = "") -> Path | None:
+        raw = self.view.get_attr(key) if key else self.view.texture
+        if not raw:
+            return None
+        return self.root / raw.replace("\\", "/").replace("//", "/")
+
+
+class SpriteCatalog:
+    """Full sprite-definition lookup across content roots (the renderer's and
+    the .gui editor's read side). Unlike `SpriteResolver` — which only maps
+    ``spriteType`` names to texture files — the catalog keeps every entry kind
+    (cornered tiles, frame animations, progress bars, ...) with its whole
+    block, so 9-slice borders, frame counts and two-texture bars are available.
+    Built lazily; later roots override earlier ones (DLC → game → deps → mod).
+    """
+
+    def __init__(self, content_roots: list[Path]):
+        self._roots = [Path(r) for r in content_roots]
+        self._map: dict[str, SpriteDef] | None = None
+
+    @classmethod
+    def for_mod(cls, mod_path: Path, game_path: Path,
+                deps: list[Path] | None = None) -> "SpriteCatalog":
+        roots: list[Path] = []
+        for dlc_parent in ("dlc", "integrated_dlc"):
+            parent = game_path / dlc_parent
+            if parent.is_dir():
+                roots.extend(sorted(p for p in parent.iterdir() if p.is_dir()))
+        roots.append(game_path)
+        roots.extend(deps or [])
+        roots.append(mod_path)
+        return cls(roots)
+
+    def _build(self) -> dict[str, SpriteDef]:
+        from .guitypes.schema import SPRITE_KINDS
+        mapping: dict[str, SpriteDef] = {}
+        for root in self._roots:
+            interface = root / "interface"
+            if not interface.is_dir():
+                continue
+            for gfx in interface.rglob("*.gfx"):
+                try:
+                    block = parse_file(gfx)
+                except Exception:
+                    continue
+                sprites = _get_block_ci(block, "spriteTypes")
+                if sprites is None:
+                    continue
+                for pair in sprites.pairs():
+                    if (pair.key.lower() not in SPRITE_KINDS
+                            or not isinstance(pair.value, Block)):
+                        continue
+                    view = SpriteView(pair)
+                    if view.name:
+                        mapping[view.name] = SpriteDef(view, root)
+        return mapping
+
+    def _mapping(self) -> dict[str, SpriteDef]:
+        if self._map is None:
+            self._map = self._build()
+        return self._map
+
+    def get(self, name: str) -> SpriteDef | None:
+        return self._mapping().get(name)
+
+    def names(self, prefixes: tuple[str, ...] = ()) -> list[str]:
+        lows = tuple(p.lower() for p in prefixes)
+        return sorted(n for n in self._mapping()
+                      if not lows or n.lower().startswith(lows))
+
+    def add(self, view: SpriteView, root: Path) -> None:
+        """Record a sprite created/edited at runtime without a full rescan."""
+        if view.name:
+            self._mapping()[view.name] = SpriteDef(view, root)
+
+    def invalidate(self) -> None:
+        self._map = None
+
+    def warm(self) -> None:
+        self._mapping()

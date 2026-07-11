@@ -12,8 +12,8 @@ from tkinter import ttk
 
 from PIL import Image, ImageTk
 
-from . import __app_name__, __version__
-from .config.constants import Paths
+from . import __app_name__
+from .config.constants import Paths, VERSION
 from .config.settings import SettingsService
 from .domain.mod import Mod
 from .services.mod_repository import ModRepository
@@ -31,7 +31,7 @@ class AnkaApp:
         self.repo = ModRepository(self.settings.current)
 
         self.root = create_root()
-        self.root.title(f"{__app_name__} {__version__}")
+        self.root.title(f"{__app_name__} {VERSION}")
         self.root.minsize(*self.MIN_SIZE)
         self._center(*self.MIN_SIZE)      # sane restore-size before maximizing
         self._maximize()

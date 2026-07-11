@@ -103,6 +103,34 @@ class IconService:
         return self._add_icon(source, sprite, rel_texture, gfx_file,
                               DECISION_ICON_SIZE if resize else None, compressed)
 
+    def add_decision_category_icon(
+        self,
+        source: str | Path | Image.Image,
+        category_name: str,
+        gfx_file: str = "anka_decisions.gfx",
+        compressed: bool = False,
+        resize: bool = True,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_decision_category_<name>`` (the small tab icon)."""
+        sprite = f"GFX_decision_category_{category_name}"
+        rel_texture = f"{GAME_DIRS.GFX_DECISIONS}/category_{category_name}.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              DECISION_ICON_SIZE if resize else None, compressed)
+
+    def add_decision_category_picture(
+        self,
+        source: str | Path | Image.Image,
+        category_name: str,
+        gfx_file: str = "anka_decisions.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_decision_cat_<name>`` (the wide category banner).
+        The source dimensions are kept — vanilla banners vary."""
+        sprite = f"GFX_decision_cat_{category_name}"
+        rel_texture = f"{GAME_DIRS.GFX_DECISIONS}/cat_{category_name}.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              None, compressed)
+
     # --- event pictures ----------------------------------------------------
     def add_event_picture(
         self,

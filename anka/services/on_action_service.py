@@ -26,6 +26,10 @@ ON_ACTIONS_DIR = "common/on_actions"
 DEFAULT_REL_FILE = f"{ON_ACTIONS_DIR}/anka_on_actions.txt"
 
 _KEY_RE = re.compile(r"^[ \t]*([A-Za-z_][\w.]*)[ \t]*=[ \t]*\{")
+# on_action tokens inside backticks in _documentation.md.
+_DOC_TOKEN_RE = re.compile(r"`(on_\w+)`")
+# A concrete per-country hook: base (lowercase snake_case) + trailing all-caps TAG.
+_TAG_SUFFIX_RE = re.compile(r"^(on_\w+?)_([A-Z][A-Z0-9]{1,3})$")
 
 
 @dataclass
@@ -174,22 +178,62 @@ class OnActionService:
                 depth = 0
         return names
 
-    def known_names(self) -> list[str]:
-        """Every hook name the engine supports: names actually used by vanilla
-        scripts + the official list in ``common/on_actions/_documentation.md``
-        (ships with the game, e.g. ``on_daily`` is documented but unused)."""
-        names: set[str] = set()
-        for ref in self.list_docs(include_vanilla=True):
-            if ref.is_vanilla:
-                names.update(ref.names)
+    def known_actions(self) -> list[tuple[str, bool]]:
+        """Every canonical on_action as ``(base_name, supports_tag)``.
+
+        Sources, in order of authority:
+
+        * the game's ``common/on_actions/_documentation.md`` — it lists both the
+          base (``on_monthly``) and a ``_TAG`` marker (``on_monthly_TAG``) when a
+          per-country variant exists;
+        * base names actually seen in vanilla files but missing from the docs.
+
+        Concrete per-country hooks scanned from vanilla files (``on_monthly_AFG``,
+        ``on_daily_GER`` …) are **folded** into their base — they only mark it as
+        tag-supporting and are never listed as separate entries. ``supports_tag``
+        means the picker should offer an ``<base>_TAG`` variant that prompts for a
+        country tag."""
+        bases: set[str] = set()
+        tag_supported: set[str] = set()
+
         doc = self.ctx.game_path / ON_ACTIONS_DIR / "_documentation.md"
         if doc.is_file():
             try:
                 text = doc.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 text = ""
-            names.update(re.findall(r"`(on_\w+?)(?:_TAG)?`", text))
-        return sorted(names)
+            for token in _DOC_TOKEN_RE.findall(text):
+                if token.endswith("_TAG"):
+                    base = token[:-4]
+                    bases.add(base)
+                    tag_supported.add(base)
+                else:
+                    bases.add(token)
+
+        for ref in self.list_docs(include_vanilla=True):
+            if not ref.is_vanilla:
+                continue
+            for name in ref.names:
+                if name.endswith("_TAG"):
+                    base = name[:-4]
+                    bases.add(base)
+                    tag_supported.add(base)
+                    continue
+                # base names are snake_case lowercase, so a trailing all-caps
+                # segment is a concrete country TAG (AFG, GER, D01, …) — fold it.
+                m = _TAG_SUFFIX_RE.match(name)
+                if m:
+                    bases.add(m.group(1))
+                    tag_supported.add(m.group(1))
+                else:
+                    bases.add(name)
+
+        return sorted((base, base in tag_supported) for base in bases)
+
+    def known_names(self) -> list[str]:
+        """Canonical base hook names only (no per-country ``_TAG`` variants) — used
+        for validation and the 'unknown hook' check."""
+        return [base for base, _ in self.known_actions()]
 
     # -------------------------------------------------------------------- load
     def load(self, ref: OnActionDocRef) -> OnActionDocument:
@@ -250,6 +294,18 @@ class OnActionService:
         root = Block()
         root.set("on_actions", Block())
         doc = OnActionDocument(ref, root)
+        return doc
+
+    def create_doc(self, filename: str) -> OnActionDocument:
+        """A fresh mod-side on_actions file (saved on the next save_all)."""
+        if not filename.endswith(".txt"):
+            filename += ".txt"
+        ref = OnActionDocRef(rel_file=f"{ON_ACTIONS_DIR}/{filename}",
+                             source_root=self.ctx.mod.path, is_vanilla=False)
+        root = Block()
+        root.set("on_actions", Block())
+        doc = OnActionDocument(ref, root)
+        self._doc_cache[str(ref.path).lower()] = (0.0, doc)
         return doc
 
     def add_entry(self, doc: OnActionDocument, name: str) -> OnActionEntry:

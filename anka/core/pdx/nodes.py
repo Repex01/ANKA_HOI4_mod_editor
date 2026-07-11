@@ -114,6 +114,33 @@ class Block(Node):
     def has(self, key: str) -> bool:
         return self.get(key) is not None
 
+    # --- case-insensitive read API (HOI4 script keys are case-insensitive;
+    # vanilla freely mixes `spriteType`/`SpriteType`, `orientation`/`Orientation`).
+    def get_ci(self, key: str) -> Optional[Value]:
+        low = key.lower()
+        for pair in self.pairs():
+            if pair.key.lower() == low:
+                return pair.value
+        return None
+
+    def get_all_ci(self, key: str) -> list[Value]:
+        low = key.lower()
+        return [p.value for p in self.pairs() if p.key.lower() == low]
+
+    def get_scalar_ci(self, key: str, default=None):
+        v = self.get_ci(key)
+        return v.raw if isinstance(v, Scalar) else default
+
+    def get_block_ci(self, key: str) -> Optional["Block"]:
+        low = key.lower()
+        for pair in self.pairs():
+            if pair.key.lower() == low and isinstance(pair.value, Block):
+                return pair.value
+        return None
+
+    def has_ci(self, key: str) -> bool:
+        return self.get_ci(key) is not None
+
     def array_values(self) -> list[str]:
         """Bare scalar elements, e.g. the contents of ``traits = { a b c }``."""
         return [it.raw for it in self.items if isinstance(it, Scalar)]
@@ -141,6 +168,27 @@ class Block(Node):
     def remove(self, key: str) -> "Block":
         self.items = [
             it for it in self.items if not (isinstance(it, Pair) and it.key == key)
+        ]
+        return self
+
+    def set_ci(self, key: str, value: Value | str | int | float | bool) -> "Block":
+        """Case-insensitive `set`: update the first matching pair *keeping its
+        on-file key casing* (so edits to vanilla-derived files diff cleanly);
+        append with `key` as given only when absent."""
+        node = value if isinstance(value, Node) else Scalar.of(value)
+        low = key.lower()
+        for pair in self.pairs():
+            if pair.key.lower() == low:
+                pair.value = node
+                return self
+        self.items.append(Pair(key, node))
+        return self
+
+    def remove_ci(self, key: str) -> "Block":
+        low = key.lower()
+        self.items = [
+            it for it in self.items
+            if not (isinstance(it, Pair) and it.key.lower() == low)
         ]
         return self
 

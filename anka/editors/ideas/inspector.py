@@ -225,8 +225,9 @@ class IdeaInspector(InspectorBase):
             self._loaded_name = self.owner.service.name_of(key, lang)
             self._loaded_desc = self.owner.service.desc_of(key, lang)
             self._name_var.set("" if self._loaded_name == key else self._loaded_name)
+            self._desc.configure(state="normal")   # a disabled Text ignores edits
             self._desc.delete("1.0", "end")
-            self._desc.insert("1.0", self._loaded_desc)
+            self._desc.insert("1.0", self._loaded_desc.replace("\\n", "\n"))
             self._namekey_var.set(idea.get_raw("name"))
             for name, var in self._num_vars.items():
                 var.set(idea.get_raw(name))
@@ -303,7 +304,8 @@ class IdeaInspector(InspectorBase):
         name = self._name_var.get().strip()
         desc = self._desc.get("1.0", "end").strip()
         cur_name = self.owner.service.name_of(key, lang)
-        cur_desc = self.owner.service.desc_of(key, lang)
+        # loc stores line breaks as literal \n; the Text widget holds real ones
+        cur_desc = self.owner.service.desc_of(key, lang).replace("\\n", "\n")
         write_name = name if name and name != cur_name else None
         write_desc = desc if desc != cur_desc and (desc or cur_desc) else None
         if write_name is not None or write_desc is not None:

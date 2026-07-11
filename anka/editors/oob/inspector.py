@@ -21,7 +21,10 @@ from ...services.oob_service import (
     can_remove_regiment,
     experience_level_key,
 )
-from ..common import InspectorBase, PdxPreviewDialog, SinglePickDialog, TextPromptDialog
+from ...core.pdx import dumps
+from ...core.pdx import parse as pdx_parse
+from ..common import (InspectorBase, PdxPreviewDialog, ScriptEditorDialog,
+                      SinglePickDialog, TextPromptDialog)
 
 
 class TemplateInspector(InspectorBase):
@@ -299,12 +302,24 @@ class FileInspector(InspectorBase):
 
     def _build(self) -> None:
         b = self.body
-        b.rowconfigure(3, weight=1)
+        b.rowconfigure(4, weight=1)     # the divisions tree row expands
         r = 0
         self._title = ttk.Label(b, text="", style="Heading.TLabel")
         self._title.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 2)); r += 1
         self._subtitle = ttk.Label(b, text="", style="CardMuted.TLabel", wraplength=460)
         self._subtitle.grid(row=r, column=0, columnspan=2, sticky="w", pady=(0, 8)); r += 1
+
+        # instant_effect — file-level effect block (equipment production, ...)
+        ie_row = ttk.Frame(b, style="Card.TFrame")
+        ie_row.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 6)); r += 1
+        self._ie_status = ttk.Label(ie_row, text="○", style="CardMuted.TLabel",
+                                    width=2)
+        self._ie_status.pack(side="left")
+        ttk.Label(ie_row, text="instant_effect",
+                  style="CardMuted.TLabel").pack(side="left")
+        ttk.Button(ie_row, text="✎", width=3,
+                   command=self._edit_instant_effect).pack(side="left",
+                                                           padx=(6, 0))
 
         head = ttk.Frame(b, style="Card.TFrame")
         head.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(0, 4)); r += 1
@@ -430,10 +445,54 @@ class FileInspector(InspectorBase):
             names = [t.name for t in doc.templates()]
             self._tmpl_combo.configure(values=names)
             self._refresh_divisions()
+            self._refresh_instant_effect()
             for w in (self._add_btn, self._import_btn):
                 w.configure(state="normal" if editable else "disabled")
         finally:
             self._loading = False
+
+    def _refresh_instant_effect(self) -> None:
+        block = self.doc.root.get_block("instant_effect") if self.doc else None
+        filled = block is not None and len(block.items) > 0
+        self._ie_status.configure(
+            text="●" if filled else "○",
+            foreground=self.palette.accent if filled else self.palette.text_muted)
+
+    def _edit_instant_effect(self) -> None:
+        doc = self.doc
+        if doc is None:
+            return
+        block = doc.root.get_block("instant_effect")
+        text = dumps(block, top_level=False) if block is not None else ""
+
+        def submitted(new_text: str) -> None:
+            try:
+                parsed = (pdx_parse(new_text, recover=False)
+                          if new_text.strip() else None)
+            except Exception:
+                return
+            if parsed is None or not parsed.items:
+                doc.root.remove("instant_effect")
+            else:
+                existing = doc.root.get_block("instant_effect")
+                if existing is not None:
+                    existing.items = parsed.items
+                else:
+                    # convention: instant_effect precedes the units block
+                    pair = Pair("instant_effect", Block(parsed.items))
+                    index = next((i for i, it in enumerate(doc.root.items)
+                                  if isinstance(it, Pair) and it.key == "units"),
+                                 None)
+                    if index is None:
+                        doc.root.items.append(pair)
+                    else:
+                        doc.root.items.insert(index, pair)
+            self.owner.mark_dirty(doc)
+            self._refresh_instant_effect()
+
+        ScriptEditorDialog(self, self.owner, "instant_effect", text,
+                           submitted if self._editable else (lambda t: None),
+                           ("effect",), doc.ref.name)
 
     def _refresh_divisions(self) -> None:
         self._tree.delete(*self._tree.get_children())

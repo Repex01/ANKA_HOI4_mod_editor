@@ -15,7 +15,7 @@ _value: block | tagged | STRING | TOKEN
 tagged: TOKEN block
 
 OP: "==" | "<=" | ">=" | "!=" | "=" | "<" | ">"
-STRING: /"[^"]*"/
+STRING: /"(\\.|[^"\\])*"/
 TOKEN: /[^\s{}="<>!#]+/
 COMMENT: /#[^\n]*/
 

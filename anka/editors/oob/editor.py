@@ -10,6 +10,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from ...services._locutil import LocCatalog
 from ...services.oob_service import DivisionTemplate, OobService
 from ...services.unit_service import UnitService
 from ..base import EditorModule, EditorRegistry
@@ -33,6 +34,14 @@ class OobEditor(EditorModule):
         self._vanilla_refs: list = []
         self._dirty: set = set()
         self._items: dict[str, tuple] = {}
+        # script-editor owner protocol (instant_effect): loc + typed pickers
+        self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
+                                                  "english")
+        self.loc = LocCatalog(context.mod.path, context.game_path,
+                              vanilla_filter="\x00none",
+                              default_pattern="anka_oob_l_{lang}.yml",
+                              dep_roots=context.dependency_paths)
+        self._value_options: dict[str, list[tuple[str, str]]] = {}
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
@@ -430,6 +439,46 @@ class OobEditor(EditorModule):
                                   tags=(issue.severity,))
         label = f"⚠ {len(issues)}" if not errors else f"⛔ {errors} · ⚠ {len(issues) - errors}"
         self._btn_problems.configure(text=label)
+
+    # ----------------------------------------------------------- shared protocol
+    # (owner protocol of the shared script editor — used by instant_effect)
+    def loc_get(self, key: str, language: str) -> str:
+        return self.loc.get(key, language) or ""
+
+    def loc_set(self, key: str, language: str, text: str) -> None:
+        self.loc.set(key, language, text)
+
+    def value_options(self, vtype: str) -> list[tuple[str, str]]:
+        cached = self._value_options.get(vtype)
+        if cached is not None:
+            return cached
+        opts: list[tuple[str, str]] = []
+        if vtype == "country":
+            from ...services.country_service import CountryService
+            for ref in CountryService(self.context).list_tags(include_vanilla=True):
+                opts.append((f"{ref.tag} · {ref.name}", ref.tag))
+        elif vtype == "state":
+            from ...services.state_service import StateService
+            for st in StateService(self.context).list_states():
+                opts.append((f"{st.id} · {st.name}", str(st.id)))
+        elif vtype == "idea":
+            from ...services.idea_service import IdeaService
+            for idea in IdeaService(self.context).list_ideas():
+                opts.append((f"{idea.id} · {idea.category}", idea.id))
+        elif vtype == "focus":
+            from ...services.focus_service import FocusService
+            for fid in FocusService(self.context).focus_ids():
+                opts.append((fid, fid))
+        elif vtype == "event":
+            from ...services.event_service import EventService
+            opts = EventService(self.context).event_options()
+        elif vtype == "modifier":
+            from ..effects import ScriptCatalog
+            for name, mod in sorted(ScriptCatalog.modifiers().items()):
+                scopes = ", ".join(mod.scopes)
+                opts.append((f"{name} · {scopes}" if scopes else name, name))
+        self._value_options[vtype] = opts
+        return opts
 
     # ------------------------------------------------------------------ saving
     def mark_dirty(self, doc) -> None:

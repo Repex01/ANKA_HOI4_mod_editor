@@ -9,6 +9,7 @@ from typing import Callable
 import numpy as np
 from PIL import Image, ImageTk
 
+from ...services.map_service import MIN_PROVINCE_AREA
 from ..common.dialogs import BaseDialog
 
 PROVINCE_TYPES = ("land", "sea", "lake")
@@ -167,7 +168,7 @@ class GenerateStatesDialog(BaseDialog):
                  on_apply: Callable[[list[int], list, dict], None],
                  split_resources: bool = True, total_states: int = 0,
                  selected_states: int = 0):
-        super().__init__(master, editor, editor.t("map.gen_states"), (520, 620))
+        super().__init__(master, editor, editor.t("map.gen_states"), (520, 660))
         self.resizable(True, True)
         self._provs = list(provs)
         self._on_apply = on_apply
@@ -178,7 +179,7 @@ class GenerateStatesDialog(BaseDialog):
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         body.columnconfigure(1, weight=1)
-        body.rowconfigure(6, weight=1)
+        body.rowconfigure(7, weight=1)
 
         ttk.Label(body, text=self.t("map.gen_states_stats", total=total_states,
                                     selected=selected_states),
@@ -222,18 +223,22 @@ class GenerateStatesDialog(BaseDialog):
         ttk.Checkbutton(body, text=self.t("map.gen_match_categories"),
                         style="Card.TCheckbutton", variable=self._match_cat_var).grid(
             row=5, column=0, columnspan=2, sticky="w")
+        self._cores_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(body, text=self.t("map.gen_original_cores"),
+                        style="Card.TCheckbutton", variable=self._cores_var).grid(
+            row=6, column=0, columnspan=2, sticky="w")
 
         self._canvas = tk.Canvas(body, width=self.PREVIEW[0], height=self.PREVIEW[1],
                                  bg=self.palette.surface_alt, highlightthickness=0,
                                  bd=0)
-        self._canvas.grid(row=6, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self._canvas.grid(row=7, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
         self._progress = ttk.Label(body, text=self.t("map.gen_states_hint",
                                                      count=len(provs)),
                                    style="CardMuted.TLabel", wraplength=460)
-        self._progress.grid(row=7, column=0, columnspan=2, sticky="w", pady=(4, 2))
+        self._progress.grid(row=8, column=0, columnspan=2, sticky="w", pady=(4, 2))
 
         bar = ttk.Frame(body, style="Card.TFrame")
-        bar.grid(row=8, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        bar.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ttk.Button(bar, text=self.t("common.cancel"),
                    command=self.destroy).pack(side="right", padx=(6, 0))
         self._apply_btn = ttk.Button(bar, text=self.t("common.apply"),
@@ -324,6 +329,7 @@ class GenerateStatesDialog(BaseDialog):
             "category": self._cat_var.get().strip(),
             "split_resources": self._split_var.get(),
             "match_categories": self._match_cat_var.get(),
+            "original_cores": self._cores_var.get(),
         }
         groups = self._groups
         self.destroy()
@@ -651,6 +657,17 @@ class SplitProvinceDialog(BaseDialog):
 
     def _apply(self) -> None:
         if self._labels is None:
+            return
+        # Reject a split that would produce provinces below the minimum area — report
+        # it here in the generation window (each cluster becomes one province).
+        counts = np.bincount(self._labels.ravel())
+        tiny = sum(1 for i in range(1, len(counts))
+                   if 0 < counts[i] < MIN_PROVINCE_AREA)
+        if tiny:
+            from tkinter import messagebox
+            messagebox.showerror("ANKA", self.t("map.err.tiny_split",
+                                                min=MIN_PROVINCE_AREA, count=tiny),
+                                 parent=self)
             return
         labels, bbox, colors = self._labels, self._bbox, self._colors
         pids = self._pids

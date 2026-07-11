@@ -310,8 +310,9 @@ class FocusInspector(ttk.Frame):
             self._loaded_desc = self.owner.service.focus_desc(focus.text or focus.id, lang)
             self._name_var.set(self._loaded_name
                                if self._loaded_name != (focus.text or focus.id) else "")
+            self._desc.configure(state="normal")   # a disabled Text ignores edits
             self._desc.delete("1.0", "end")
-            self._desc.insert("1.0", self._loaded_desc)
+            self._desc.insert("1.0", self._loaded_desc.replace("\\n", "\n"))
             self._x.set(str(focus.x))
             self._y.set(str(focus.y))
             self._cost.set(f"{focus.cost:g}")
@@ -492,7 +493,8 @@ class FocusInspector(ttk.Frame):
         desc = self._desc.get("1.0", "end").strip()
         key = focus.text or focus.id
         current_name = self.owner.service.focus_name(key, lang)
-        current_desc = self.owner.service.focus_desc(key, lang)
+        # loc stores line breaks as literal \n; the Text widget holds real ones
+        current_desc = self.owner.service.focus_desc(key, lang).replace("\\n", "\n")
         new_name = name if name else None
         if (new_name and new_name != current_name) or (desc != current_desc and (desc or current_desc)):
             self.owner.service.set_focus_loc(

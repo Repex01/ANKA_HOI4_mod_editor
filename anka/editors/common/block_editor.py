@@ -6,9 +6,11 @@ entry, block pairs become bordered containers with their own children and their 
 containers, the full effect/trigger catalog, or a free-form key). Values are edited
 in place (writing straight into the PDX nodes); structural changes re-render.
 
-``custom_effect_tooltip`` / ``custom_trigger_tooltip`` scalar pairs get a third field:
-the localized tooltip text for the current language, saved through the focus service
-(collision-safe, per language).
+``custom_effect_tooltip`` (scalar) and ``custom_trigger_tooltip`` (block with a
+``tooltip`` key, per the HOI4 docs) get a third field on their loc-key row: the
+localized tooltip text for the current language, saved through the owner's
+loc protocol (collision-safe, per language). Game rules (``rule = { ... }``)
+render as strict yes/no switches.
 """
 from __future__ import annotations
 
@@ -31,6 +33,24 @@ _CONTAINERS: dict[str, tuple[str, ...]] = {
     "effect": ("if", "limit", "else", "random_list", "hidden_effect"),
 }
 _TOOLTIP_KEYS = ("custom_effect_tooltip", "custom_trigger_tooltip")
+
+# Game rules (idea/character `rule = { ... }` blocks): fixed yes/no switches.
+# Source: hoi4 wiki, Idea modding → game rules.
+_RULE_PARENTS = ("rule",)
+_GAME_RULES = (
+    "can_access_market", "can_be_spymaster", "can_boost_other_ideologies",
+    "can_boost_own_ideology", "can_create_collaboration_government",
+    "can_create_factions", "can_declare_war_on_same_ideology",
+    "can_declare_war_without_wargoal_when_in_war", "can_decline_call_to_war",
+    "can_force_government", "can_generate_female_aces",
+    "can_generate_female_country_leaders", "can_generate_female_unit_leaders",
+    "can_guarantee_other_ideologies", "can_join_factions",
+    "can_join_factions_not_allowed_diplomacy", "can_join_opposite_factions",
+    "can_lower_tension", "can_not_build_buildings", "can_not_declare_war",
+    "can_occupy_non_war", "can_only_justify_war_on_threat_country",
+    "can_puppet", "can_send_volunteers", "can_use_kamikaze_pilots",
+    "contributes_operatives", "units_deployed_to_overlord",
+)
 
 # ---------------------------------------------------------------------------
 # Typed values: instead of free typing, known fields get a "…" picker button
@@ -231,10 +251,11 @@ class BlockTreeEditor(ttk.Frame):
         """Known keywords render as labels; unknown keys stay editable."""
         known = (ScriptCatalog.find(pair.key) is not None
                  or pair.key in ScriptCatalog.modifiers()
+                 or pair.key in _GAME_RULES
                  or pair.key in _CONTAINERS["trigger"] + _CONTAINERS["effect"]
                  or pair.key in _TOOLTIP_KEYS
                  or pair.key in ("limit", "else_if", "tooltip", "factor", "add",
-                                 "base", "modifier"))
+                                 "base", "modifier", "rule"))
         if known:
             ttk.Label(row, text=pair.key, style="Card.TLabel").pack(side="left")
         else:
@@ -245,15 +266,20 @@ class BlockTreeEditor(ttk.Frame):
                                                self._on_change()))
 
     def _op_editable(self, pair: Pair, kinds: tuple[str, ...]) -> bool:
-        """Whether this leaf may use comparison operators. Only triggers can; an
-        effect is always a plain ``key = value`` assignment.
+        """Whether this leaf may use comparison operators. Only triggers can:
+        effects, static modifiers and game rules are always plain
+        ``key = value`` assignments.
 
         * Effect-only context  -> never editable.
-        * Trigger-only context -> always editable (e.g. inside ``limit``).
-        * Mixed context        -> decide per key: triggers (and unknown keys, which
-          may be scripted-variable comparisons) are editable, effects are not.
+        * Modifier / rule keys -> never editable, wherever they appear.
+        * Trigger-only context -> editable (e.g. inside ``limit``).
+        * Mixed context        -> decide per key: triggers (and unknown keys,
+          which may be scripted-variable comparisons) are editable.
         """
         if "trigger" not in kinds:
+            return False
+        if pair.key in ScriptCatalog.modifiers() or pair.key in _GAME_RULES \
+                or pair.key == "tooltip":
             return False
         if kinds == ("trigger",):
             return True
@@ -284,8 +310,15 @@ class BlockTreeEditor(ttk.Frame):
 
         scalar = pair.value
         val_var = tk.StringVar(value=scalar.raw)
-        entry = ttk.Entry(row, textvariable=val_var, width=24)
-        entry.pack(side="left")
+        is_rule = (pair.key in _GAME_RULES or parent_key in _RULE_PARENTS)
+        if is_rule:
+            # game rules are strict yes/no switches
+            box = ttk.Combobox(row, textvariable=val_var, width=5,
+                               state="readonly", values=("yes", "no"))
+            box.pack(side="left")
+        else:
+            entry = ttk.Entry(row, textvariable=val_var, width=24)
+            entry.pack(side="left")
 
         def value_changed(*_a) -> None:
             text = val_var.get()
@@ -295,9 +328,10 @@ class BlockTreeEditor(ttk.Frame):
         val_var.trace_add("write", value_changed)
 
         vtype = value_type_of(parent_key, pair.key)
-        if vtype is not None:
+        if vtype is not None and not is_rule:
             self._picker_button(row, vtype, val_var)
-        if pair.key in _TOOLTIP_KEYS:
+        if pair.key in _TOOLTIP_KEYS or (pair.key == "tooltip"
+                                         and parent_key == "custom_trigger_tooltip"):
             self._tooltip_loc_field(row, val_var)
         self._del_btn(row, owner_block, pair)
 
@@ -460,7 +494,8 @@ class BlockTreeEditor(ttk.Frame):
                   kinds: tuple[str, ...] | None = None) -> None:
         BlockPickerDialog(self, self.owner, self.kinds if kinds is None else kinds,
                           lambda node: self._insert(block, node),
-                          with_modifiers=parent_key in _MODIFIER_PARENTS)
+                          with_modifiers=parent_key in _MODIFIER_PARENTS,
+                          with_rules=parent_key in _RULE_PARENTS)
 
     def _insert(self, block: Block, node) -> None:
         block.items.append(node)
@@ -473,11 +508,13 @@ class BlockPickerDialog(BaseDialog):
     catalog and free-form entries. Returns a ready PDX node via `on_pick`."""
 
     def __init__(self, master, editor, kinds: tuple[str, ...],
-                 on_pick: Callable[[object], None], with_modifiers: bool = False):
+                 on_pick: Callable[[object], None], with_modifiers: bool = False,
+                 with_rules: bool = False):
         super().__init__(master, editor, editor.t("focuses.blocks.add"), (520, 540))
         self._kinds = kinds
         self._on_pick = on_pick
         self._with_modifiers = with_modifiers
+        self._with_rules = with_rules
 
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
@@ -535,6 +572,10 @@ class BlockPickerDialog(BaseDialog):
             entries.append(("📝  custom_trigger_tooltip", ("tooltip", "custom_trigger_tooltip")))
         entries.append(("✏  " + t("focuses.blocks.custom_leaf"), ("custom_leaf", None)))
         entries.append(("✏  " + t("focuses.blocks.custom_block"), ("custom_block", None)))
+        if self._with_rules:
+            for rule in _GAME_RULES:
+                if not q or q in rule:
+                    entries.append((f"📏  {rule}", ("rule", rule)))
         badge = {"effect": "⚡", "trigger": "❔", "modifier": "📊"}
         kinds = (("modifier",) if self._with_modifiers else ()) + tuple(self._kinds)
         for kind in kinds:
@@ -587,7 +628,13 @@ class BlockPickerDialog(BaseDialog):
         elif kind == "tooltip":
             master = self.master
             fid = getattr(master, "focus_id", "") or "my_focus"
-            node = Pair(data, Scalar(f"{fid}_tt"))
+            if data == "custom_trigger_tooltip":
+                # block form per the HOI4 docs: the loc key sits in `tooltip`
+                node = Pair(data, Block([Pair("tooltip", Scalar(f"{fid}_tt"))]))
+            else:
+                node = Pair(data, Scalar(f"{fid}_tt"))
+        elif kind == "rule":
+            node = Pair(data, Scalar("yes"))
         elif kind == "catalog":
             node = node_from_catalog(data)
         elif kind == "custom_block":
