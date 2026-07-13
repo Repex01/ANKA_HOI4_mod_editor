@@ -433,6 +433,11 @@ class SpriteInspector(InspectorBase):
         if src is None:
             messagebox.showerror("ANKA", self.t("interface.gfx.resize.missing"))
             return
+        # Resizing overwrites the file on disk — there is no undo.
+        if not messagebox.askyesno(
+                "ANKA", self.t("interface.gfx.resize.confirm",
+                               size=f"{size[0]}×{size[1]}")):
+            return
         try:
             ImageConverter.convert(src, dest, size=size)
         except Exception as exc:                          # noqa: BLE001

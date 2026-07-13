@@ -527,6 +527,12 @@ class DecisionsEditor(EditorModule):
             for name, mod in sorted(ScriptCatalog.modifiers().items()):
                 scopes = ", ".join(mod.scopes)
                 opts.append((f"{name} · {scopes}" if scopes else name, name))
+        elif vtype == "scripted_gui":
+            from ...services.scripted_gui_service import ScriptedGuiService
+            seen: set[str] = set()
+            for ref in ScriptedGuiService(self.context).list_docs(include_vanilla=True):
+                seen.update(ref.names)
+            opts = [(n, n) for n in sorted(seen)]
         self._value_options[vtype] = opts
         return opts
 

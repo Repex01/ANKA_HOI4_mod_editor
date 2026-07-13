@@ -1,0 +1,215 @@
+{
+    "with_branches": {
+        "standard": [
+            {
+                "id": 0,
+                "x": 1,
+                "y": 0,
+                "prerequisites": {},
+                "exclusive": []
+            },
+            {
+                "id": 1,
+                "x": 0,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 2,
+                "x": 0,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        1
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 3,
+                "x": 2,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 4,
+                "x": 2,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        3
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 5,
+                "x": 1,
+                "y": 3,
+                "prerequisites": {
+                    "and": [
+                        4,
+                        2
+                    ]
+                },
+                "exclusive": []
+            }
+        ],
+        "expanded_or_1": [
+            {
+                "id": 0,
+                "x": 1,
+                "y": 0,
+                "prerequisites": {},
+                "exclusive": []
+            },
+            {
+                "id": 1,
+                "x": 0,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 2,
+                "x": 0,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        1
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 6,
+                "x": 0,
+                "y": 3,
+                "prerequisites": {
+                    "and": [
+                        2
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 3,
+                "x": 2,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 4,
+                "x": 2,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        3
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 7,
+                "x": 2,
+                "y": 3,
+                "prerequisites": {
+                    "and": [
+                        4
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 5,
+                "x": 1,
+                "y": 4,
+                "prerequisites": {
+                    "or": [
+                        7,
+                        6
+                    ]
+                },
+                "exclusive": []
+            }
+        ]
+    },
+    "Exclusive": {
+        "standard": [
+            {
+                "id": 0,
+                "x": 1,
+                "y": 0,
+                "prerequisites": {},
+                "exclusive": []
+            },
+            {
+                "id": 1,
+                "x": 0,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": [
+                    3
+                ]
+            },
+            {
+                "id": 2,
+                "x": 0,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        1
+                    ]
+                },
+                "exclusive": []
+            },
+            {
+                "id": 3,
+                "x": 2,
+                "y": 1,
+                "prerequisites": {
+                    "and": [
+                        0
+                    ]
+                },
+                "exclusive": [
+                    1
+                ]
+            },
+            {
+                "id": 4,
+                "x": 2,
+                "y": 2,
+                "prerequisites": {
+                    "and": [
+                        3
+                    ]
+                },
+                "exclusive": []
+            }
+        ]
+    }
+}

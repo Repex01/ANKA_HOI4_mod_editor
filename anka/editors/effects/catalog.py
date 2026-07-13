@@ -113,14 +113,45 @@ def _add_event_effect_variants(items: dict[str, Effect]) -> dict[str, Effect]:
     return items
 
 
+# Effects offered in both a full ([LONG]) and a minimal ([SHORT]) form; the short
+# form inserts a bare skeleton the user then fleshes out with the "suggested field"
+# buttons in the block editor. `start_border_war` is verbose (attacker/defender with
+# many optional sub-keys), so a short starting point is handy.
+_SHORT_VARIANTS: dict[str, str] = {
+    "start_border_war": (
+        "start_border_war = {\n"
+        "\tattacker = {\n\t\tstate = 1\n\t}\n"
+        "\tdefender = {\n\t\tstate = 2\n\t}\n"
+        "}"
+    ),
+}
+
+
+def _add_short_variants(items: dict[str, Effect]) -> dict[str, Effect]:
+    for name, short in _SHORT_VARIANTS.items():
+        full = items.get(name)
+        if full is None:
+            continue
+        items[name] = Effect(
+            name=name, scopes=full.scopes, targets=full.targets,
+            description=full.description, example=full.example,
+            display=f"{name} [LONG]")
+        items[f"{name} [SHORT]"] = Effect(
+            name=name, scopes=full.scopes, targets=full.targets,
+            description=full.description, example=short,
+            display=f"{name} [SHORT]")
+    return items
+
+
 class ScriptCatalog:
     """Facade over the effect/trigger databases (loaded once per process)."""
 
     @staticmethod
     @lru_cache(maxsize=1)
     def effects() -> dict[str, Effect]:
-        return _add_event_effect_variants(
-            _load("effects.json", Effect))  # type: ignore[arg-type,return-value]
+        items = _load("effects.json", Effect)
+        items = _add_event_effect_variants(items)  # type: ignore[arg-type]
+        return _add_short_variants(items)          # type: ignore[return-value]
 
     @staticmethod
     @lru_cache(maxsize=1)

@@ -89,6 +89,8 @@ _VALUE_TYPES = {                     # by effect/trigger name in scalar form
     "show_ideas_tooltip": "idea",
     "complete_national_focus": "focus", "unlock_national_focus": "focus",
     "focus": "focus", "has_completed_focus": "focus",
+    # start_border_war attacker/defender callbacks fire an event
+    "on_win": "event", "on_lose": "event", "on_cancel": "event",
 }
 _LIST_ITEM_TYPES = {                 # bare scalars inside ``<key> = { a b c }``
     "add_ideas": "idea", "remove_ideas": "idea", "show_ideas_tooltip": "idea",
@@ -133,8 +135,16 @@ _BLOCK_EFFECT_TEMPLATES = {
 
 # Optional sub-keys offered as one-click buttons next to a block's [+]
 # ("suggested fields"): (key, default value). Hidden once the key is present.
+_BORDER_WAR_SIDE = (("num_provinces", "1"), ("on_win", ""), ("on_lose", ""),
+                    ("on_cancel", ""), ("modifier", "0.5"),
+                    ("dig_in_factor", "1.0"), ("terrain_factor", "1.0"))
 _SUGGESTED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
     "add_dynamic_modifier": (("days", "14"), ("scope", "ROOT")),
+    # start_border_war [SHORT]: flesh out its skeleton one field at a time.
+    "start_border_war": (("change_state_after_war", "no"), ("combat_width", "80"),
+                         ("minimum_duration_in_days", "14")),
+    "attacker": _BORDER_WAR_SIDE,
+    "defender": _BORDER_WAR_SIDE,
 }
 
 # Effects whose ``modifier`` field names a *dynamic* modifier (picker over
@@ -154,16 +164,27 @@ def value_type_of(parent_key: str, key: str) -> str | None:
     return _KEY_TYPES.get(key) or _VALUE_TYPES.get(key)
 
 
-# Scope-iterator effects (``every_country``, ``random_owned_state``, … and their
-# ``global_`` variants) are always blocks — ``every_country = { ... }`` — but the
-# catalog ships no example for most, so without this they'd wrongly insert as a
-# scalar leaf. Matched by the vanilla naming convention.
-_SCOPE_ITERATOR_PREFIXES = ("every_", "random_", "global_every_", "global_random_")
+# Scope-iterator / -quantifier keywords are always blocks — ``every_country = { … }``,
+# ``any_owned_state = { … }`` — but the catalog ships no example for most, so without
+# this they'd wrongly insert as a scalar leaf. Matched by the vanilla naming
+# convention: ``every_``/``random_`` (+ ``global_`` variants) effects and ``any_``/
+# ``all_`` triggers.
+_SCOPE_EFFECT_PREFIXES = ("every_", "random_", "global_every_", "global_random_")
+_SCOPE_TRIGGER_PREFIXES = ("any_", "all_")
+# The lone ``any_``/``all_`` keyword that is a scalar comparison, not a scope block
+# (``any_war_score > 0.5``), confirmed against vanilla usage.
+_SCALAR_QUANTIFIERS = frozenset({"any_war_score"})
 
 
 def _is_scope_iterator(item) -> bool:
-    return (getattr(item, "kind", "") == "effect"
-            and item.name.startswith(_SCOPE_ITERATOR_PREFIXES))
+    name = item.name
+    kind = getattr(item, "kind", "")
+    if kind == "effect" and name.startswith(_SCOPE_EFFECT_PREFIXES):
+        return True
+    if (kind == "trigger" and name.startswith(_SCOPE_TRIGGER_PREFIXES)
+            and name not in _SCALAR_QUANTIFIERS):
+        return True
+    return False
 
 
 def node_from_catalog(item) -> Pair:

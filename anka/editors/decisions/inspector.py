@@ -536,6 +536,21 @@ class CategoryInspector(InspectorBase):
 
         self._priority_var = self._entry_row(r, "priority", "priority", self._commit_priority); r += 1
 
+        # scripted_gui: bind a custom scripted GUI to this category's tab
+        ttk.Label(b, text="scripted_gui", style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", pady=3)
+        sg_row = ttk.Frame(b, style="Card.TFrame")
+        sg_row.grid(row=r, column=1, sticky="ew", padx=(8, 0), pady=3); r += 1
+        sg_row.columnconfigure(0, weight=1)
+        self._sgui_var = tk.StringVar()
+        sg_entry = ttk.Entry(sg_row, textvariable=self._sgui_var)
+        sg_entry.grid(row=0, column=0, sticky="ew")
+        self._sgui_var.trace_add("write",
+                                 lambda *_: self._debounce("sgui", self._commit_sgui))
+        sg_entry.bind("<FocusOut>", lambda e: self._commit_sgui())
+        ttk.Button(sg_row, text="…", width=2, command=self._pick_sgui).grid(
+            row=0, column=1, padx=(4, 0))
+
         # scripts
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
         self._script_status: dict[str, ttk.Label] = {}
@@ -577,6 +592,7 @@ class CategoryInspector(InspectorBase):
             self._refresh_icon()
             self._refresh_picture()
             self._priority_var.set(category.get_raw("priority") if category else "")
+            self._sgui_var.set(category.get_raw("scripted_gui") if category else "")
             for fname, label in self._script_status.items():
                 filled = bool(category and category.get_script(fname).strip())
                 label.configure(text="●" if filled else "○",
@@ -666,6 +682,20 @@ class CategoryInspector(InspectorBase):
             return
         self.category.set_raw("priority", self._priority_var.get())
         self.owner.mark_dirty(self.doc)
+
+    def _commit_sgui(self) -> None:
+        if not self._guard() or self.category is None:
+            return
+        self.category.set_raw("scripted_gui", self._sgui_var.get().strip())
+        self.owner.mark_dirty(self.doc)
+
+    def _pick_sgui(self) -> None:
+        if not self._guard() or self.category is None:
+            return
+        SinglePickDialog(self, self.owner, self.t("decisions.pick_sgui"),
+                         self.owner.value_options("scripted_gui"),
+                         lambda v: self._sgui_var.set(v),
+                         current=self._sgui_var.get().strip())
 
     def _pick_icon(self) -> None:
         if not self._guard() or self.category is None:

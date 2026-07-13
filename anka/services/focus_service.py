@@ -562,6 +562,17 @@ class FocusService:
                      if isinstance(b, Block)]
         return doc
 
+    def document_from_text(self, ref: FocusTreeRef, text: str) -> FocusDocument:
+        """Rebuild a document from serialized text — used by the editor's undo/redo
+        to restore a previous state. Refreshes the parse cache so a later load()
+        of the same ref returns this restored document."""
+        doc = self._build_document(ref, pdx_parse(text))
+        try:
+            self._doc_cache[ref.path] = (ref.path.stat().st_mtime, doc)
+        except OSError:
+            self._doc_cache[ref.path] = (0.0, doc)
+        return doc
+
     def save(self, doc: FocusDocument) -> Path:
         """Write the document into the mod (vanilla documents are never written)."""
         if doc.ref.is_vanilla:
@@ -846,9 +857,18 @@ class FocusService:
             self._loc_index(language)[key] = value
 
     def _override_vanilla_loc(self, source: Path, language: str) -> Path:
-        """Copy a vanilla .yml into the mod at the same relative path and remap every
-        key it defines to the copy (further edits go there, not to ANKA files)."""
-        rel = source.relative_to(self.ctx.game_path)
+        """Copy a read-only base .yml (vanilla *or* a dependency submod) into the mod
+        at the same relative path and remap every key it defines to the copy, so
+        further edits go there (a same-path file overrides the base, no key collision)."""
+        root = self.ctx.game_path
+        for candidate in (self.ctx.game_path, *self.ctx.dependency_paths):
+            try:
+                source.relative_to(candidate)
+                root = candidate
+                break
+            except ValueError:
+                continue
+        rel = source.relative_to(root)
         target = ensure_filename_case(self.ctx.mod.path / rel)
         if not target.exists():
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -900,6 +920,20 @@ class FocusService:
                 self._read_loc(yml, index)
                 for key in set(index) - before:
                     vanilla_files[key] = yml
+        # Dependency submods (the base this mod builds on) come next, overriding
+        # vanilla and, in turn, overridden by the mod. Their focus loc lives in an
+        # arbitrarily-named file, so read every loc file (a dependency is one mod,
+        # bounded in size) rather than filtering to "focus" like vanilla — otherwise
+        # a base mod's focus names never resolve in a submod.
+        for dep_root in self.ctx.dependency_paths:
+            dep_dir = dep_root / GAME_DIRS.LOCALISATION
+            if not dep_dir.is_dir():
+                continue
+            for yml in sorted(dep_dir.rglob(f"*_l_{language}.yml")):
+                before = set(index)
+                self._read_loc(yml, index)
+                for key in set(index) - before:
+                    vanilla_files[key] = yml     # a read-only base file, overridable
         files = self._loc_files.setdefault(language, {})
         mod_dir = self.ctx.mod.path / GAME_DIRS.LOCALISATION
         if mod_dir.is_dir():

@@ -20,7 +20,25 @@ from ...core.pdx import Block, Pair, dumps
 from ...core.pdx import parse as pdx_parse
 from ...services.focus_service import Focus, FocusService, FocusTreeRef
 from ..base import EditorModule, EditorRegistry
+from ..common.commands import Command, CommandStack
 from .canvas import ZOOM_STEPS, CanvasModel, CanvasNode, FocusCanvas
+
+
+class _SnapshotCommand(Command):
+    """Undo/redo one document mutation by swapping the whole serialized tree.
+    Coarse but robust — every structural change (move / create / delete / link /
+    tree props / inspector field edits) is captured the same way."""
+
+    label_key = "focuses.cmd.edit"
+
+    def __init__(self, before: str, after: str):
+        self.before, self.after = before, after
+
+    def undo(self, editor) -> None:
+        editor._restore_snapshot(self.before)
+
+    def redo(self, editor) -> None:
+        editor._restore_snapshot(self.after)
 from .dialogs import NewTreeDialog, TextPromptDialog, TreePropertiesDialog
 from .inspector import FocusInspector
 
@@ -52,6 +70,10 @@ class FocusesEditor(EditorModule):
         self._menu: tk.Menu | None = None
         self._or_session: tuple[str, int] | None = None   # (source fid, group index)
         self._value_options: dict[str, list[tuple[str, str]]] = {}
+        # Undo/redo — snapshot-based history of the open document (Command pattern).
+        self._history = CommandStack(limit=60)
+        self._hist_baseline: str | None = None    # doc text at the last recorded state
+        self._restoring = False                   # suppress recording during undo/redo
         # The sprite map (game + all DLC .gfx files) takes seconds to build; warm it
         # in the background so opening a tree never blocks on it.
         self._resolver_ready = threading.Event()
@@ -97,6 +119,10 @@ class FocusesEditor(EditorModule):
             icons_ready=self.resolver_ready,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        for widget in (self.canvas.canvas, self._list):
+            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
+            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
+            widget.bind("<Control-Shift-Z>", lambda e: (self.redo(), "break")[1])
         self._build_problems(center)
 
         side = ttk.Frame(root, style="TFrame")
@@ -125,6 +151,12 @@ class FocusesEditor(EditorModule):
                    command=self._add_focus_toolbar).pack(side="left", padx=2)
         ttk.Button(bar, text="⚙ " + self.t("focuses.tree_props"),
                    command=self._open_tree_props).pack(side="left", padx=2)
+        self._undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo,
+                                    state="disabled")
+        self._undo_btn.pack(side="left", padx=(6, 1))
+        self._redo_btn = ttk.Button(bar, text="↷", width=3, command=self.redo,
+                                    state="disabled")
+        self._redo_btn.pack(side="left", padx=1)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self._save).pack(side="left", padx=2)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
@@ -293,6 +325,10 @@ class FocusesEditor(EditorModule):
         self.inspector.show(None)
         self.refresh_canvas(keep_view=False)
         self._validate()
+        # Fresh document → reset the undo history and its baseline snapshot.
+        self._hist_baseline = dumps(self._doc.root) if self._doc is not None else None
+        self._history.clear()
+        self._update_history_buttons()
 
     def _show_placeholder(self) -> None:
         self.canvas.set_model(CanvasModel(), keep_view=False)
@@ -336,6 +372,9 @@ class FocusesEditor(EditorModule):
             self._ref = None
             self._doc = None
             self._dirty = False
+            self._hist_baseline = None
+            self._history.clear()
+            self._update_history_buttons()
             self._tree_label.configure(text="—")
             self._show_placeholder()
             self.inspector.show(None)
@@ -881,6 +920,52 @@ class FocusesEditor(EditorModule):
     # ------------------------------------------------------------------ saving
     def mark_dirty(self) -> None:
         self._dirty = True
+        # Record a history step: snapshot the doc and, if it changed since the last
+        # recorded state, push the (before → after) transition. Skipped while an
+        # undo/redo is restoring, and when the change touched no document content
+        # (e.g. a localisation edit, which lives in separate .yml files).
+        if self._restoring or self._doc is None or self._hist_baseline is None:
+            return
+        after = dumps(self._doc.root)
+        if after != self._hist_baseline:
+            self._history.record(_SnapshotCommand(self._hist_baseline, after))
+            self._hist_baseline = after
+            self._update_history_buttons()
+
+    # ---------------------------------------------------------------- undo / redo
+    def undo(self) -> None:
+        self.inspector.flush_pending()          # land debounced edits first
+        if self._history.can_undo():
+            self._history.undo(self)
+            self._update_history_buttons()
+
+    def redo(self) -> None:
+        self.inspector.flush_pending()
+        if self._history.can_redo():
+            self._history.redo(self)
+            self._update_history_buttons()
+
+    def _restore_snapshot(self, text: str) -> None:
+        if self._ref is None:
+            return
+        self._restoring = True
+        try:
+            self._doc = self.service.document_from_text(self._ref, text)
+            self._attached = (self.service.attached_shared(self._doc)
+                              if self._doc.tree else [])
+            self._hist_baseline = text
+            self._dirty = True                  # differs from disk until saved
+            self.inspector.show(None)
+            self.refresh_canvas()
+            self._validate()
+        finally:
+            self._restoring = False
+
+    def _update_history_buttons(self) -> None:
+        self._undo_btn.configure(
+            state="normal" if self._history.can_undo() else "disabled")
+        self._redo_btn.configure(
+            state="normal" if self._history.can_redo() else "disabled")
 
     def _save(self) -> None:
         if self._doc is None or not self._dirty or not self._editable:
