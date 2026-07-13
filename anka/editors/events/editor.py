@@ -23,19 +23,23 @@ from ...services.event_service import (
     EventService,
 )
 from ..base import EditorModule, EditorRegistry
-from ..common import BaseDialog, TextPromptDialog
+from ..common import BaseDialog, SinglePickDialog, TextPromptDialog
 from .inspector import EventInspector
 
 _NS_RE = re.compile(r"^\w+(?:\.\w+)*$")
 
 
 class NewEventDialog(BaseDialog):
-    """Namespace (combobox, editable) + event kind; the id is auto-assigned."""
+    """Namespace (combobox, editable) + event kind + an optional *base event* to
+    clone; the id is auto-assigned. Picking a base copies the whole event and gives
+    the copy its own, fresh loc keys."""
 
     def __init__(self, master, editor, namespaces: list[str], default_ns: str,
-                 on_submit):
-        super().__init__(master, editor, editor.t("events.new_event"), (430, 230))
+                 on_submit, base_options: list[tuple[str, str]] | None = None):
+        super().__init__(master, editor, editor.t("events.new_event"), (440, 300))
         self._on_submit = on_submit
+        self._base_options = base_options or []
+        self._base_id = ""
 
         body = ttk.Frame(self, style="Card.TFrame", padding=14)
         body.pack(fill="both", expand=True, padx=12, pady=12)
@@ -53,11 +57,33 @@ class NewEventDialog(BaseDialog):
         self._kind = ttk.Combobox(body, state="readonly", values=list(EVENT_KINDS))
         self._kind.grid(row=3, column=0, sticky="ew", pady=(2, 8))
         self._kind.current(0)
+
+        ttk.Label(body, text=self.t("common.base_on"),
+                  style="CardMuted.TLabel").grid(row=4, column=0, sticky="w")
+        base_row = ttk.Frame(body, style="Card.TFrame")
+        base_row.grid(row=5, column=0, sticky="ew", pady=(2, 8))
+        base_row.columnconfigure(0, weight=1)
+        self._base_label = ttk.Label(base_row, text=self.t("common.base_none"),
+                                     style="Card.TLabel")
+        self._base_label.grid(row=0, column=0, sticky="w")
+        ttk.Button(base_row, text=self.t("common.choose"), width=10,
+                   command=self._pick_base).grid(row=0, column=1, padx=(6, 0))
+        ttk.Button(base_row, text="✕", width=2,
+                   command=lambda: self._set_base("")).grid(row=0, column=2, padx=(4, 0))
+
         self._error = ttk.Label(body, text="", style="CardMuted.TLabel",
                                 foreground=self.palette.danger)
-        self._error.grid(row=4, column=0, sticky="w")
-        self.buttons_row(body, self.t("common.add")).grid(row=5, column=0,
+        self._error.grid(row=6, column=0, sticky="w")
+        self.buttons_row(body, self.t("common.add")).grid(row=7, column=0,
                                                           sticky="ew")
+
+    def _pick_base(self) -> None:
+        SinglePickDialog(self, self.editor, self.t("common.base_on"),
+                         self._base_options, self._set_base, current=self._base_id)
+
+    def _set_base(self, value: str) -> None:
+        self._base_id = value
+        self._base_label.configure(text=value or self.t("common.base_none"))
 
     def _submit(self) -> None:
         ns = self._ns.get().strip()
@@ -66,8 +92,9 @@ class NewEventDialog(BaseDialog):
             return
         # Read widget state BEFORE destroy() — the combobox dies with the dialog.
         kind = self._kind.get()
+        base_id = self._base_id
         self.destroy()
-        self._on_submit(ns, kind)
+        self._on_submit(ns, kind, base_id)
 
 
 @EditorRegistry.register
@@ -352,11 +379,16 @@ class EventsEditor(EditorModule):
 
     def _new_event(self) -> None:
         namespaces = self.service.namespaces(include_vanilla=False)
+        base_options = self.service.event_options()
 
-        def submit(ns: str, kind: str) -> None:
+        def submit(ns: str, kind: str, base_id: str) -> None:
             self.save_all()                 # next_id scans files on disk
             doc = self.service.mod_target_doc(ns)
-            event = self.service.create_event(doc, ns, kind)
+            if base_id and (found := self.service.find_event(base_id)) is not None:
+                event = self.service.create_event_from(
+                    doc, ns, found[1], languages=(self.loc_language, "english"))
+            else:
+                event = self.service.create_event(doc, ns, kind)
             if all(d.ref.path != doc.ref.path for d in self._mod_docs):
                 self._mod_docs.append(doc)
             self.mark_dirty(doc)
@@ -367,7 +399,8 @@ class EventsEditor(EditorModule):
 
         NewEventDialog(self._tree, self, namespaces,
                        self.selected_namespace or (namespaces[0] if namespaces
-                                                   else ""), submit)
+                                                   else ""), submit,
+                       base_options=base_options)
 
     def _copy_to_mod(self) -> None:
         ref = getattr(self, "_copy_ref", None)

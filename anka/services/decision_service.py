@@ -458,6 +458,41 @@ class DecisionService:
                 return Decision(pair, cat.key)
         raise ValueError("decision not in document")
 
+    def find_decision(self, decision_id: str
+                      ) -> tuple[DecisionDocument, Decision] | None:
+        """Locate a live `Decision` (and its document) by id across every layer
+        (mod + dependencies + vanilla). Used to base a new decision on an old one."""
+        for ref in self.list_docs(include_vanilla=True, kind="decisions"):
+            try:
+                doc = self.load(ref)
+            except Exception:
+                continue
+            hit = doc.find(decision_id)
+            if hit is not None:
+                return doc, hit
+        return None
+
+    def create_decision_from(self, doc: DecisionDocument, category: str,
+                             new_id: str, source: Decision) -> Decision:
+        """Create ``new_id`` in ``doc``/``category`` as a deep copy of ``source``.
+        The explicit ``name =`` override, if any, is dropped so the copy derives its
+        own loc keys from ``new_id`` (localisation text is copied by the editor)."""
+        copy_root = pdx_parse(dumps(Block([Pair(source.id, source.block)])))
+        pair = next(p for p in copy_root.pairs())
+        pair.key = new_id
+        new = Decision(pair, category)
+        new.set_raw("name", "")            # use id-derived loc keys, not the source's
+        cat_block = None
+        for p in doc.root.pairs():
+            if p.key == category and isinstance(p.value, Block):
+                cat_block = p.value
+                break
+        if cat_block is None:
+            cat_block = Block()
+            doc.root.add(category, cat_block)
+        cat_block.items.append(pair)
+        return new
+
     def move_decision(self, doc: DecisionDocument, decision: Decision,
                       new_category: str) -> Decision:
         """Move a decision to another category (within the same document)."""

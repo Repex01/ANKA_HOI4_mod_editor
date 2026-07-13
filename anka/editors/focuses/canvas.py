@@ -91,6 +91,7 @@ class FocusCanvas(ttk.Frame):
         self._link_multi: str | None = None               # None | "or" | "and"
         self._press: dict | None = None
         self._ghosts: list[int] = []
+        self._preview_ids: list[int] = []      # translucent template-placement cells
 
         self.canvas = tk.Canvas(self, bg=palette.bg, highlightthickness=0, bd=0)
         self._hbar = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
@@ -204,6 +205,30 @@ class FocusCanvas(ttk.Frame):
         self.canvas.xview_moveto(max(0.0, (px + cw / 2 - vw / 2) / max(sr[2], 1)))
         self.canvas.yview_moveto(max(0.0, (py + ch / 2 - vh / 2) / max(sr[3], 1)))
         self.minimap.refresh_viewport()
+
+    # ------------------------------------------------------ template preview
+    def preview_cells(self, cells: list[tuple[int, int]],
+                      anchor: tuple[int, int] | None = None) -> None:
+        """Draw translucent phantom focus tiles at `cells` (template hover preview);
+        the `anchor` cell (the one that will sit under the cursor) is highlighted."""
+        self.clear_preview()
+        c = self.canvas
+        cw, ch = self._cell_px()
+        px, py = cw * 0.12, ch * 0.10
+        for cell in cells:
+            x0, y0 = self._cell_to_px(cell)
+            hot = cell == anchor
+            self._preview_ids.append(c.create_rectangle(
+                x0 + px, y0 + py, x0 + cw - px, y0 + ch - py,
+                fill=self.palette.accent,
+                stipple="gray50" if hot else "gray25",
+                outline=self.palette.accent, width=2,
+                dash=() if hot else (4, 3)))
+
+    def clear_preview(self) -> None:
+        for item in self._preview_ids:
+            self.canvas.delete(item)
+        self._preview_ids = []
 
     # --------------------------------------------------------------- rendering
     def render(self) -> None:

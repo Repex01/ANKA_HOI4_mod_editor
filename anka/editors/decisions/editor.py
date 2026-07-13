@@ -17,7 +17,7 @@ from tkinter import messagebox, ttk
 from ...core.gfx import SpriteResolver
 from ...services.decision_service import Decision, DecisionDocRef, DecisionService
 from ..base import EditorModule, EditorRegistry
-from ..common import TextPromptDialog
+from ..common import BaseDialog, SinglePickDialog, TextPromptDialog
 from .inspector import CategoryInspector, DecisionInspector
 
 
@@ -316,10 +316,15 @@ class DecisionsEditor(EditorModule):
         default_cat = self.selected_category_name or categories[0]
         choices = [(c, c) for c in categories]
         choices.sort(key=lambda cv: cv[0] != default_cat)
+        base_options = [(f"{did}  ·  {cat}", did)
+                        for did, cat in self._all_decision_ids()]
 
-        def submit(did: str, category: str) -> None:
+        def submit(did: str, category: str, base_id: str) -> None:
             doc = self.service.mod_target_doc(category)
-            self.service.add_decision(doc, category, did)
+            if base_id and (found := self.service.find_decision(base_id)) is not None:
+                self._decision_from(doc, category, did, found[1])
+            else:
+                self.service.add_decision(doc, category, did)
             if all(d.ref.path != doc.ref.path for d in self._mod_docs):
                 self._mod_docs.append(doc)
             self.mark_dirty(doc)
@@ -330,9 +335,30 @@ class DecisionsEditor(EditorModule):
                 self._tree.selection_set(iid)
                 self._tree.see(iid)
 
-        TextPromptDialog(self._tree, self, self.t("decisions.new_decision"),
-                         self.t("decisions.decision_id"), submit, taken=taken,
-                         choices_label=self.t("decisions.category"), choices=choices)
+        NewDecisionDialog(self._tree, self, submit, taken, choices, base_options)
+
+    def _decision_from(self, doc, category: str, new_id: str, source) -> None:
+        """Clone a decision into ``new_id`` and copy its localisation onto the new
+        id's keys (english + the current UI language)."""
+        src_key = source.name_key
+        self.service.create_decision_from(doc, category, new_id, source)
+        for lang in dict.fromkeys(("english", self.loc_language)):
+            name = self.service.loc.get(src_key, lang)
+            desc = self.service.loc.get(f"{src_key}_desc", lang)
+            if name is not None or desc is not None:
+                self.service.set_loc(new_id, lang, name, desc)
+
+    def _all_decision_ids(self) -> list[tuple[str, str]]:
+        """(id, category) of every decision (mod + vanilla) for the base picker."""
+        out: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for ref in self.service.list_docs(include_vanilla=True, kind="decisions"):
+            for cat, ids in ref.categories.items():
+                for did in ids:
+                    if did not in seen:
+                        seen.add(did)
+                        out.append((did, cat))
+        return sorted(out)
 
     def _copy_to_mod(self) -> None:
         ref = getattr(self, "_copy_ref", None)
@@ -582,3 +608,81 @@ class DecisionsEditor(EditorModule):
 
     def on_leave(self) -> None:
         self.save_all()
+
+
+class NewDecisionDialog(BaseDialog):
+    """New-decision form: id, category, and an optional *base decision* to clone.
+
+    Picking a base copies that decision's whole block; the new id gets its own,
+    fresh localisation keys (the source's ``name =`` override is dropped)."""
+
+    def __init__(self, master, editor, on_submit, taken: set[str],
+                 categories: list[tuple[str, str]],
+                 base_options: list[tuple[str, str]]):
+        super().__init__(master, editor, editor.t("decisions.new_decision"), (440, 300))
+        self._on_submit = on_submit
+        self._taken = taken
+        self._categories = categories
+        self._base_options = base_options
+        self._base_id = ""
+        import re
+        self._id_re = re.compile(r"^\w+$")
+        t = self.t
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=14)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(0, weight=1)
+
+        ttk.Label(body, text=t("decisions.decision_id"), style="Card.TLabel").grid(
+            row=0, column=0, sticky="w")
+        self._id_var = tk.StringVar()
+        entry = ttk.Entry(body, textvariable=self._id_var)
+        entry.grid(row=1, column=0, sticky="ew", pady=(4, 8))
+        entry.focus_set()
+        entry.bind("<Return>", lambda e: self._submit())
+
+        ttk.Label(body, text=t("decisions.category"), style="CardMuted.TLabel").grid(
+            row=2, column=0, sticky="w")
+        self._cat = ttk.Combobox(body, state="readonly",
+                                 values=[label for _v, label in categories])
+        self._cat.grid(row=3, column=0, sticky="ew", pady=(2, 8))
+        self._cat.current(0)
+
+        ttk.Label(body, text=t("common.base_on"), style="CardMuted.TLabel").grid(
+            row=4, column=0, sticky="w")
+        base_row = ttk.Frame(body, style="Card.TFrame")
+        base_row.grid(row=5, column=0, sticky="ew", pady=(2, 8))
+        base_row.columnconfigure(0, weight=1)
+        self._base_label = ttk.Label(base_row, text=t("common.base_none"),
+                                     style="Card.TLabel")
+        self._base_label.grid(row=0, column=0, sticky="w")
+        ttk.Button(base_row, text=t("common.choose"), width=10,
+                   command=self._pick_base).grid(row=0, column=1, padx=(6, 0))
+        ttk.Button(base_row, text="✕", width=2,
+                   command=lambda: self._set_base("")).grid(row=0, column=2, padx=(4, 0))
+
+        self._error = ttk.Label(body, text="", style="CardMuted.TLabel",
+                                foreground=self.palette.danger)
+        self._error.grid(row=6, column=0, sticky="w")
+        self.buttons_row(body, t("common.add")).grid(row=7, column=0, sticky="ew")
+
+    def _pick_base(self) -> None:
+        SinglePickDialog(self, self.editor, self.t("common.base_on"),
+                         self._base_options, self._set_base, current=self._base_id)
+
+    def _set_base(self, value: str) -> None:
+        self._base_id = value
+        self._base_label.configure(text=value or self.t("common.base_none"))
+
+    def _submit(self) -> None:
+        did = self._id_var.get().strip()
+        if not self._id_re.match(did):
+            self._error.configure(text=self.t("focuses.err.bad_id"))
+            return
+        if did in self._taken:
+            self._error.configure(text=self.t("focuses.err.duplicate_id"))
+            return
+        category = self._categories[self._cat.current()][0]
+        base_id = self._base_id
+        self.destroy()
+        self._on_submit(did, category, base_id)

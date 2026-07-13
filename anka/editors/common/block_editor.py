@@ -92,6 +92,23 @@ _VALUE_TYPES = {                     # by effect/trigger name in scalar form
     # start_border_war attacker/defender callbacks fire an event
     "on_win": "event", "on_lose": "event", "on_cancel": "event",
 }
+# Flag/variable effects & triggers whose scalar form names a flag; also handled in
+# their block form (``… = { flag = X }``) by value_type_of via the parent key.
+_COUNTRY_FLAG_KEYS = frozenset({
+    "set_country_flag", "has_country_flag", "clr_country_flag",
+    "modify_country_flag", "remove_country_flag"})
+_GLOBAL_FLAG_KEYS = frozenset({
+    "set_global_flag", "has_global_flag", "clr_global_flag", "modify_global_flag"})
+_STATE_FLAG_KEYS = frozenset({
+    "set_state_flag", "has_state_flag", "clr_state_flag", "modify_state_flag",
+    "remove_state_flag"})
+for _k in _COUNTRY_FLAG_KEYS:
+    _VALUE_TYPES[_k] = "country_flag"
+for _k in _GLOBAL_FLAG_KEYS:
+    _VALUE_TYPES[_k] = "global_flag"
+for _k in _STATE_FLAG_KEYS:
+    _VALUE_TYPES[_k] = "state_flag"
+_VAR_FLAG_TYPES = frozenset({"country_flag", "global_flag", "state_flag", "variable"})
 _LIST_ITEM_TYPES = {                 # bare scalars inside ``<key> = { a b c }``
     "add_ideas": "idea", "remove_ideas": "idea", "show_ideas_tooltip": "idea",
     "prioritize": "state", "states": "state", "seller_tags": "country",
@@ -161,6 +178,16 @@ def value_type_of(parent_key: str, key: str) -> str | None:
             return "dynamic_modifier"
         if key == "scope":
             return "country"
+    # block form: ``set_country_flag = { flag = X … }`` and friends
+    if key == "flag":
+        if parent_key in _COUNTRY_FLAG_KEYS:
+            return "country_flag"
+        if parent_key in _GLOBAL_FLAG_KEYS:
+            return "global_flag"
+        if parent_key in _STATE_FLAG_KEYS:
+            return "state_flag"
+    if key in ("var", "variable"):
+        return "variable"
     return _KEY_TYPES.get(key) or _VALUE_TYPES.get(key)
 
 
@@ -401,6 +428,11 @@ class BlockTreeEditor(ttk.Frame):
                 from ...services.dynamic_modifier_service import \
                     DynamicModifierService
                 options = DynamicModifierService.options(self.owner.context)
+            elif vtype in _VAR_FLAG_TYPES:
+                # flags/variables scanned from the mod — likewise wired centrally so
+                # every script editor gets the picker (type a new name to create one)
+                from ...services.script_vars_service import ScriptVarsService
+                options = ScriptVarsService(self.owner.context).options(vtype)
             else:
                 options = self.owner.value_options(vtype)
             SinglePickDialog(self, self.owner, self.t(f"focuses.pick.{vtype}"),

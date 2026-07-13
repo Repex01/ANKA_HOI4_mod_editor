@@ -703,6 +703,42 @@ class EventService:
         doc.root.items.append(pair)
         return new
 
+    def find_event(self, event_id: str) -> tuple[EventDocument, Event] | None:
+        """Locate a live `Event` (and its document) by id across every layer
+        (mod + dependencies + vanilla). Used to base a new event on an old one."""
+        for ref in self.list_docs(include_vanilla=True):
+            try:
+                doc = self.load(ref)
+            except Exception:
+                continue
+            for event in doc.events():
+                if event.id == event_id:
+                    return doc, event
+        return None
+
+    def create_event_from(self, doc: EventDocument, ns: str, source: Event,
+                          languages: tuple[str, ...] = ("english",)) -> Event:
+        """Create a new event in ``ns`` as a deep copy of ``source`` — its whole
+        block, with a fresh ``<ns>.<n>`` id and derived loc keys copied to the new
+        id (title/desc/option names). Mirrors ``duplicate_event`` but targets an
+        arbitrary namespace, so a new event can be based on any existing one."""
+        doc.add_namespace(ns)
+        new_id = self.next_id(ns)
+        copy_root = pdx_parse(dumps(Block([source.pair])))
+        pair = next(p for p in copy_root.pairs())
+        new = Event(pair)
+        old_id = source.id
+        new.id = new_id
+        for old_key, apply in _derived_loc_keys(new, old_id):
+            new_key = new_id + old_key[len(old_id):]
+            apply(new_key)
+            for lang in dict.fromkeys(languages):
+                value = self.loc.get(old_key, lang)
+                if value is not None:
+                    self.loc.set(new_key, lang, value)
+        doc.root.items.append(pair)
+        return new
+
     def rename_event(self, event: Event, new_id: str) -> str:
         """Change the id and carry derived loc keys (title/desc variants and
         option names that start with the old id) over to the new id."""

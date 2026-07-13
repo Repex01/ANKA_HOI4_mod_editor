@@ -41,6 +41,7 @@ class _SnapshotCommand(Command):
         editor._restore_snapshot(self.after)
 from .dialogs import NewTreeDialog, TextPromptDialog, TreePropertiesDialog
 from .inspector import FocusInspector
+from .templates import load_templates, prereq_groups, template_cells
 
 _KIND_BADGE = {"tree": "", "shared": "S", "joint": "J"}
 
@@ -617,6 +618,7 @@ class FocusesEditor(EditorModule):
             if self._editable:
                 menu.add_command(label="➕ " + t("focuses.add_focus_here"),
                                  command=lambda: self._on_create(cell))
+                self._add_template_menu(menu, cell)
                 if self._clipboard is not None:
                     menu.add_command(label="📋 " + t("focuses.paste"),
                                      command=lambda: self._paste(cell))
@@ -648,6 +650,91 @@ class FocusesEditor(EditorModule):
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+            self.canvas.clear_preview()     # drop any template hover phantoms
+
+    # ------------------------------------------------------------- templates
+    def _menu_colors(self) -> dict:
+        return dict(tearoff=0, bg=self.palette.surface, fg=self.palette.text,
+                    activebackground=self.palette.accent,
+                    activeforeground=self.palette.accent_text, bd=0)
+
+    def _add_template_menu(self, menu: tk.Menu, cell: tuple[int, int]) -> None:
+        """`+ Add template here` → category → template submenus. Hovering a template
+        paints translucent phantom focuses on the canvas; clicking inserts it."""
+        templates = load_templates()
+        if not templates:
+            return
+        root = tk.Menu(menu, **self._menu_colors())
+        for cat_key, tpls in templates.items():
+            cat_menu = tk.Menu(root, **self._menu_colors())
+            index_map: dict[int, list] = {}
+            for i, (tpl_key, placements) in enumerate(tpls.items()):
+                label = self.t(f"focuses.template.{cat_key}.{tpl_key}")
+                cat_menu.add_command(
+                    label=label,
+                    command=lambda p=placements: self._insert_template(cell, p))
+                index_map[i] = placements
+            cat_menu.bind(
+                "<<MenuSelect>>",
+                lambda e, m=cat_menu, im=index_map, c=cell:
+                self._preview_template(m, im, c))
+            root.add_cascade(label=self.t(f"focuses.template_cat.{cat_key}"),
+                             menu=cat_menu)
+        menu.add_cascade(label="🧩 " + self.t("focuses.add_template_here"), menu=root)
+
+    def _preview_template(self, cat_menu: tk.Menu, index_map: dict,
+                          cell: tuple[int, int]) -> None:
+        try:
+            active = cat_menu.index("active")
+        except tk.TclError:
+            active = None
+        placements = index_map.get(active) if active is not None else None
+        if not placements:
+            self.canvas.clear_preview()
+            return
+        self.canvas.preview_cells(template_cells(placements, cell), anchor=cell)
+
+    def _insert_template(self, cell: tuple[int, int], placements: list) -> None:
+        if self._doc is None or not self._editable or not placements:
+            return
+        doc = self._doc
+        kind = ("focus" if doc.tree is not None
+                else ("joint_focus" if doc.joint and not doc.shared
+                      else "shared_focus"))
+        # generate a unique id per placement up front (prereqs reference them)
+        prefix = (self._ref.country or self._ref.id or "my").split("_")[0]
+        taken = set(self.known_ids())
+        id_map: dict[int, str] = {}
+        n = 1
+        for p in placements:
+            while f"{prefix}_focus_{n}" in taken:
+                n += 1
+            fid = f"{prefix}_focus_{n}"
+            taken.add(fid)
+            id_map[p["id"]] = fid
+            n += 1
+        anchor = next((p for p in placements if p.get("id") == 0), placements[0])
+        ox, oy = anchor.get("x", 0), anchor.get("y", 0)
+        created: dict[int, Focus] = {}
+        for p in placements:
+            fx = cell[0] + p.get("x", 0) - ox
+            fy = cell[1] + p.get("y", 0) - oy
+            created[p["id"]] = self.service.add_focus(
+                doc, kind, fid=id_map[p["id"]], x=fx, y=fy)
+        # wire prerequisites and mutual exclusivity once every focus exists
+        for p in placements:
+            focus = created[p["id"]]
+            groups = prereq_groups(p.get("prerequisites") or {}, id_map)
+            if groups:
+                focus.prerequisites = groups
+            excl = [id_map[e] for e in p.get("exclusive", ()) if e in id_map]
+            if excl:
+                focus.mutually_exclusive = excl
+        self.canvas.clear_preview()
+        self.mark_dirty()
+        self.refresh_canvas()
+        self._validate()
+        self.canvas.set_selection([id_map[anchor["id"]]], notify=True)
 
     def _add_unlink_menu(self, menu: tk.Menu, focus: Focus) -> None:
         links: list[tuple[str, str]] = []
