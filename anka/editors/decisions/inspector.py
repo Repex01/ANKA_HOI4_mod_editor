@@ -551,6 +551,14 @@ class CategoryInspector(InspectorBase):
         ttk.Button(sg_row, text="…", width=2, command=self._pick_sgui).grid(
             row=0, column=1, padx=(4, 0))
 
+        # visible_when_empty: keep the category tab shown even with no visible decisions
+        self._vwe_var = tk.BooleanVar()
+        vwe = ttk.Checkbutton(b, text="visible_when_empty",
+                              style="Card.TCheckbutton", variable=self._vwe_var,
+                              command=self._commit_vwe)
+        vwe.grid(row=r, column=0, columnspan=2, sticky="w", pady=(2, 0)); r += 1
+        attach_help(vwe, self.t, "decisions.visible_when_empty", self.palette)
+
         # scripts
         ttk.Separator(b).grid(row=r, column=0, columnspan=2, sticky="ew", pady=8); r += 1
         self._script_status: dict[str, ttk.Label] = {}
@@ -593,6 +601,7 @@ class CategoryInspector(InspectorBase):
             self._refresh_picture()
             self._priority_var.set(category.get_raw("priority") if category else "")
             self._sgui_var.set(category.get_raw("scripted_gui") if category else "")
+            self._vwe_var.set(bool(category) and category.get_flag("visible_when_empty"))
             for fname, label in self._script_status.items():
                 filled = bool(category and category.get_script(fname).strip())
                 label.configure(text="●" if filled else "○",
@@ -687,6 +696,12 @@ class CategoryInspector(InspectorBase):
         if not self._guard() or self.category is None:
             return
         self.category.set_raw("scripted_gui", self._sgui_var.get().strip())
+        self.owner.mark_dirty(self.doc)
+
+    def _commit_vwe(self) -> None:
+        if not self._guard() or self.category is None:
+            return
+        self.category.set_flag("visible_when_empty", self._vwe_var.get())
         self.owner.mark_dirty(self.doc)
 
     def _pick_sgui(self) -> None:

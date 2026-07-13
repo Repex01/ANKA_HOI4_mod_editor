@@ -360,9 +360,14 @@ class FileInspector(InspectorBase):
         self._tmpl_combo.bind("<<ComboboxSelected>>", lambda e: self._commit_div())
         ttk.Label(form, text=self.t("oob.location"), style="CardMuted.TLabel").grid(
             row=1, column=0, sticky="w", pady=2)
+        loc_row = ttk.Frame(form, style="Card.TFrame")
+        loc_row.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=2)
         self._loc_var = tk.StringVar()
-        loc_e = ttk.Entry(form, textvariable=self._loc_var, width=14)
-        loc_e.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=2)
+        loc_e = ttk.Entry(loc_row, textvariable=self._loc_var, width=14)
+        loc_e.pack(side="left")
+        # pick a province by id, but still allow typing one in directly
+        ttk.Button(loc_row, text="…", width=2,
+                   command=self._pick_province).pack(side="left", padx=(4, 0))
         self._loc_var.trace_add("write", lambda *_: self._debounce("loc", self._commit_div))
         loc_e.bind("<FocusOut>", lambda e: self._commit_div())
         ttk.Label(form, text=self.t("oob.custom_name"), style="CardMuted.TLabel").grid(
@@ -535,6 +540,14 @@ class FileInspector(InspectorBase):
         self._order_spin.configure(state="normal" if ordered and self._editable
                                    else "disabled")
         self._dname_entry.configure(state="disabled" if ordered else "normal")
+
+    def _pick_province(self) -> None:
+        if not self._guard() or self._division is None:
+            return
+        SinglePickDialog(self, self.owner, self.t("oob.pick_province"),
+                         self.owner.value_options("province"),
+                         lambda pid: self._loc_var.set(pid),
+                         current=self._loc_var.get().strip())
 
     def _commit_div(self) -> None:
         if not self._guard() or self._division is None:

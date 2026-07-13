@@ -97,6 +97,17 @@ class LayoutSolver:
     def solve_size(self, node, parent: Rect) -> tuple[float, float]:
         if (node.get_attr("fullScreen") or "").lower() == "yes":
             return parent.w, parent.h
+        type_low = node.type_key.lower()
+        # iconType is sized by its sprite (× scale) and instantTextBoxType by its
+        # maxWidth/maxHeight clip box — both ignore any `size` on the element.
+        if type_low == "icontype":
+            sw, sh = self._sprite_size(node)
+            if sw or sh:
+                return (sw or 24.0), (sh or 24.0)
+        elif type_low == "instanttextboxtype":
+            tw, th = self._text_bounds(node)
+            if tw or th:
+                return (tw or 24.0), (th or 24.0)
         w_raw, h_raw = node.get_size_raw()
         w = parse_dim(w_raw, parent.w)
         h = parse_dim(h_raw, parent.h)

@@ -133,6 +133,10 @@ class GuiDesignerTab(ttk.Frame):
         self._undo_btn.pack(side="left", padx=(8, 0))
         self._redo_btn = ttk.Button(bar, text="↷", width=3, command=self.redo)
         self._redo_btn.pack(side="left", padx=(2, 4))
+        ttk.Button(bar, text="🗎 " + self.t("interface.gui.new_file"),
+                   command=self._new_gui_file).pack(side="left", padx=(8, 0))
+        ttk.Button(bar, text="▣ " + self.t("interface.gui.new_window"),
+                   command=self._new_window).pack(side="left", padx=2)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
@@ -187,7 +191,8 @@ class GuiDesignerTab(ttk.Frame):
         self._left_visible = True
         self.columnconfigure(0, minsize=330)
         self.tree = HierarchyPanel(left, self, on_select=self._tree_selected,
-                                   on_context=self._tree_context)
+                                   on_context=self._tree_context,
+                                   on_multi_select=self._tree_multi_selected)
         self.tree.grid(row=0, column=0, sticky="nsew")
         self.palette_panel = WidgetPalette(left, self)
         self.palette_panel.grid(row=1, column=0, sticky="nsew", pady=(8, 0))
@@ -351,6 +356,12 @@ class GuiDesignerTab(ttk.Frame):
             self.open_window(doc, wi)
         self._select_paths([path], from_tree=True)
 
+    def _tree_multi_selected(self, doc, wi: int, paths: list) -> None:
+        self.inspector.flush_pending()
+        if doc is not self.doc or wi != self.wi:
+            self.open_window(doc, wi)
+        self._select_paths(list(paths), from_tree=True)
+
     def open_window(self, doc, wi: int) -> None:
         self.doc = doc
         self.wi = wi
@@ -366,6 +377,69 @@ class GuiDesignerTab(ttk.Frame):
             self._copy_btn.pack(side="left", padx=2)
         else:
             self._copy_btn.pack_forget()
+
+    _DEFAULT_WINDOW = ('containerWindowType = {{\n'
+                       '\tname = "{name}"\n'
+                       '\tposition = {{ x = 0 y = 0 }}\n'
+                       '\tsize = {{ width = 400 height = 300 }}\n'
+                       '}}')
+
+    def _new_gui_file(self) -> None:
+        from ..common import TextPromptDialog
+
+        def create(name: str) -> None:
+            rel = (f"interface/{name}.gui" if not name.endswith(".gui")
+                   else f"interface/{name}")
+            if any(d.ref.rel_file == rel for d in self.mod_docs):
+                messagebox.showerror("ANKA", self.t("focuses.err.file_exists"))
+                return
+            ref = self.service.create_doc(rel, "guiTypes")
+            doc = self.service.load_gui(ref)
+            self._append_window(doc, self._unique_window_name(doc))
+            self.mark_dirty(doc)
+            try:
+                self.service.save(doc)
+            except Exception as exc:                      # noqa: BLE001
+                messagebox.showerror("ANKA", str(exc))
+                return
+            self.reload_docs()
+            new = next((d for d in self.mod_docs
+                        if d.ref.rel_file == rel), None)
+            if new is not None:
+                self.open_window(new, 0)
+                self._show_inspector(True)
+                self.inspector.show(new, 0, self.window, self.editable)
+                self.tree.select_node(new, 0, None)
+
+        TextPromptDialog(self, self, self.t("interface.gui.new_file"),
+                         self.t("interface.gfx.file_label"), create,
+                         pattern=r"^[\w./-]+$")
+
+    def _new_window(self) -> None:
+        if self.doc is None or self.doc.ref.is_vanilla:
+            messagebox.showinfo("ANKA", self.t("interface.gui.new_window_hint"))
+            return
+        doc = self.doc
+        wi = len(doc.windows())
+        self._append_window(doc, self._unique_window_name(doc))
+        self.mark_dirty(doc)
+        self.reload_docs()
+        self.open_window(doc, wi)
+        self._show_inspector(True)
+        self.inspector.show(doc, wi, self.window, self.editable)
+        self.tree.select_node(doc, wi, None)
+
+    def _append_window(self, doc, name: str) -> None:
+        gt = doc.gui_types(create=True)
+        parsed = pdx_parse(self._DEFAULT_WINDOW.format(name=name), recover=False)
+        gt.items.extend(parsed.items)
+
+    def _unique_window_name(self, doc) -> str:
+        taken = {w.name for w in doc.windows()}
+        i = 1
+        while f"anka_window_{i}" in taken:
+            i += 1
+        return f"anka_window_{i}"
 
     def _copy_to_mod(self) -> None:
         if self._copy_ref is None:
@@ -432,13 +506,14 @@ class GuiDesignerTab(ttk.Frame):
         self.inspector.flush_pending()
         self.selection = list(paths)
         self.canvas.set_selection(self.selection)
+        # Keep the hierarchy tree in step with a canvas (or programmatic) selection.
+        if not from_tree and self.doc is not None:
+            self.tree.select_nodes(self.doc, self.wi, self.selection)
         if len(paths) == 1:
             node = self.doc.find(self.wi, paths[0]) if self.doc else None
             if node is not None:
                 self._show_inspector(True)
                 self.inspector.show(self.doc, self.wi, node, self.editable)
-                if not from_tree:
-                    self.tree.select_node(self.doc, self.wi, paths[0])
                 return
         if len(paths) > 1:
             nodes = [n for n in (self.node_at(p) for p in paths)
@@ -630,13 +705,7 @@ class GuiDesignerTab(ttk.Frame):
         if node is None or old_rect is None or renderer is None:
             return
         parent = self._parent_rect(path)
-        children: list[SetAttrCommand] = []
-        old_size = node.get_xy("size")
-        new_size = (_resize_component(old_size[0], rect.w, parent.w),
-                    _resize_component(old_size[1], rect.h, parent.h))
-        if new_size != old_size:
-            children.append(SetAttrCommand(self.doc, self.wi, path, "size",
-                                           "xy", old_size, new_size))
+        children = self._resize_size_commands(node, path, rect, parent, renderer)
         if (round(rect.x), round(rect.y)) != (round(old_rect.x),
                                               round(old_rect.y)):
             key = node.position_key()
@@ -662,6 +731,42 @@ class GuiDesignerTab(ttk.Frame):
         self._record(command)
         self.schedule_render(0)
         self.inspector.update_geometry()
+
+    def _resize_size_commands(self, node, path: IndexPath, rect: Rect,
+                              parent: Rect, renderer) -> list:
+        """Size commands for a canvas resize — redirected for types whose size is
+        derived: instantTextBoxType edits maxWidth/maxHeight, iconType edits scale
+        (its size is the sprite × scale). Everything else edits `size`."""
+        tl = node.type_key.lower()
+        out: list[SetAttrCommand] = []
+        if tl == "instanttextboxtype":
+            for attr, val in (("maxWidth", max(1, round(rect.w))),
+                              ("maxHeight", max(1, round(rect.h)))):
+                old, new = node.get_attr(attr), str(val)
+                if new != old:
+                    out.append(SetAttrCommand(self.doc, self.wi, path, attr,
+                                              "scalar", old, new))
+            return out
+        if tl == "icontype":
+            sprite = (node.get_attr("spriteType")
+                      or node.get_attr("quadTextureSprite"))
+            native = (renderer.solver.metrics.sprite_frame_size(sprite)
+                      if sprite else None)
+            if native and native[0] > 0:
+                scale = max(0.05, rect.w / native[0])
+                old = node.get_attr("scale")
+                new = f"{scale:.3f}".rstrip("0").rstrip(".")
+                if new != old:
+                    out.append(SetAttrCommand(self.doc, self.wi, path, "scale",
+                                              "scalar", old, new))
+            return out
+        old_size = node.get_xy("size")
+        new_size = (_resize_component(old_size[0], rect.w, parent.w),
+                    _resize_component(old_size[1], rect.h, parent.h))
+        if new_size != old_size:
+            out.append(SetAttrCommand(self.doc, self.wi, path, "size",
+                                      "xy", old_size, new_size))
+        return out
 
     def create_node(self, type_key: str, parent_path: IndexPath,
                     world_xy: tuple[float, float]) -> None:
@@ -724,35 +829,58 @@ class GuiDesignerTab(ttk.Frame):
         target = self.node_at(new_parent_path) or self.window
         if target is None or not target.is_container:
             return
-        children = []
         target_rect = self._result.rects.get(new_parent_path) or Rect(
             0, 0, float(self.resolution[0]), float(self.resolution[1]))
-        for path in sorted(paths, reverse=True):
+        from ...core.guitypes.views import GuiNode
+        # collect valid moves (skip moving a node into itself/its own subtree)
+        moves: list[tuple[IndexPath, str, str]] = []
+        for path in paths:
             node = self.node_at(path)
             rect = self._result.rects.get(path)
-            if node is None or rect is None or path == new_parent_path:
+            if node is None or rect is None:
                 continue
-            snapshot_block = pdx_parse(node.snapshot(), recover=False)
-            from ...core.guitypes.views import GuiNode
-            pair = next(p for p in snapshot_block.pairs())
-            copy = GuiNode(pair)
+            if new_parent_path[:len(path)] == path:   # target inside the moved node
+                continue
+            block = pdx_parse(node.snapshot(), recover=False)
+            copy = GuiNode(next(p for p in block.pairs()))
             copy.set_xy(copy.position_key(),
                         _fmt(rect.x - target_rect.x),
                         _fmt(rect.y - target_rect.y))
-            children.append(DeleteNodeCommand(self.doc, self.wi, path[:-1],
-                                              path[-1], node.snapshot()))
-            children.append(CreateNodeCommand(
-                self.doc, self.wi, new_parent_path,
-                len(target.children()), dumps(snapshot_block,
-                                              top_level=True)))
-        if not children:
+            moves.append((path, node.snapshot(), dumps(block, top_level=True)))
+        if not moves:
             return
+        deleted = [m[0] for m in moves]
+        # All deletions run first (deepest / highest index first so they don't
+        # invalidate one another); then re-create under the target path shifted to
+        # account for those deletions — CreateNodeCommand resolves its parent at
+        # execution time, so the shifted path must match the post-delete tree.
+        children: list = [
+            DeleteNodeCommand(self.doc, self.wi, p[:-1], p[-1], snap)
+            for p, snap, _copy in sorted(moves, key=lambda m: m[0], reverse=True)]
+        adj_parent = self._shift_path(new_parent_path, deleted)
+        moved_from_target = sum(1 for d in deleted
+                                if d[:-1] == tuple(new_parent_path))
+        base = max(0, len(target.children()) - moved_from_target)
+        for i, (_p, _snap, copy_text) in enumerate(moves):
+            children.append(CreateNodeCommand(self.doc, self.wi, adj_parent,
+                                              base + i, copy_text))
         command = CompoundCommand(children, "interface.cmd.reparent")
         command.redo(self)
         self._record(command)
         self.tree.refresh()
         self.schedule_render(0)
         self._select_paths([])
+
+    @staticmethod
+    def _shift_path(path: IndexPath, deleted: list[IndexPath]) -> IndexPath:
+        """`path` after removing every `deleted` node: a removed earlier sibling
+        along the path decrements that component."""
+        adj = list(path)
+        for d in deleted:
+            k = len(d) - 1
+            if 0 <= k < len(adj) and tuple(adj[:k]) == d[:k] and d[k] < adj[k]:
+                adj[k] -= 1
+        return tuple(adj)
 
     def delete_nodes(self, paths: list[IndexPath]) -> None:
         if not self.editable or not paths:
@@ -877,12 +1005,45 @@ class GuiDesignerTab(ttk.Frame):
                                  command=lambda: self.reorder_node(path, +1))
                 menu.add_command(label="▼ " + self.t("interface.gui.lower"),
                                  command=lambda: self.reorder_node(path, -1))
+                moved = list(self.selection) if path in self.selection else [path]
+                self._add_reparent_menu(menu, moved)
                 menu.add_separator()
                 menu.add_command(label="🗑 " + self.t("interface.gfx.delete"),
-                                 command=lambda: self.delete_nodes([path]))
+                                 command=lambda: self.delete_nodes(moved))
         menu.add_command(label="📋 " + self.t("interface.gui.copy_pdx"),
                          command=lambda: self._copy_pdx(node))
         menu.tk_popup(x, y)
+
+    def _add_reparent_menu(self, menu: tk.Menu, moved: list[IndexPath]) -> None:
+        """`Move to…` → every container the moved node(s) may go into (the window
+        root and each container widget, minus the moved subtrees / current parents)."""
+        if self.window is None:
+            return
+        excluded = set(moved)
+        current_parents = {p[:-1] for p in moved}
+        targets: list[tuple[IndexPath, str]] = [
+            ((), "▣ " + (self.window.name or self.window.type_key))]
+
+        def walk(node, path: IndexPath) -> None:
+            for i, child in enumerate(node.children()):
+                cpath = path + (i,)
+                inside_moved = any(cpath[:len(e)] == e for e in excluded)
+                if child.is_container and not inside_moved:
+                    targets.append(
+                        (cpath, "   " * len(cpath)
+                         + (child.name or child.type_key)))
+                walk(child, cpath)
+
+        walk(self.window, ())
+        # a move to the node's current parent is a no-op — drop it
+        targets = [(p, lbl) for p, lbl in targets if p not in current_parents]
+        if not targets:
+            return
+        sub = tk.Menu(menu, tearoff=0)
+        for tpath, label in targets:
+            sub.add_command(label=label,
+                            command=lambda t=tpath: self.reparent_nodes(moved, t))
+        menu.add_cascade(label="↳ " + self.t("interface.gui.move_to"), menu=sub)
 
     def _context_add(self, type_key: str, path: IndexPath | None,
                      into: bool) -> None:

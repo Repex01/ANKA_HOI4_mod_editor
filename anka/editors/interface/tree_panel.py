@@ -23,13 +23,16 @@ def _path_str(path: IndexPath) -> str:
 class HierarchyPanel(ttk.Frame):
     def __init__(self, master, tab, *,
                  on_select: Callable[[object], None],
-                 on_context: Callable[[tk.Event, object], None]):
+                 on_context: Callable[[tk.Event, object], None],
+                 on_multi_select: Callable[[object, int, list], None] | None = None):
         super().__init__(master, style="Card.TFrame", padding=10)
         self.tab = tab
         self.t = tab.t
         self.on_select = on_select
         self.on_context = on_context
+        self.on_multi_select = on_multi_select
         self.items: dict[str, tuple] = {}
+        self._suppress = False          # guard against feedback while syncing
 
         self.rowconfigure(2, weight=1)
         self.columnconfigure(0, weight=1)
@@ -42,7 +45,7 @@ class HierarchyPanel(ttk.Frame):
                         style="Card.TCheckbutton", variable=self._vanilla,
                         command=self.tab.reload_docs).grid(
             row=1, column=0, sticky="w", pady=(0, 6))
-        self._tree = ttk.Treeview(self, show="tree", selectmode="browse")
+        self._tree = ttk.Treeview(self, show="tree", selectmode="extended")
         self._tree.grid(row=2, column=0, sticky="nsew")
         sb = ttk.Scrollbar(self, orient="vertical", command=self._tree.yview)
         sb.grid(row=2, column=1, sticky="ns")
@@ -158,11 +161,24 @@ class HierarchyPanel(ttk.Frame):
         self._fill_windows(iid, doc, True, set(), "")
 
     def _select(self, _event=None) -> None:
+        if self._suppress:              # programmatic sync from the canvas
+            return
         sel = self._tree.selection()
-        if sel:
-            payload = self.items.get(sel[0])
-            if payload is not None:
-                self.on_select(payload)
+        if not sel:
+            return
+        # Multiple element nodes of the same window → group selection.
+        nodes = [self.items.get(iid) for iid in sel]
+        nodes = [p for p in nodes if p is not None and p[0] == "node"]
+        if (self.on_multi_select is not None and len(sel) > 1
+                and len(nodes) == len(sel)):
+            doc, wi = nodes[0][1], nodes[0][2]
+            if all(p[1] is doc and p[2] == wi for p in nodes):
+                self.on_multi_select(doc, wi, [p[3] for p in nodes])
+                return
+        payload = self.items.get(self._tree.focus() or sel[0]) \
+            or self.items.get(sel[0])
+        if payload is not None:
+            self.on_select(payload)
 
     def _context(self, event) -> None:
         iid = self._tree.identify_row(event.y)
@@ -173,10 +189,10 @@ class HierarchyPanel(ttk.Frame):
                 self.on_context(event, payload)
 
     def _delete_key(self, _event=None) -> None:
-        sel = self._tree.selection()
-        payload = self.items.get(sel[0]) if sel else None
-        if payload is not None and payload[0] == "node":
-            self.tab.delete_nodes([payload[3]])
+        paths = [p[3] for iid in self._tree.selection()
+                 if (p := self.items.get(iid)) is not None and p[0] == "node"]
+        if paths:
+            self.tab.delete_nodes(paths)
 
     # ------------------------------------------------------------- selection
     def select_node(self, doc, wi: int, path: IndexPath | None) -> None:
@@ -187,5 +203,24 @@ class HierarchyPanel(ttk.Frame):
             iid = (f"n::{doc.ref.rel_file}::{is_vanilla}::{wi}"
                    f"::{_path_str(path)}")
         if self._tree.exists(iid):
-            self._tree.selection_set(iid)
-            self._tree.see(iid)
+            self._suppress = True
+            try:
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
+            finally:
+                self._suppress = False
+
+    def select_nodes(self, doc, wi: int, paths: list[IndexPath]) -> None:
+        """Mirror the canvas selection in the tree (single or multiple nodes)."""
+        is_vanilla = int(doc.ref.is_vanilla)
+        iids = [iid for path in paths
+                if self._tree.exists(
+                    iid := f"n::{doc.ref.rel_file}::{is_vanilla}::{wi}"
+                           f"::{_path_str(path)}")]
+        self._suppress = True
+        try:
+            self._tree.selection_set(iids)      # empty list clears the selection
+            if iids:
+                self._tree.see(iids[0])
+        finally:
+            self._suppress = False

@@ -52,25 +52,45 @@ class ScriptVarsService:
 
     # -------------------------------------------------------------------- scan
     def _scan(self) -> dict[str, tuple[str, ...]]:
-        roots = tuple([self.ctx.mod.path, *self.ctx.dependency_paths])
-        return _scan_roots(roots)
+        # Dependencies don't change during a session -> cached. The mod itself is
+        # rescanned every time so a flag/variable the modder just created and saved
+        # in the script editor shows up in the pick list without restarting.
+        buckets: dict[str, set[str]] = {t: set() for t in VAR_FLAG_TYPES}
+        dep = _scan_roots(tuple(self.ctx.dependency_paths))
+        mod = _scan_root(self.ctx.mod.path)
+        for source in (dep, mod):
+            for vtype, names in source.items():
+                buckets[vtype].update(names)
+        return {t: tuple(sorted(v)) for t, v in buckets.items()}
+
+    @staticmethod
+    def invalidate() -> None:
+        """Drop the dependency-scan cache (rarely needed — deps are static)."""
+        _scan_roots.cache_clear()
+
+
+def _scan_root(root: Path) -> dict[str, tuple[str, ...]]:
+    buckets: dict[str, set[str]] = {t: set() for t in VAR_FLAG_TYPES}
+    for sub in _SCAN_DIRS:
+        folder = root / sub
+        if not folder.is_dir():
+            continue
+        for file in folder.rglob("*.txt"):
+            try:
+                text = file.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            for vtype, pattern in _FLAG_RES.items():
+                buckets[vtype].update(pattern.findall(text))
+            buckets["variable"].update(_VAR_RE.findall(text))
+            buckets["variable"].update(_VAR_SHORT_RE.findall(text))
+    return {t: tuple(sorted(v)) for t, v in buckets.items()}
 
 
 @lru_cache(maxsize=8)
 def _scan_roots(roots: tuple[Path, ...]) -> dict[str, tuple[str, ...]]:
     buckets: dict[str, set[str]] = {t: set() for t in VAR_FLAG_TYPES}
     for root in roots:
-        for sub in _SCAN_DIRS:
-            folder = root / sub
-            if not folder.is_dir():
-                continue
-            for file in folder.rglob("*.txt"):
-                try:
-                    text = file.read_text(encoding="utf-8-sig", errors="replace")
-                except OSError:
-                    continue
-                for vtype, pattern in _FLAG_RES.items():
-                    buckets[vtype].update(pattern.findall(text))
-                buckets["variable"].update(_VAR_RE.findall(text))
-                buckets["variable"].update(_VAR_SHORT_RE.findall(text))
+        for vtype, names in _scan_root(root).items():
+            buckets[vtype].update(names)
     return {t: tuple(sorted(v)) for t, v in buckets.items()}

@@ -461,6 +461,13 @@ class OobEditor(EditorModule):
             from ...services.state_service import StateService
             for st in StateService(self.context).list_states():
                 opts.append((f"{st.id} · {st.name}", str(st.id)))
+        elif vtype == "province":
+            from ...services.state_service import StateService
+            rows: list[tuple[int, str]] = []
+            for st in StateService(self.context).list_states():
+                for pid in st.provinces:
+                    rows.append((pid, f"{pid} · {st.name} (state {st.id})"))
+            opts = [(display, str(pid)) for pid, display in sorted(rows)]
         elif vtype == "idea":
             from ...services.idea_service import IdeaService
             for idea in IdeaService(self.context).list_ideas():

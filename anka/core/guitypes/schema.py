@@ -191,9 +191,10 @@ _WIDGET_LIST: tuple[WidgetSpec, ...] = (
                 _a("horizontalBorder", AttrKind.STR, section="layout"),
                 _a("verticalBorder", AttrKind.STR, section="layout"),
             )),
+    # NB: no `size` — an iconType is sized by its sprite (× scale), not a size block.
     _widget("iconType", container=False, category="graphics", icon="🖼",
             attrs=(
-                _NAME, _POSITION, _SIZE, _ORIENTATION, _ORIGO, _CENTERPOSITION,
+                _NAME, _POSITION, _ORIENTATION, _ORIGO, _CENTERPOSITION,
                 _SPRITE, _QUAD_SPRITE, _FRAME, _SCALE,
                 _a("rotation", AttrKind.FLOAT, section="graphics"),
                 _a("preserve_aspect_ratio", AttrKind.BOOL, section="graphics"),
@@ -205,8 +206,9 @@ _WIDGET_LIST: tuple[WidgetSpec, ...] = (
             attrs=_BUTTON_ATTRS),
     _widget("checkBoxType", container=False, category="controls", icon="☑",
             attrs=_BUTTON_ATTRS),
+    # NB: no `size` — an instantTextBoxType is sized by its maxWidth/maxHeight box.
     _widget("instantTextBoxType", container=False, category="text", icon="𝐓",
-            attrs=(_NAME, _POSITION, _SIZE, _ORIENTATION, _ORIGO,
+            attrs=(_NAME, _POSITION, _ORIENTATION, _ORIGO,
                    _ALWAYSTRANSPARENT,
                    _a("scrollbarType", AttrKind.STR, section="scroll"),
                    ) + _TEXT_COMMON + _TOOLTIPS),

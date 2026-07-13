@@ -99,13 +99,18 @@ class FocusInspector(ttk.Frame):
         self._lang.bind("<<ComboboxSelected>>", self._on_language)
 
         ttk.Label(f, text=self.t("focuses.inspector.name"),
-                  style="CardMuted.TLabel").grid(row=fr, column=0, sticky="w", pady=3)
-        # NB: `_name` is reserved by tkinter (widget path segment) — use `_name_var`.
-        self._name_var = tk.StringVar()
-        name_entry = ttk.Entry(f, textvariable=self._name_var)
-        name_entry.grid(row=fr, column=1, sticky="ew", padx=(8, 0), pady=3); fr += 1
-        name_entry.bind("<FocusOut>", lambda e: self._commit_loc())
-        name_entry.bind("<Return>", lambda e: self._commit_loc())
+                  style="CardMuted.TLabel").grid(row=fr, column=0, sticky="nw", pady=3)
+        # A Text (not Entry) so it grows to fit a long name; Enter commits instead
+        # of inserting a newline (a focus name is one loc line).
+        self._name = tk.Text(f, height=1, wrap="word", bg=self.palette.surface_alt,
+                             fg=self.palette.text, insertbackground=self.palette.text,
+                             relief="flat", font=("Segoe UI", 10))
+        self._name.grid(row=fr, column=1, sticky="ew", padx=(8, 0), pady=3); fr += 1
+        self._name.bind("<FocusOut>", lambda e: self._commit_loc())
+        self._name.bind("<Return>", lambda e: (self._commit_loc(), "break")[1])
+        self._name.bind("<KeyRelease>", lambda e: (
+            self._auto_grow(self._name, 1),
+            self._debounce("loc", self._commit_loc, 1200)))
 
         ttk.Label(f, text=self.t("focuses.inspector.desc"),
                   style="CardMuted.TLabel").grid(row=fr, column=0, sticky="nw", pady=3)
@@ -250,13 +255,13 @@ class FocusInspector(ttk.Frame):
             ("pos", self._y, self._commit_position, 700),
             ("cost", self._cost, self._commit_cost, 700),
             ("war", self._war, self._commit_war, 700),
-            ("loc", self._name_var, self._commit_loc, 1200),
         )
         for job_key, var, commit, delay in wiring:
             var.trace_add("write",
                           lambda *_, k=job_key, c=commit, d=delay: self._debounce(k, c, d))
-        self._desc.bind("<KeyRelease>",
-                        lambda e: self._debounce("loc", self._commit_loc, 1200))
+        self._desc.bind("<KeyRelease>", lambda e: (
+            self._auto_grow(self._desc, 3),
+            self._debounce("loc", self._commit_loc, 1200)))
 
     def _debounce(self, key: str, commit, delay: int) -> None:
         if self._loading or self.focus_obj is None:
@@ -308,11 +313,14 @@ class FocusInspector(ttk.Frame):
             self._lang.set(lang)
             self._loaded_name = self.owner.service.focus_name(focus.text or focus.id, lang)
             self._loaded_desc = self.owner.service.focus_desc(focus.text or focus.id, lang)
-            self._name_var.set(self._loaded_name
-                               if self._loaded_name != (focus.text or focus.id) else "")
+            name = (self._loaded_name
+                    if self._loaded_name != (focus.text or focus.id) else "")
+            self._set_text(self._name, name)
             self._desc.configure(state="normal")   # a disabled Text ignores edits
             self._desc.delete("1.0", "end")
             self._desc.insert("1.0", self._loaded_desc.replace("\\n", "\n"))
+            self._auto_grow(self._name, 1)
+            self._auto_grow(self._desc, 3)
             self._x.set(str(focus.x))
             self._y.set(str(focus.y))
             self._cost.set(f"{focus.cost:g}")
@@ -353,6 +361,31 @@ class FocusInspector(ttk.Frame):
         entry.delete(0, "end")
         entry.insert(0, value)
         entry.configure(state="readonly")
+
+    @staticmethod
+    def _set_text(text: tk.Text, value: str) -> None:
+        text.configure(state="normal")
+        text.delete("1.0", "end")
+        text.insert("1.0", value)
+
+    @staticmethod
+    def _auto_grow(text: tk.Text, min_lines: int, max_lines: int = 12) -> None:
+        """Resize a Text widget's height to fit its (wrapped) content, clamped
+        between `min_lines` and `max_lines`."""
+        try:
+            text.update_idletasks()
+            # count returns the number of display-line boundaries between the two
+            # indices — one less than the line count — so add 1.
+            shown = text.count("1.0", "end - 1c", "displaylines")
+            lines = (shown[0] if shown else 0) + 1
+        except tk.TclError:
+            lines = int(text.index("end-1c").split(".")[0])
+        lines = max(min_lines, min(max(lines, 1), max_lines))
+        try:
+            if int(text.cget("height")) != lines:
+                text.configure(height=lines)
+        except tk.TclError:
+            pass
 
     # ----------------------------------------------------------------- refresh
     def _refresh_icon(self) -> None:
@@ -489,7 +522,7 @@ class FocusInspector(ttk.Frame):
             return
         focus = self.focus_obj
         lang = self._lang.get()
-        name = self._name_var.get().strip()
+        name = self._name.get("1.0", "end").strip()
         desc = self._desc.get("1.0", "end").strip()
         key = focus.text or focus.id
         current_name = self.owner.service.focus_name(key, lang)
