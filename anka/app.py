@@ -20,6 +20,7 @@ from .services.mod_repository import ModRepository
 from .ui.i18n import Translator
 from .ui.theme import ThemeManager
 from .ui.widgets.dnd import create_root
+from .ui.widgets.mousewheel import disable_form_wheel
 
 
 class AnkaApp:
@@ -31,6 +32,9 @@ class AnkaApp:
         self.repo = ModRepository(self.settings.current)
 
         self.root = create_root()
+        # Wheel over a dropdown/spinbox must not silently change its value; the
+        # few convenient exceptions opt back in via enable_form_wheel().
+        disable_form_wheel(self.root)
         self.root.title(f"{__app_name__} {VERSION}")
         self.root.minsize(*self.MIN_SIZE)
         self._center(*self.MIN_SIZE)      # sane restore-size before maximizing
@@ -48,7 +52,12 @@ class AnkaApp:
     # --- lifecycle -------------------------------------------------------
     def run(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.show_main_menu()
+        # First launch (no settings.json yet): go straight to Settings so the user
+        # configures the game / mod paths before anything else.
+        if self.settings.is_first_run:
+            self.show_settings(first_run=True)
+        else:
+            self.show_main_menu()
         self.root.mainloop()
 
     def _on_close(self) -> None:
@@ -86,9 +95,9 @@ class AnkaApp:
         from .ui.windows.main_menu import MainMenuScreen
         self._swap(MainMenuScreen(self.root, self))
 
-    def show_settings(self) -> None:
+    def show_settings(self, first_run: bool = False) -> None:
         from .ui.windows.settings import SettingsScreen
-        self._swap(SettingsScreen(self.root, self))
+        self._swap(SettingsScreen(self.root, self, first_run=first_run))
 
     def show_mod_list(self) -> None:
         from .ui.windows.mod_list import ModListScreen

@@ -477,6 +477,17 @@ class DecisionsEditor(EditorModule):
             self._category_cache = self.service.category_names()
         return self._category_cache
 
+    def custom_cost_keys(self) -> list[str]:
+        """Existing ``custom_cost_text`` loc keys used by the mod's decisions —
+        offered when picking a key for a decision's custom cost."""
+        keys: set[str] = set()
+        for doc in self._mod_docs:
+            for d in doc.decisions():
+                value = d.get_raw("custom_cost_text")
+                if value:
+                    keys.add(value)
+        return sorted(keys)
+
     def loc_get(self, key: str, language: str) -> str:
         value = self.service.name_of(key, language)
         return "" if value == key else value

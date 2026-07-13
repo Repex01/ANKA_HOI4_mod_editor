@@ -46,12 +46,18 @@ class SettingsService:
 
     def __init__(self, path: Path | None = None):
         self._path = path or Paths.SETTINGS_FILE
+        self._first_run = not self._path.exists()   # no settings.json yet
         self._settings = self._load()
         self._listeners: list[Callable[[Settings], None]] = []
 
     @property
     def current(self) -> Settings:
         return self._settings
+
+    @property
+    def is_first_run(self) -> bool:
+        """True when the app started without a settings.json — prompt for paths."""
+        return self._first_run
 
     def _load(self) -> Settings:
         if not self._path.exists():

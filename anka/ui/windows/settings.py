@@ -8,11 +8,13 @@ from ...config.settings import Settings
 
 
 class SettingsScreen(ttk.Frame):
-    def __init__(self, master, app):
+    def __init__(self, master, app, first_run: bool = False):
         super().__init__(master, style="TFrame")
         self.app = app
+        self._first_run = first_run
         self._vars: dict[str, tk.StringVar] = {}
         self._status_labels: dict[str, ttk.Label] = {}
+        self._is_ph: dict[str, bool] = {}          # entry currently showing its placeholder
         self._build()
 
     def _build(self) -> None:
@@ -21,8 +23,15 @@ class SettingsScreen(ttk.Frame):
 
         header = ttk.Frame(self, style="TFrame")
         header.pack(fill="x", padx=24, pady=(20, 10))
-        ttk.Button(header, text="‹ " + t("common.back"), command=self.app.show_main_menu).pack(side="left")
+        # On first launch there's nowhere to go "back" to — show a welcome hint
+        # instead and let the user configure paths before continuing.
+        if not self._first_run:
+            ttk.Button(header, text="‹ " + t("common.back"),
+                       command=self.app.show_main_menu).pack(side="left")
         ttk.Label(header, text=t("settings.title"), style="Title.TLabel").pack(side="left", padx=16)
+        if self._first_run:
+            ttk.Label(self, text=t("settings.first_run_hint"), style="Muted.TLabel",
+                      wraplength=620, justify="left").pack(fill="x", padx=24, pady=(0, 4))
 
         card = ttk.Frame(self, style="Card.TFrame", padding=24)
         card.pack(fill="both", expand=False, padx=24, pady=12)
@@ -65,8 +74,9 @@ class SettingsScreen(ttk.Frame):
         # Apply
         footer = ttk.Frame(self, style="TFrame")
         footer.pack(fill="x", padx=24, pady=8)
-        ttk.Button(footer, text=t("common.apply"), style="Accent.TButton",
-                   command=self._apply).pack(side="left")
+        ttk.Button(footer,
+                   text=t("settings.continue") if self._first_run else t("common.apply"),
+                   style="Accent.TButton", command=self._apply).pack(side="left")
         self._saved = ttk.Label(footer, text="", style="Muted.TLabel")
         self._saved.pack(side="left", padx=14)
 
@@ -84,10 +94,42 @@ class SettingsScreen(ttk.Frame):
         entry.grid(row=1, column=0, sticky="ew", pady=2)
         entry.bind("<KeyRelease>", lambda e: self._refresh_status())
         ttk.Button(block, text=self.app.t("common.browse"), width=10,
-                   command=lambda: self._browse(var)).grid(row=1, column=1, padx=(8, 0))
+                   command=lambda: self._browse(key, var)).grid(row=1, column=1, padx=(8, 0))
         status = ttk.Label(block, text="", style="CardMuted.TLabel")
         status.grid(row=2, column=0, sticky="w")
         self._status_labels[key] = status
+        self._attach_placeholder(entry, var, key,
+                                 self.app.t(f"settings.example.{key}"))
+
+    def _attach_placeholder(self, entry, var, key: str, placeholder: str) -> None:
+        """Show a greyed example path while the field is empty and unfocused. The
+        placeholder is display-only — `_value()` treats it as empty so it never
+        gets saved as a real path."""
+        muted, normal = self.app.palette.text_muted, self.app.palette.text
+
+        def show_ph() -> None:
+            self._is_ph[key] = True
+            var.set(placeholder)
+            entry.configure(foreground=muted)
+
+        def clear_ph() -> None:
+            self._is_ph[key] = False
+            var.set("")
+            entry.configure(foreground=normal)
+
+        if var.get().strip():
+            self._is_ph[key] = False
+            entry.configure(foreground=normal)
+        else:
+            show_ph()
+        entry.bind("<FocusIn>", lambda e: clear_ph() if self._is_ph.get(key) else None,
+                   add="+")
+        entry.bind("<FocusOut>",
+                   lambda e: show_ph() if not var.get().strip() else None, add="+")
+
+    def _value(self, key: str) -> str:
+        """A path field's real value (empty when it only shows its placeholder)."""
+        return "" if self._is_ph.get(key) else self._vars[key].get().strip()
 
     def _api_key_field(self, parent, row: int, key: str, label: str, value: str) -> None:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(
@@ -105,21 +147,22 @@ class SettingsScreen(ttk.Frame):
         ttk.Button(parent, text="👁", width=3, command=toggle).grid(
             row=row, column=2, padx=(6, 0))
 
-    def _browse(self, var: tk.StringVar) -> None:
-        path = filedialog.askdirectory(initialdir=var.get() or None)
+    def _browse(self, key: str, var: tk.StringVar) -> None:
+        path = filedialog.askdirectory(initialdir=self._value(key) or None)
         if path:
+            self._is_ph[key] = False
             var.set(path)
             self._refresh_status()
 
     def _refresh_status(self) -> None:
         probe = Settings(
-            game_path=self._vars["game_path"].get(),
-            local_mods_path=self._vars["local_mods_path"].get(),
-            workshop_mods_path=self._vars["workshop_mods_path"].get(),
+            game_path=self._value("game_path"),
+            local_mods_path=self._value("local_mods_path"),
+            workshop_mods_path=self._value("workshop_mods_path"),
         )
         validity = probe.validate_paths()
         for key, label in self._status_labels.items():
-            value = self._vars[key].get()
+            value = self._value(key)
             if not value:
                 label.configure(text="")
                 continue
@@ -136,9 +179,9 @@ class SettingsScreen(ttk.Frame):
     def _persist(self) -> None:
         """Save the form into settings.json (no navigation/rebuild)."""
         self.app.settings.update(
-            game_path=self._vars["game_path"].get().strip(),
-            local_mods_path=self._vars["local_mods_path"].get().strip(),
-            workshop_mods_path=self._vars["workshop_mods_path"].get().strip(),
+            game_path=self._value("game_path"),
+            local_mods_path=self._value("local_mods_path"),
+            workshop_mods_path=self._value("workshop_mods_path"),
             language=self._lang.get(),
             theme=self._theme_label_map.get(self._theme.get(), "dark"),
             openai_api_key=self._vars["openai_api_key"].get().strip(),
@@ -147,8 +190,13 @@ class SettingsScreen(ttk.Frame):
 
     def _apply(self) -> None:
         self._persist()
-        # Settings change triggers app re-theme/re-language; rebuild this screen.
-        self.app.show_settings()
+        # First-run: settings.json now exists, so head to the main menu (Edit mod is
+        # enabled there once the required paths are set). Otherwise rebuild in place.
+        if self._first_run:
+            self.app.show_main_menu()
+        else:
+            # Settings change triggers app re-theme/re-language; rebuild this screen.
+            self.app.show_settings()
 
     def on_leave(self) -> None:
         """Auto-save settings when navigating away (no rebuild)."""

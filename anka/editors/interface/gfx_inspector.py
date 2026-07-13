@@ -9,11 +9,19 @@ strip with frame separators when ``noOfFrames > 1``.
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from PIL import Image, ImageDraw, ImageTk
 
-from ...config.constants import SUPPORTED_IMPORT_FORMATS
+from ...config.constants import (
+    DECISION_ICON_SIZE,
+    EVENT_PICTURE_SIZE,
+    FOCUS_ICON_SIZE,
+    IDEA_ICON_SIZE,
+    LEADER_PORTRAIT_SIZE,
+    SUPPORTED_IMPORT_FORMATS,
+)
 from ...core.images.converter import ImageConverter
 from ...core.pdx import Block, dumps
 from ...core.pdx import parse as pdx_parse
@@ -21,6 +29,16 @@ from ...core.guitypes.schema import AttrKind, AttrSpec
 from ..common import InspectorBase, PdxPreviewDialog, ScriptEditorDialog
 
 _PREVIEW_MAX = (400, 180)
+
+# Named target sizes a texture can be fitted to (loc-key suffix, (w, h)).
+# Mirrors the canonical asset dimensions in config.constants used by IconService.
+_RESIZE_PRESETS: tuple[tuple[str, tuple[int, int]], ...] = (
+    ("focus_icon", FOCUS_ICON_SIZE),
+    ("idea_icon", IDEA_ICON_SIZE),
+    ("decision_icon", DECISION_ICON_SIZE),
+    ("leader_portrait", LEADER_PORTRAIT_SIZE),
+    ("event_picture", EVENT_PICTURE_SIZE),
+)
 
 
 class SpriteInspector(InspectorBase):
@@ -176,11 +194,17 @@ class SpriteInspector(InspectorBase):
             ttk.Button(cell, text="⇪", width=3,
                        command=lambda n=attr.name, v=var: self._import_texture(n, v)
                        ).grid(row=0, column=1, padx=(4, 0))
-            refresh = True
-            var.trace_add("write", lambda *_a, k=attr.name:
-                          self._debounce(k, lambda: commit_scalar(var, k, True)))
-            e.bind("<FocusOut>", lambda _e: commit_scalar(var, attr.name, True))
-            return row + 1
+            # "Resize to" appears on the next row once a file is set.
+            sync_resize = self._resize_row(row + 1, attr.name, var)
+
+            def commit_texture(v: tk.StringVar = var, k: str = attr.name) -> None:
+                commit_scalar(v, k, True)
+                sync_resize()
+
+            var.trace_add("write", lambda *_a, k=attr.name, v=var: (
+                sync_resize(), self._debounce(k, lambda: commit_scalar(v, k, True))))
+            e.bind("<FocusOut>", lambda _e: commit_texture())
+            return row + 2
         else:
             width = 8 if kind in (AttrKind.INT, AttrKind.FLOAT) else 26
             refresh = attr.name.lower() == "noofframes"
@@ -310,7 +334,6 @@ class SpriteInspector(InspectorBase):
             filetypes=[("Images", patterns), ("All files", "*.*")])
         if not src:
             return
-        from pathlib import Path
         source = Path(src)
         current = (var.get() or "").replace("\\", "/")
         if current and current.lower().endswith((".dds", ".tga", ".png")):
@@ -329,6 +352,107 @@ class SpriteInspector(InspectorBase):
         if self.view.name:
             self.owner.resolver.add(self.view.name, dest)
         self._refresh_preview()
+
+    # ------------------------------------------------------------------- resize
+    def _resize_row(self, row: int, attr_name: str, tex_var: tk.StringVar):
+        """Build the "Resize to" menu for a texture attr and return a callback
+        that shows/hides it depending on whether a file is set. Picking a preset
+        resizes the referenced image on disk; "Custom" reveals width/height fields."""
+        b = self.body
+        frame = ttk.Frame(b, style="Card.TFrame")
+        frame.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=(0, 3))
+
+        ttk.Label(frame, text=self.t("interface.gfx.resize_to"),
+                  style="CardMuted.TLabel").grid(row=0, column=0, sticky="w")
+        labels = [self.t("interface.gfx.resize.none")]
+        labels += [f"{self.t('interface.gfx.resize.' + key)}  ·  {w}×{h}"
+                   for key, (w, h) in _RESIZE_PRESETS]
+        labels.append(self.t("interface.gfx.resize.custom"))
+        box = ttk.Combobox(frame, width=24, state="readonly", values=tuple(labels))
+        box.current(0)
+        box.grid(row=0, column=1, sticky="w", padx=(8, 0))
+
+        custom = ttk.Frame(frame, style="Card.TFrame")
+        custom.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        w_var, h_var = tk.StringVar(), tk.StringVar()
+        ttk.Label(custom, text=self.t("interface.gfx.resize.width"),
+                  style="CardMuted.TLabel").pack(side="left")
+        ttk.Entry(custom, textvariable=w_var, width=6).pack(side="left", padx=(3, 8))
+        ttk.Label(custom, text=self.t("interface.gfx.resize.height"),
+                  style="CardMuted.TLabel").pack(side="left")
+        ttk.Entry(custom, textvariable=h_var, width=6).pack(side="left", padx=(3, 8))
+        ttk.Button(custom, text=self.t("interface.gfx.resize.apply"),
+                   command=lambda: self._resize_custom(attr_name, tex_var,
+                                                       w_var, h_var)).pack(side="left")
+        custom.grid_remove()
+
+        def on_select(_e=None) -> None:
+            idx = box.current()
+            if idx == len(labels) - 1:            # Custom
+                custom.grid()
+                return
+            custom.grid_remove()
+            if idx > 0:                           # a named preset
+                self._resize_texture(attr_name, tex_var, _RESIZE_PRESETS[idx - 1][1])
+                box.current(0)                    # it's an action, reset to None
+        box.bind("<<ComboboxSelected>>", on_select)
+
+        def sync() -> None:
+            if (tex_var.get() or "").strip():
+                frame.grid()
+            else:
+                box.current(0)
+                custom.grid_remove()
+                frame.grid_remove()
+        sync()
+        return sync
+
+    def _resize_custom(self, attr_name: str, tex_var: tk.StringVar,
+                       w_var: tk.StringVar, h_var: tk.StringVar) -> None:
+        try:
+            w, h = int(float(w_var.get())), int(float(h_var.get()))
+        except (ValueError, TypeError):
+            w = h = 0
+        if w <= 0 or h <= 0:
+            messagebox.showerror("ANKA", self.t("interface.gfx.resize.bad_size"))
+            return
+        self._resize_texture(attr_name, tex_var, (w, h))
+
+    def _resize_texture(self, attr_name: str, tex_var: tk.StringVar,
+                        size: tuple[int, int]) -> None:
+        """Resize the texture referenced by ``attr_name`` to ``size`` in place,
+        writing the result into the mod. Game/dependency files are read as the
+        source but never overwritten — the resized copy lands in the mod."""
+        if not self._editable:
+            return
+        rel = (tex_var.get() or "").strip().replace("\\", "/")
+        if not rel:
+            return
+        dest = self.owner.context.mod.path / rel
+        src = self._resolve_texture(rel) or (dest if dest.exists() else None)
+        if src is None:
+            messagebox.showerror("ANKA", self.t("interface.gfx.resize.missing"))
+            return
+        try:
+            ImageConverter.convert(src, dest, size=size)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", str(exc))
+            return
+        if self.view is not None and self.view.name:
+            self.owner.resolver.add(self.view.name, dest)
+        self._refresh_preview()
+
+    def _resolve_texture(self, rel: str) -> Path | None:
+        """First existing file for ``rel`` across the content roots (mod first)."""
+        if self.doc is None:
+            return None
+        ctx = self.owner.context
+        for root in (ctx.mod.path, self.doc.ref.source_root,
+                     *ctx.dependency_paths, ctx.game_path):
+            path = root / rel
+            if path.exists():
+                return path
+        return None
 
     # ----------------------------------------------------------------- actions
     def _unknown_keys(self) -> list[str]:

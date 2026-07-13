@@ -253,13 +253,16 @@ class CountryService:
             return ""
 
     def flag_path(self, tag: str, suffix: str | None = None) -> Path | None:
-        existing = self.ctx.flags.existing(tag, suffix)
-        if existing:
-            return existing
-        # Vanilla fallback for preview.
+        # Resolve across all content layers, highest priority first: the edited
+        # mod overrides dependency submods, which override the base game. (The old
+        # code only looked at the mod and the base game, so submod flags were
+        # invisible.)
         name = f"{tag}_{suffix}" if suffix else tag
-        candidate = self.ctx.game_path / "gfx" / "flags" / f"{name}.tga"
-        return candidate if candidate.exists() else None
+        for root in self.ctx.search_roots(GAME_DIRS.GFX_FLAGS):
+            candidate = root / GAME_DIRS.GFX_FLAGS / f"{name}.tga"
+            if candidate.exists():
+                return candidate
+        return None
 
     # --- localisation: names per language & ideology --------------------
     @staticmethod

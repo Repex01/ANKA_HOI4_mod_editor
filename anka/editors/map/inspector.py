@@ -11,9 +11,13 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from ...config.constants import HOI4_LANGUAGES
+from ...core.pdx import Block, Pair, dumps
+from ...core.pdx import parse as pdx_parse
 from ...services.state_service import StateDocument
-from ..common.dialogs import PdxPreviewDialog, SinglePickDialog
+from ..common.dialogs import (PdxPreviewDialog, SinglePickDialog,
+                              TextPromptDialog)
 from ..common.inspector_base import InspectorBase
+from ..common.script_editor import ScriptEditorDialog
 
 PROVINCE_TYPES = ("land", "sea", "lake")
 
@@ -233,6 +237,20 @@ class StateInspector(InspectorBase):
                                               "name", self._commit_name)
         row += 1
 
+        # the language the name field reads/writes (STATE_<id> loc key)
+        ttk.Label(b, text=self.t("focuses.inspector.language"),
+                  style="CardMuted.TLabel").grid(row=row, column=0,
+                                                 sticky="w", pady=3)
+        self._name_lang_var = tk.StringVar(value=self.owner.loc_language)
+        name_lang = ttk.Combobox(b, textvariable=self._name_lang_var,
+                                 state="readonly", width=14,
+                                 values=list(HOI4_LANGUAGES))
+        name_lang.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        name_lang.bind("<<ComboboxSelected>>",
+                       lambda e: self._change_name_language())
+        self._name_lang_combo = name_lang
+        row += 1
+
         self._owner_var = self._pick_row(row, self.t("map.owner"), "owner")
         row += 1
         self._controller_var = self._pick_row(row, self.t("map.controller"),
@@ -335,6 +353,12 @@ class StateInspector(InspectorBase):
         actions.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(12, 0))
         ttk.Button(actions, text="👁 " + self.t("map.preview"),
                    command=self._preview).pack(side="left")
+        ttk.Button(actions, text="📜 " + self.t("map.edit_history"),
+                   command=self._edit_history).pack(side="left", padx=6)
+        self._reassign_btn = ttk.Button(actions,
+                                        text="🔢 " + self.t("map.reassign_id"),
+                                        command=self._reassign_id)
+        self._reassign_btn.pack(side="left")
         self._delete_btn = ttk.Button(actions, text="🗑 " + self.t("map.delete_state"),
                                       command=self._delete)
         self._delete_btn.pack(side="right")
@@ -381,6 +405,7 @@ class StateInspector(InspectorBase):
             self._loading = False
             return
         name = self.owner.state_loc_get(st.name_key or f"STATE_{st.id}")
+        self._name_lang_var.set(self.owner.loc_language)
         self._title_lbl.configure(
             text=f"{self.t('map.state')} {st.id}" + ("  🔒" if not editable else ""))
         self._file_lbl.configure(text=self.doc.ref.rel_file)
@@ -414,6 +439,8 @@ class StateInspector(InspectorBase):
         # escape hatch, and the supply area lives in zone files, not this one.
         self._copy_btn.configure(state="normal")
         self._supply_btn.configure(state="normal")
+        # viewing the name in another language is read-only-safe
+        self._name_lang_combo.configure(state="readonly")
         self._loading = False
 
     def refresh_provinces_view(self) -> None:
@@ -438,6 +465,19 @@ class StateInspector(InspectorBase):
             self.state.set_name_key(key)
             self._dirty()
         self.owner.state_loc_set(key, self._name_var.get().strip())
+        self.owner.refresh_tree_labels()
+
+    def _change_name_language(self) -> None:
+        """Switch which language the name field edits (tree labels follow)."""
+        self.flush_pending()
+        self.owner.loc_language = self._name_lang_var.get()
+        if self.state is not None:
+            self._loading = True
+            try:
+                self._name_var.set(self.owner.state_loc_get(
+                    self.state.name_key or f"STATE_{self.state.id}"))
+            finally:
+                self._loading = False
         self.owner.refresh_tree_labels()
 
     def _commit_tag(self, which: str) -> None:
@@ -844,6 +884,67 @@ class StateInspector(InspectorBase):
             self._dirty()
 
     # ------------------------------------------------------------------ actions
+    def _edit_history(self) -> None:
+        """Open the state's whole ``history`` block in the script editor
+        (owner / cores / buildings / victory_points / arbitrary effects)."""
+        doc, st = self.doc, self.state
+        if st is None:
+            return
+        history = st.block.get_block("history")
+        text = dumps(history, top_level=False) if history is not None else ""
+
+        def submitted(new_text: str) -> None:
+            if not self._editable:
+                return
+            try:
+                parsed = (pdx_parse(new_text, recover=False)
+                          if new_text.strip() else None)
+            except Exception:
+                return
+            existing = st.block.get_block("history")
+            if parsed is None or not parsed.items:
+                st.block.remove("history")
+            elif existing is not None:
+                existing.items = parsed.items
+            else:
+                st.block.items.insert(0, Pair("history",
+                                              Block(parsed.items)))
+            self._dirty()
+            self.owner.states.refresh_info(doc)
+            # owner/cores may have changed — recolor the map and re-read the form
+            self.owner.political_changed()
+            self.show(doc, self._editable)
+
+        ScriptEditorDialog(self, self.owner,
+                           f"{self.t('map.state')} {st.id} · history", text,
+                           submitted if self._editable else (lambda t: None),
+                           ("effect",), f"STATE_{st.id}")
+
+    def _reassign_id(self) -> None:
+        """Re-number this state to close an id gap (game crashes on holes).
+        Suggests the smallest free id; migrates loc, filename and map files."""
+        if self.state is None or self.doc is None or not self._editable:
+            return
+        old_id = self.state.id
+        suggested = self.owner.states.next_state_id()
+
+        def submit(text: str) -> None:
+            try:
+                new_id = int(text)
+            except ValueError:
+                return
+            if new_id == old_id:
+                return
+            if not messagebox.askyesno(
+                    "ANKA", self.t("map.reassign_confirm",
+                                   old=old_id, new=new_id)):
+                return
+            self.owner.reassign_state_id(self.doc, new_id)
+
+        TextPromptDialog(self, self.owner, self.t("map.reassign_id"),
+                         self.t("map.reassign_prompt"), submit,
+                         initial=str(suggested), pattern=r"^\d+$")
+
     def _preview(self) -> None:
         if self.doc is not None:
             PdxPreviewDialog(self, self.owner, self.doc.ref.rel_file, self.doc.root)

@@ -32,6 +32,7 @@ DECISION_FLAG_DEFAULTS = {
     "selectable_mission": False,
     "cancel_if_not_visible": False,
     "targets_dynamic": False,
+    "state_target": False,         # target a map state rather than a country
     "fixed_random_seed": True,     # missions: no = reroll random effects on restart
 }
 
@@ -43,9 +44,12 @@ DECISION_TRIGGER_FIELDS = ("allowed", "visible", "available", "activation",
 DECISION_EFFECT_FIELDS = ("complete_effect", "remove_effect",
                           "timeout_effect", "cancel_effect")
 DECISION_MODIFIER_FIELDS = ("modifier", "targeted_modifier")
-DECISION_OTHER_FIELDS = ("ai_will_do", "targets", "highlight_states", "on_map_mode")
+DECISION_OTHER_FIELDS = ("ai_will_do", "targets", "highlight_states")
 DECISION_SCRIPT_FIELDS = (DECISION_TRIGGER_FIELDS + DECISION_EFFECT_FIELDS
                           + DECISION_MODIFIER_FIELDS + DECISION_OTHER_FIELDS)
+
+# on_map_mode is a plain enum (not a script block), edited as a General dropdown.
+ON_MAP_MODE_VALUES = ("map_only", "decision_view_only", "map_and_decisions_view")
 
 CATEGORY_SCRIPT_FIELDS = ("allowed", "visible", "available")
 

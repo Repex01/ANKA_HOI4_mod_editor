@@ -24,7 +24,7 @@ from ...services.idea_service import (
     LEDGER_VALUES,
 )
 from ..base import EditorModule, EditorRegistry
-from ..common import BaseDialog, TextPromptDialog
+from ..common import BaseDialog, SinglePickDialog, TextPromptDialog
 from ...ui.widgets import ImageDropZone
 from .inspector import IdeaCategoryInspector, IdeaInspector
 
@@ -332,10 +332,15 @@ class IdeasEditor(EditorModule):
         default_cat = self.selected_category_name or categories[0]
         choices = [(c, c) for c in categories]
         choices.sort(key=lambda cv: cv[0] != default_cat)
+        base_options = [(f"{i.id}  ·  {i.category}", i.id)
+                        for i in self.service.list_ideas()]
 
-        def submit(iid: str, category: str) -> None:
+        def submit(iid: str, category: str, base_id: str) -> None:
             doc = self.service.mod_target_doc(category)
-            self.service.add_idea(doc, category, iid)
+            if base_id:
+                self._create_from(doc, category, iid, base_id)
+            else:
+                self.service.add_idea(doc, category, iid)
             if all(d.ref.path != doc.ref.path for d in self._mod_docs):
                 self._mod_docs.append(doc)
             self.mark_dirty(doc)
@@ -346,9 +351,19 @@ class IdeasEditor(EditorModule):
                 self._tree.selection_set(node)
                 self._tree.see(node)
 
-        TextPromptDialog(self._tree, self, self.t("ideas.new_idea"),
-                         self.t("ideas.idea_id"), submit, taken=taken,
-                         choices_label=self.t("ideas.category"), choices=choices)
+        NewIdeaDialog(self._tree, self, submit, taken, choices, base_options)
+
+    def _create_from(self, doc, category: str, new_id: str, base_id: str) -> None:
+        """Clone an existing idea into ``new_id`` and copy its localisation onto
+        the new id's keys (english + the current UI language)."""
+        found = self.service.find_idea_def(base_id)
+        src_key = found[1].name_key if found else base_id
+        self.service.create_idea_from(doc, category, new_id, base_id)
+        for lang in dict.fromkeys(("english", self.loc_language)):
+            name = self.service.loc.get(src_key, lang)
+            desc = self.service.loc.get(f"{src_key}_desc", lang)
+            if name is not None or desc is not None:
+                self.service.set_loc(new_id, lang, name, desc)
 
     def _copy_to_mod(self) -> None:
         ref = getattr(self, "_copy_ref", None)
@@ -577,6 +592,87 @@ class IdeasEditor(EditorModule):
 
     def on_leave(self) -> None:
         self.save_all()
+
+
+class NewIdeaDialog(BaseDialog):
+    """New-idea form: id, target category, and an optional *base idea* to clone.
+
+    Picking a base copies that idea's whole block; the new id gets its own,
+    fresh localisation keys (the source's ``name =`` override is dropped)."""
+
+    def __init__(self, master, editor, on_submit, taken: set[str],
+                 categories: list[tuple[str, str]],
+                 base_options: list[tuple[str, str]]):
+        super().__init__(master, editor, editor.t("ideas.new_idea"), (440, 300))
+        self._on_submit = on_submit
+        self._taken = taken
+        self._categories = categories
+        self._base_options = base_options
+        self._base_id = ""
+        import re
+        self._id_re = re.compile(r"^\w+$")
+        t = self.t
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=14)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(0, weight=1)
+
+        ttk.Label(body, text=t("ideas.idea_id"), style="Card.TLabel").grid(
+            row=0, column=0, sticky="w")
+        self._id_var = tk.StringVar()
+        entry = ttk.Entry(body, textvariable=self._id_var)
+        entry.grid(row=1, column=0, sticky="ew", pady=(4, 8))
+        entry.focus_set()
+        entry.bind("<Return>", lambda e: self._submit())
+
+        ttk.Label(body, text=t("ideas.category"), style="CardMuted.TLabel").grid(
+            row=2, column=0, sticky="w")
+        self._cat = ttk.Combobox(body, state="readonly",
+                                 values=[label for _v, label in categories])
+        self._cat.grid(row=3, column=0, sticky="ew", pady=(2, 8))
+        self._cat.current(0)
+
+        ttk.Label(body, text=t("ideas.base_idea"), style="CardMuted.TLabel").grid(
+            row=4, column=0, sticky="w")
+        base_row = ttk.Frame(body, style="Card.TFrame")
+        base_row.grid(row=5, column=0, sticky="ew", pady=(2, 8))
+        base_row.columnconfigure(0, weight=1)
+        self._base_label = ttk.Label(base_row, text=t("ideas.base_none"),
+                                     style="Card.TLabel")
+        self._base_label.grid(row=0, column=0, sticky="w")
+        ttk.Button(base_row, text=t("ideas.base_choose"), width=10,
+                   command=self._pick_base).grid(row=0, column=1, padx=(6, 0))
+        ttk.Button(base_row, text="✕", width=2,
+                   command=self._clear_base).grid(row=0, column=2, padx=(4, 0))
+
+        self._error = ttk.Label(body, text="", style="CardMuted.TLabel",
+                                foreground=self.palette.danger)
+        self._error.grid(row=6, column=0, sticky="w")
+        self.buttons_row(body, t("common.add")).grid(row=7, column=0, sticky="ew")
+
+    def _pick_base(self) -> None:
+        SinglePickDialog(self, self.editor, self.t("ideas.base_idea"),
+                         self._base_options, self._set_base, current=self._base_id)
+
+    def _set_base(self, value: str) -> None:
+        self._base_id = value
+        self._base_label.configure(text=value or self.t("ideas.base_none"))
+
+    def _clear_base(self) -> None:
+        self._set_base("")
+
+    def _submit(self) -> None:
+        iid = self._id_var.get().strip()
+        if not self._id_re.match(iid):
+            self._error.configure(text=self.t("focuses.err.bad_id"))
+            return
+        if iid in self._taken:
+            self._error.configure(text=self.t("focuses.err.duplicate_id"))
+            return
+        category = self._categories[self._cat.current()][0]
+        base_id = self._base_id
+        self.destroy()
+        self._on_submit(iid, category, base_id)
 
 
 class NewCategoryDialog(BaseDialog):

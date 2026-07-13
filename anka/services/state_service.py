@@ -323,11 +323,68 @@ class StateService:
         return StateDocRef(rel_file=ref.rel_file, source_root=self.ctx.mod.path,
                            is_vanilla=False, edited=True, state_id=ref.state_id)
 
+    def used_state_ids(self) -> set[int]:
+        return {r.state_id for r in self.list_docs(include_vanilla=True)
+                if r.state_id is not None}
+
     def next_state_id(self) -> int:
-        """Smallest free state id above every existing one (across all layers)."""
-        ids = [r.state_id for r in self.list_docs(include_vanilla=True)
-               if r.state_id is not None]
-        return (max(ids) + 1) if ids else 1
+        """Smallest free state id: the first gap in the sequence, else max+1.
+        The game indexes states contiguously and crashes on holes, so gaps
+        must be filled before growing the range."""
+        used = self.used_state_ids()
+        candidate = 1
+        while candidate in used:
+            candidate += 1
+        return candidate
+
+    def change_state_id(self, doc: "StateDocument", new_id: int) -> "StateDocRef":
+        """Re-number a mod state: rewrites the ``id`` field and renames the
+        file to the ``<id>-<slug>.txt`` convention. Refuses ids already in
+        use and files whose rename would un-hide a same-named base-game file
+        (an override losing its override). Loc / map-folder side effects are
+        the caller's job (they live outside this service's scope)."""
+        ref = doc.ref
+        if ref.is_vanilla:
+            raise PermissionError("Refusing to re-number a vanilla state")
+        state = doc.state
+        if state is None:
+            raise ValueError("Document has no state block")
+        old_id = state.id
+        if new_id == old_id:
+            return ref
+        if new_id < 1:
+            raise ValueError("State id must be positive")
+        if new_id in self.used_state_ids():
+            raise ValueError(f"State id {new_id} is already in use")
+        # Renaming an override file would resurrect the base-game original.
+        for root, is_mod in self.ctx.override_layers(GAME_DIRS.HISTORY_STATES):
+            if not is_mod and (root / ref.rel_file).exists():
+                raise ValueError(
+                    f"{ref.rel_file} overrides a base-game file; renaming it "
+                    "would bring the original state back")
+
+        state.block.set("id", Scalar(str(new_id)))
+        filename = ref.rel_file.rsplit("/", 1)[-1]
+        m = re.match(r"^\d+[-_](?P<rest>.+)$", filename)
+        rest = m.group("rest") if m else filename
+        new_rel = f"{GAME_DIRS.HISTORY_STATES}/{new_id}-{rest}"
+
+        old_path = ref.path
+        target = _ensure_filename_case(self.ctx.mod.path / new_rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(doc.root, target)
+        if old_path.exists() and old_path != target:
+            old_path.unlink()
+
+        if hasattr(self, "_doc_cache"):
+            self._doc_cache.pop(str(old_path).lower(), None)
+        if self._cache is not None:
+            self._cache.pop(old_id, None)
+        new_ref = StateDocRef(rel_file=new_rel, source_root=self.ctx.mod.path,
+                              is_vanilla=False, state_id=new_id)
+        doc.ref = new_ref
+        self.refresh_info(doc)
+        return new_ref
 
     def create_state(self, *, name: str = "", owner: str = "",
                      category: str = "rural",

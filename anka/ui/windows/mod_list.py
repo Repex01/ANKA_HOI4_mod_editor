@@ -7,6 +7,7 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 
 from ...domain.mod import Mod
+from ..widgets import enable_form_wheel
 
 
 class ModListScreen(ttk.Frame):
@@ -64,8 +65,11 @@ class ModListScreen(ttk.Frame):
             t("modlist.sort.date"): "date",
             t("modlist.sort.source"): "source",
         }
-        ttk.Combobox(controls, textvariable=self._sort, values=list(self._sort_map),
-                     state="readonly", width=18).grid(row=0, column=1, padx=(8, 0))
+        sort_cb = ttk.Combobox(controls, textvariable=self._sort,
+                               values=list(self._sort_map),
+                               state="readonly", width=18)
+        sort_cb.grid(row=0, column=1, padx=(8, 0))
+        enable_form_wheel(sort_cb)          # wheel is handy in the mod picker
 
         self._filter = tk.StringVar(value=t("modlist.filter.all"))
         self._filter_map = {
@@ -73,8 +77,11 @@ class ModListScreen(ttk.Frame):
             t("modlist.filter.local"): "local",
             t("modlist.filter.workshop"): "workshop",
         }
-        ttk.Combobox(controls, textvariable=self._filter, values=list(self._filter_map),
-                     state="readonly", width=14).grid(row=0, column=2, padx=(8, 0))
+        filter_cb = ttk.Combobox(controls, textvariable=self._filter,
+                                 values=list(self._filter_map),
+                                 state="readonly", width=14)
+        filter_cb.grid(row=0, column=2, padx=(8, 0))
+        enable_form_wheel(filter_cb)
 
         self._tree = ttk.Treeview(left, columns=("source",), show="tree headings",
                                   selectmode="browse")

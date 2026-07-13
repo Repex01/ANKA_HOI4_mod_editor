@@ -16,6 +16,7 @@ from ...services.decision_service import (
     DECISION_FLAG_DEFAULTS,
     DECISION_SCRIPT_FIELDS,
     DECISION_TRIGGER_FIELDS,
+    ON_MAP_MODE_VALUES,
     Decision,
 )
 from ..common import (
@@ -43,7 +44,8 @@ def _script_kinds(name: str) -> tuple[str, ...]:
 _MAIN_FIELDS = ("cost", "custom_cost_text", "days_remove", "days_re_enable", "priority")
 _MISSION_FIELDS = ("days_mission_timeout", "ai_hint_pp_cost")
 _WAR_FIELDS = ("war_with_on_remove", "war_with_on_complete", "war_with_on_timeout")
-_MAIN_FLAGS = ("fire_only_once", "cancel_if_not_visible", "targets_dynamic")
+_MAIN_FLAGS = ("fire_only_once", "cancel_if_not_visible", "targets_dynamic",
+               "state_target")
 _MISSION_FLAGS = ("selectable_mission", "is_good", "fixed_random_seed")
 
 
@@ -145,6 +147,12 @@ class DecisionInspector(InspectorBase):
                     ttk.Button(row_frame, text="…", width=2,
                                command=lambda v=var: self._pick_country(v)).pack(
                         side="left", padx=2)
+                if field_name == "custom_cost_text":
+                    ttk.Button(row_frame, text="…", width=2,
+                               command=self._pick_custom_cost_key).pack(
+                        side="left", padx=2)
+                    var.trace_add("write", lambda *_: self._refresh_custom_cost())
+                    r = self._build_custom_cost_loc(r)
             for name in flags:
                 var = tk.BooleanVar()
                 self._flags[name] = var
@@ -155,6 +163,15 @@ class DecisionInspector(InspectorBase):
                 attach_help(cb, self.t, f"script.{name}", self.palette)
 
         fields_section("decisions.section.main", _MAIN_FIELDS, _MAIN_FLAGS)
+        # on_map_mode: General-section enum (not a script block)
+        omm_label = ttk.Label(b, text="on_map_mode", style="CardMuted.TLabel")
+        omm_label.grid(row=r, column=0, sticky="w", pady=3)
+        attach_help(omm_label, self.t, "script.on_map_mode", self.palette)
+        self._on_map_mode = ttk.Combobox(b, state="readonly", width=22,
+                                         values=("",) + ON_MAP_MODE_VALUES)
+        self._on_map_mode.grid(row=r, column=1, sticky="w", padx=(8, 0), pady=3); r += 1
+        self._on_map_mode.bind("<<ComboboxSelected>>",
+                               lambda e: self._commit_on_map_mode())
         fields_section("decisions.section.mission", _MISSION_FIELDS, _MISSION_FLAGS)
         fields_section("decisions.section.war", _WAR_FIELDS, (), war=True)
 
@@ -198,6 +215,85 @@ class DecisionInspector(InspectorBase):
                          self.owner.value_options("country"),
                          lambda value: var.set(value), current=var.get().strip())
 
+    # ---------------------------------------------------------- custom cost loc
+    # A custom cost localises via three keys: <key>, <key>_blocked, <key>_tooltip.
+    _CC_SUFFIXES = (("", "decisions.cc.text"),
+                    ("_blocked", "decisions.cc.blocked"),
+                    ("_tooltip", "decisions.cc.tooltip"))
+
+    def _build_custom_cost_loc(self, r: int) -> int:
+        b = self.body
+        frame = ttk.Frame(b, style="Card.TFrame")
+        frame.grid(row=r, column=0, columnspan=2, sticky="ew", padx=(16, 0),
+                   pady=(0, 4))
+        frame.columnconfigure(1, weight=1)
+        self._cc_frame = frame
+        self._cc_loc_vars: dict[str, tk.StringVar] = {}
+        for i, (suffix, label_key) in enumerate(self._CC_SUFFIXES):
+            ttk.Label(frame, text=self.t(label_key), style="CardMuted.TLabel").grid(
+                row=i, column=0, sticky="w", pady=1)
+            var = tk.StringVar()
+            entry = ttk.Entry(frame, textvariable=var)
+            entry.grid(row=i, column=1, sticky="ew", padx=(8, 0), pady=1)
+            self._cc_loc_vars[suffix] = var
+            var.trace_add("write", lambda *_, s=suffix: self._debounce(
+                f"cc:{s}", lambda s=s: self._commit_cc_loc(s), 1200))
+            entry.bind("<FocusOut>", lambda e, s=suffix: self._commit_cc_loc(s))
+        frame.grid_remove()          # shown only once a custom_cost_text key is set
+        return r + 1
+
+    def _custom_cost_key(self) -> str:
+        var = self._num_vars.get("custom_cost_text")
+        return (var.get().strip() if var is not None else "")
+
+    def _refresh_custom_cost(self) -> None:
+        if not hasattr(self, "_cc_frame"):
+            return
+        key = self._custom_cost_key()
+        if not key:
+            self._cc_frame.grid_remove()
+            return
+        self._cc_frame.grid()
+        lang = self._lang.get()
+        was = self._loading
+        self._loading = True                 # suppress commit-on-load
+        for suffix, var in self._cc_loc_vars.items():
+            var.set(self.owner.loc_get(key + suffix, lang))
+        self._loading = was
+
+    def _commit_cc_loc(self, suffix: str) -> None:
+        if not self._guard() or self.decision is None:
+            return
+        key = self._custom_cost_key()
+        if not key:
+            return
+        full, lang = key + suffix, self._lang.get()
+        text = self._cc_loc_vars[suffix].get().strip()
+        if text and text != self.owner.loc_get(full, lang):
+            self.owner.loc_set(full, lang, text)
+
+    def _pick_custom_cost_key(self) -> None:
+        if not self._guard() or self.decision is None:
+            return
+        options = [(k, k) for k in self.owner.custom_cost_keys()]
+        options.append((f"✏ {self.t('decisions.cc.new_key')}", "__new__"))
+
+        def set_key(key: str) -> None:
+            self._num_vars["custom_cost_text"].set(key)
+            self._commit_number("custom_cost_text")
+            self._refresh_custom_cost()
+
+        def picked(value: str) -> None:
+            if value == "__new__":
+                TextPromptDialog(self, self.owner, self.t("decisions.cc.new_key"),
+                                 self.t("decisions.cc.key_label"), set_key,
+                                 pattern=r"^\w+$")
+            else:
+                set_key(value)
+
+        SinglePickDialog(self, self.owner, self.t("decisions.cc.pick_key"),
+                         options, picked, current=self._custom_cost_key())
+
     # --------------------------------------------------------------------- show
     def show(self, doc, decision: Decision | None, editable: bool = True) -> None:
         self.flush_pending()
@@ -231,6 +327,8 @@ class DecisionInspector(InspectorBase):
                 var.set(decision.get_raw(name))
             for name, var in self._flags.items():
                 var.set(decision.get_flag(name))
+            self._on_map_mode.set(decision.get_raw("on_map_mode"))
+            self._refresh_custom_cost()
             self._refresh_icon()
             self._refresh_scripts()
             self._set_state_all(editable)
@@ -267,6 +365,12 @@ class DecisionInspector(InspectorBase):
         if not self._guard() or self.decision is None:
             return
         self.decision.set_flag(name, self._flags[name].get())
+        self.owner.mark_dirty(self.doc)
+
+    def _commit_on_map_mode(self) -> None:
+        if not self._guard() or self.decision is None:
+            return
+        self.decision.set_raw("on_map_mode", self._on_map_mode.get())
         self.owner.mark_dirty(self.doc)
 
     def _commit_loc(self) -> None:
@@ -470,10 +574,7 @@ class CategoryInspector(InspectorBase):
                     text=origin + ("" if editable else "  ·  🔒 " + self.t("focuses.readonly")))
             self._lang.set(self.owner.loc_language)
             self._reload_loc()
-            self._icon_photo = self._icon_preview(
-                category.sprite_name() if category else "")
-            self._icon_btn.configure(image=self._icon_photo)
-            self._icon_name.configure(text=(category.icon if category else "") or "—")
+            self._refresh_icon()
             self._refresh_picture()
             self._priority_var.set(category.get_raw("priority") if category else "")
             for fname, label in self._script_status.items():
@@ -519,6 +620,14 @@ class CategoryInspector(InspectorBase):
         if write_name is not None or write_desc is not None:
             self.owner.service.set_loc(name, lang, write_name, write_desc)
             self.owner.refresh_tree_labels()
+
+    def _refresh_icon(self) -> None:
+        # The CALLER must keep the PhotoImage reference alive (self._icon_photo),
+        # or Tk garbage-collects it and the button renders empty.
+        sprite = self.category.sprite_name() if self.category else ""
+        self._icon_photo = self._icon_preview(sprite)
+        self._icon_btn.configure(image=self._icon_photo)
+        self._icon_name.configure(text=(self.category.icon if self.category else "") or "—")
 
     def _refresh_picture(self) -> None:
         sprite = self.category.get_raw("picture") if self.category else ""
@@ -569,8 +678,7 @@ class CategoryInspector(InspectorBase):
                 icon = icon[len("GFX_decision_category_"):]
             category.icon = icon
             self.owner.mark_dirty(self.doc)
-            self._icon_btn.configure(image=self._icon_preview(category.sprite_name()))
-            self._icon_name.configure(text=category.icon or "—")
+            self._refresh_icon()
 
         def imported(path, keep_size: bool = False) -> None:
             sprite = self.owner.import_category_icon(path, category.name,

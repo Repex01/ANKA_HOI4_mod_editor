@@ -25,14 +25,6 @@ class WipEditor(EditorModule):
 
 
 @EditorRegistry.register
-class IdeologiesEditor(WipEditor):
-    id = "ideologies"
-    name_key = "editors.ideologies.name"
-    desc_key = "editors.ideologies.desc"
-    order = 90
-
-
-@EditorRegistry.register
 class TechnologiesEditor(WipEditor):
     id = "technologies"
     name_key = "editors.technologies.name"
@@ -40,15 +32,7 @@ class TechnologiesEditor(WipEditor):
     order = 95
 
 
-@EditorRegistry.register
-class DynamicModifiersEditor(WipEditor):
-    id = "dynamic_modifiers"
-    name_key = "editors.dynamic_modifiers.name"
-    desc_key = "editors.dynamic_modifiers.desc"
-    order = 70
-
-
-@EditorRegistry.register
+#@EditorRegistry.register
 class LocalisationEditor(WipEditor):
     id = "localisation"
     name_key = "editors.localisation.name"

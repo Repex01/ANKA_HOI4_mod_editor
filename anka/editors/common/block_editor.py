@@ -32,7 +32,8 @@ _CONTAINERS: dict[str, tuple[str, ...]] = {
     "trigger": ("AND", "OR", "NOT", "hidden_trigger"),
     "effect": ("if", "limit", "else", "random_list", "hidden_effect"),
 }
-_TOOLTIP_KEYS = ("custom_effect_tooltip", "custom_trigger_tooltip")
+_TOOLTIP_KEYS = ("custom_effect_tooltip", "custom_trigger_tooltip",
+                 "custom_modifier_tooltip")
 
 # Game rules (idea/character `rule = { ... }` blocks): fixed yes/no switches.
 # Source: hoi4 wiki, Idea modding → game rules.
@@ -125,13 +126,44 @@ _BLOCK_EFFECT_TEMPLATES = {
     "remove_opinion_modifier": ("remove_opinion_modifier = { target = FROM "
                                 "modifier = opinion_modifier_id }"),
     "set_politics": "set_politics = { ruling_party = communism elections_allowed = yes }",
+    "add_dynamic_modifier": "add_dynamic_modifier = { modifier = my_dynamic_modifier }",
+    "remove_dynamic_modifier": ("remove_dynamic_modifier = "
+                                "{ modifier = my_dynamic_modifier }"),
 }
+
+# Optional sub-keys offered as one-click buttons next to a block's [+]
+# ("suggested fields"): (key, default value). Hidden once the key is present.
+_SUGGESTED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
+    "add_dynamic_modifier": (("days", "14"), ("scope", "ROOT")),
+}
+
+# Effects whose ``modifier`` field names a *dynamic* modifier (picker over
+# common/dynamic_modifiers), and whose ``scope`` is a country.
+_DYNAMIC_MODIFIER_EFFECTS = ("add_dynamic_modifier", "remove_dynamic_modifier",
+                             "force_update_dynamic_modifier")
 
 
 def value_type_of(parent_key: str, key: str) -> str | None:
     if key == "id" and parent_key in _EVENT_EFFECT_KEYS:
         return "event"
+    if parent_key in _DYNAMIC_MODIFIER_EFFECTS:
+        if key == "modifier":
+            return "dynamic_modifier"
+        if key == "scope":
+            return "country"
     return _KEY_TYPES.get(key) or _VALUE_TYPES.get(key)
+
+
+# Scope-iterator effects (``every_country``, ``random_owned_state``, … and their
+# ``global_`` variants) are always blocks — ``every_country = { ... }`` — but the
+# catalog ships no example for most, so without this they'd wrongly insert as a
+# scalar leaf. Matched by the vanilla naming convention.
+_SCOPE_ITERATOR_PREFIXES = ("every_", "random_", "global_every_", "global_random_")
+
+
+def _is_scope_iterator(item) -> bool:
+    return (getattr(item, "kind", "") == "effect"
+            and item.name.startswith(_SCOPE_ITERATOR_PREFIXES))
 
 
 def node_from_catalog(item) -> Pair:
@@ -140,7 +172,8 @@ def node_from_catalog(item) -> Pair:
 
     List-form effects (``add_ideas = { a b }`` and friends) insert as an empty
     block; block-form effects (declare_war_on, annex_country, ...) insert a
-    pre-filled skeleton so their required sub-keys (target/type) are present."""
+    pre-filled skeleton so their required sub-keys (target/type) are present;
+    scope-iterator effects (every_/random_) insert as an empty block."""
     if item.name in _LIST_ITEM_TYPES:
         return Pair(item.name, Block())
     template = _BLOCK_EFFECT_TEMPLATES.get(item.name)
@@ -160,6 +193,8 @@ def node_from_catalog(item) -> Pair:
                     return pair
         except Exception:
             pass
+    if _is_scope_iterator(item):
+        return Pair(item.name, Block())
     return Pair(item.name, Scalar(""))
 
 
@@ -339,8 +374,16 @@ class BlockTreeEditor(ttk.Frame):
         """The '…' button next to typed values: searchable pick list instead of
         hand-typing tags / state ids / idea ids / modifier names."""
         def open_picker() -> None:
+            if vtype == "dynamic_modifier":
+                # resolved here (not per-editor value_options) so every script
+                # editor gets the picker without its own service wiring
+                from ...services.dynamic_modifier_service import \
+                    DynamicModifierService
+                options = DynamicModifierService.options(self.owner.context)
+            else:
+                options = self.owner.value_options(vtype)
             SinglePickDialog(self, self.owner, self.t(f"focuses.pick.{vtype}"),
-                             self.owner.value_options(vtype),
+                             options,
                              lambda value: val_var.set(value),
                              current=val_var.get().strip())
         ttk.Button(row, text="…", width=2, command=open_picker).pack(side="left", padx=2)
@@ -475,6 +518,13 @@ class BlockTreeEditor(ttk.Frame):
         kinds = self.kinds if kinds is None else kinds
         row = ttk.Frame(parent, style="Card.TFrame")
         row.pack(fill="x", pady=1, anchor="w")
+        # Suggested optional sub-keys (e.g. days / scope on add_dynamic_modifier):
+        # one click inserts the field pre-filled; hidden once present.
+        for key, default in _SUGGESTED_FIELDS.get(parent_key, ()):
+            if not block.has(key):
+                ttk.Button(row, text=f"➕ {key}", width=len(key) + 3,
+                           command=lambda k=key, d=default: self._add_suggested(
+                               block, k, d)).pack(side="left", padx=(0, 4))
         ttk.Button(row, text="➕", width=3,
                    command=lambda: self._pick_new(block, parent_key, kinds)).pack(side="left")
         # Inside a list-form effect (add_ideas = { a b }, prioritize = {...}, ...)
@@ -483,6 +533,11 @@ class BlockTreeEditor(ttk.Frame):
         if list_type is not None:
             ttk.Button(row, text="➕ " + self.t(f"focuses.pick.{list_type}"),
                        command=lambda: self._add_bare(block)).pack(side="left", padx=4)
+
+    def _add_suggested(self, block: Block, key: str, default: str) -> None:
+        block.items.append(Pair(key, Scalar(default)))
+        self.render()
+        self._on_change()
 
     def _add_bare(self, block: Block) -> None:
         block.items.append(Scalar(""))
@@ -570,6 +625,10 @@ class BlockPickerDialog(BaseDialog):
             entries.append(("📝  custom_effect_tooltip", ("tooltip", "custom_effect_tooltip")))
         if "trigger" in self._kinds and (not q or q in "custom_trigger_tooltip"):
             entries.append(("📝  custom_trigger_tooltip", ("tooltip", "custom_trigger_tooltip")))
+        if (self._with_modifiers or "modifier" in self._kinds) \
+                and (not q or q in "custom_modifier_tooltip"):
+            entries.append(("📝  custom_modifier_tooltip",
+                            ("tooltip", "custom_modifier_tooltip")))
         entries.append(("✏  " + t("focuses.blocks.custom_leaf"), ("custom_leaf", None)))
         entries.append(("✏  " + t("focuses.blocks.custom_block"), ("custom_block", None)))
         if self._with_rules:

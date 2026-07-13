@@ -26,6 +26,7 @@ from ...services.state_service import StateService
 from ...services.terrain_service import TerrainService
 from ...services._locutil import LocCatalog
 from ..base import EditorModule, EditorRegistry
+from ...ui.widgets import enable_form_wheel
 from .canvas import MapCanvas
 from .commands import (TOUCH_DEFS, TOUCH_STATES, CommandStack, CompoundCommand,
                        CreateDefCommand, PixelsCommand, SetDefCommand,
@@ -243,6 +244,7 @@ class MapEditor(EditorModule):
                              width=16, values=list(self._mode_by_label))
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._mode_changed)
+        enable_form_wheel(combo)          # map-mode wheel is convenient here
         from ...ui.widgets.tooltip import attach_help
         attach_help(combo, self.t, "map.mode", self.palette)
 
@@ -270,8 +272,10 @@ class MapEditor(EditorModule):
         ttk.Checkbutton(bar, text=self.t("map.ground_only"), style="Card.TCheckbutton",
                         variable=self._ground_only).pack(side="left", padx=(8, 0))
         self._radius_var = tk.IntVar(value=6)
-        ttk.Spinbox(bar, from_=1, to=64, width=4,
-                    textvariable=self._radius_var).pack(side="left", padx=(6, 2))
+        radius_spin = ttk.Spinbox(bar, from_=1, to=64, width=4,
+                                  textvariable=self._radius_var)
+        radius_spin.pack(side="left", padx=(6, 2))
+        enable_form_wheel(radius_spin)          # brush size wheel is convenient
         self._target_swatch = tk.Label(bar, text="  ", bd=1, relief="solid")
         self._target_swatch.pack(side="left", padx=(8, 2))
         self._target_lbl = ttk.Label(bar, text=self.t("map.no_brush"),
@@ -1556,6 +1560,90 @@ class MapEditor(EditorModule):
         self.canvas.refresh()
         self._refresh_tree()
 
+    # -------------------------------------------------------- state id reassign
+    def reassign_state_id(self, doc, new_id: int) -> bool:
+        """Re-number a mod state and migrate everything keyed by the id:
+        the file name, the ``STATE_<id>`` localisation (all languages) and
+        state-id references inside the mod's map folder. Used to close id
+        gaps, which crash the game."""
+        from ...config.constants import HOI4_LANGUAGES
+        state = doc.state
+        if state is None:
+            return False
+        old_id = state.id
+        old_path = str(doc.ref.path)
+        old_key = state.name_key or f"STATE_{old_id}"
+        conventional = old_key == f"STATE_{old_id}"
+        if conventional:
+            state.set_name_key(f"STATE_{new_id}")
+        try:
+            self.states.change_state_id(doc, new_id)
+        except (ValueError, PermissionError) as exc:
+            if conventional:
+                state.set_name_key(old_key)
+            messagebox.showerror("ANKA", str(exc))
+            return False
+
+        if conventional:
+            new_key = f"STATE_{new_id}"
+            captured: dict[str, str] = {}
+            for lang in HOI4_LANGUAGES:
+                value = self.loc.get(old_key, lang)
+                if value:
+                    captured[lang] = value
+            self.loc.rename_key(old_key, new_key)   # moves mod-side entries
+            for lang, value in captured.items():
+                if not self.loc.has(new_key, lang):  # vanilla-sourced → copy
+                    self.loc.set(new_key, lang, value)
+
+        changed = self._rewrite_map_state_ids(old_id, new_id)
+
+        # the renamed file was already written; stale dirty flags would
+        # resurrect the old path on save_all
+        self._dirty.discard(old_path)
+        self._dirty_docs.pop(old_path, None)
+        # command history refers to the old id — replaying it would corrupt
+        self.commands.clear()
+        self._update_undo_buttons()
+        self.political_changed()
+        self._open_state_doc(new_id)
+        if changed:
+            messagebox.showinfo(
+                "ANKA", self.t("map.reassign_map_files",
+                               files=", ".join(changed)))
+        return True
+
+    def _rewrite_map_state_ids(self, old_id: int, new_id: int) -> list[str]:
+        """Rewrite state-id references in the map folder (``buildings.txt``
+        CSV rows; ``airports.txt`` / ``rocketsites.txt`` in older layouts).
+        The effective file is copied into the mod when it comes from a lower
+        layer. Returns the rel paths that changed."""
+        import re as _re
+        changed: list[str] = []
+        for filename in ("buildings.txt", "airports.txt", "rocketsites.txt"):
+            rel = f"map/{filename}"
+            source = next((root / rel for root in self.context.search_roots(rel)
+                           if (root / rel).exists()), None)
+            if source is None:
+                continue
+            try:
+                text = source.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            if filename == "buildings.txt":
+                pattern = _re.compile(rf"^{old_id};", _re.M)
+                new_text = pattern.sub(f"{new_id};", text)
+            else:
+                pattern = _re.compile(rf"^(\s*){old_id}(\s*=)", _re.M)
+                new_text = pattern.sub(rf"\g<1>{new_id}\g<2>", text)
+            if new_text == text:
+                continue
+            target = self.context.mod.path / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(new_text, encoding="utf-8")
+            changed.append(rel)
+        return changed
+
     # ------------------------------------------------------------ state actions
     def copy_state_to_mod(self) -> None:
         doc = self._state_doc
@@ -1657,6 +1745,13 @@ class MapEditor(EditorModule):
                 opts.append((f"{d.id} · {d.terrain}{suffix}", str(d.id)))
         self._value_options[vtype] = opts
         return opts
+
+    # owner protocol of the shared script editor (state history editing)
+    def loc_get(self, key: str, language: str) -> str:
+        return self.loc.get(key, language) or ""
+
+    def loc_set(self, key: str, language: str, text: str) -> None:
+        self.loc.set(key, language, text)
 
     def state_loc_get(self, key: str) -> str:
         return self.loc.get(key, self.loc_language) or ""

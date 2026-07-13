@@ -18,6 +18,8 @@ from .oob import OobEditor  # noqa: F401,E402
 from .map import MapEditor  # noqa: F401,E402
 from .on_actions import OnActionsEditor  # noqa: F401,E402
 from .interface import InterfaceEditor  # noqa: F401,E402
+from .dynamic_modifiers import DynamicModifiersEditor  # noqa: F401,E402
+from .ideologies import IdeologiesEditor  # noqa: F401,E402
 from . import _stubs  # noqa: F401,E402
 
 __all__ = ["EditorModule", "EditorRegistry", "EditorServices"]

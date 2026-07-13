@@ -727,6 +727,39 @@ class IdeaService:
                 return IdeaDef(pair, cat.key)
         raise ValueError("idea not in document")
 
+    def find_idea_def(self, idea_id: str) -> tuple[IdeaDocument, IdeaDef] | None:
+        """Locate a live `IdeaDef` (and its document) by id across every layer
+        (mod + dependencies + vanilla). Used to base a new idea on an old one."""
+        for ref in self.list_docs(include_vanilla=True):
+            try:
+                doc = self.load(ref)
+            except Exception:
+                continue
+            idea = doc.find(idea_id)
+            if idea is not None:
+                return doc, idea
+        return None
+
+    def create_idea_from(self, doc: IdeaDocument, category: str, new_id: str,
+                         source_id: str) -> IdeaDef:
+        """Create ``new_id`` in ``doc``/``category`` as a deep copy of an existing
+        idea's block (from any layer). The explicit ``name =`` override, if any,
+        is dropped so the copy derives its own loc keys from ``new_id``. Falls back
+        to a blank idea when the source cannot be found."""
+        found = self.find_idea_def(source_id)
+        if found is None:
+            return self.add_idea(doc, category, new_id)
+        _sdoc, source = found
+        copy_root = pdx_parse(dumps(Block([Pair(source.id, source.block)])))
+        pair = next(p for p in copy_root.pairs())
+        pair.key = new_id
+        new_idea = IdeaDef(pair, category)
+        new_idea.set_raw("name", "")     # use id-derived loc keys, not the source's
+        cat_block = self._category_block(doc, category)
+        cat_block.items.append(pair)
+        self._info_cache = None
+        return new_idea
+
     def move_idea(self, doc: IdeaDocument, idea: IdeaDef,
                   new_category: str) -> IdeaDef:
         """Move an idea to another category (within the same document)."""

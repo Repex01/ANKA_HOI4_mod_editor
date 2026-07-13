@@ -12,7 +12,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 
 # Basic constants
-VERSION = "0.4"
+VERSION = "0.6"
 
 class Paths:
     ROOT: Path = _ROOT
