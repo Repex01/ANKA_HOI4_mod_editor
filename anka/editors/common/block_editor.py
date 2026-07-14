@@ -119,11 +119,11 @@ _MODIFIER_PARENTS = ("modifier", "modifiers", "hidden_modifier", "targeted_modif
                      "state_modifier")
 
 
-# Effects that must be a block with specific sub-keys — the game docs are terse
-# and their catalog `example` is often empty, so a scalar fallback would be wrong.
-# Inserted pre-filled with sensible defaults; `target` gets a country picker
+# Effects/triggers that must be a block with specific sub-keys — the game docs are
+# terse and their catalog `example` is often empty, so a scalar fallback would be
+# wrong. Inserted pre-filled with sensible defaults; `target` gets a country picker
 # (see _KEY_TYPES). Keep these accurate to the HOI4 script API.
-_BLOCK_EFFECT_TEMPLATES = {
+_BLOCK_TEMPLATES = {
     "declare_war_on": "declare_war_on = { target = FROM type = annex_everything }",
     "annex_country": "annex_country = { target = FROM transfer_troops = yes }",
     "create_wargoal": "create_wargoal = { type = annex_everything target = FROM }",
@@ -148,6 +148,9 @@ _BLOCK_EFFECT_TEMPLATES = {
     "add_dynamic_modifier": "add_dynamic_modifier = { modifier = my_dynamic_modifier }",
     "remove_dynamic_modifier": ("remove_dynamic_modifier = "
                                 "{ modifier = my_dynamic_modifier }"),
+    # trigger: divisions count, optionally of a given unit type. Inserts the
+    # `size` comparison ready to edit; `type` is offered as a suggested field.
+    "has_army_size": "has_army_size = { size < 40 }",
 }
 
 # Optional sub-keys offered as one-click buttons next to a block's [+]
@@ -162,12 +165,48 @@ _SUGGESTED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
                          ("minimum_duration_in_days", "14")),
     "attacker": _BORDER_WAR_SIDE,
     "defender": _BORDER_WAR_SIDE,
+    # has_army_size: the optional unit-type filter (armor / infantry / …).
+    "has_army_size": (("type", "armor"),),
 }
 
 # Effects whose ``modifier`` field names a *dynamic* modifier (picker over
 # common/dynamic_modifiers), and whose ``scope`` is a country.
 _DYNAMIC_MODIFIER_EFFECTS = ("add_dynamic_modifier", "remove_dynamic_modifier",
                              "force_update_dynamic_modifier")
+
+
+def _shared_value_options(ctx, vtype: str) -> list[tuple[str, str]]:
+    """Central (display, value) lists so any script editor gets working pickers,
+    even when its owner has no ``value_options`` for the type. Mirrors the
+    per-editor implementations (focuses/decisions/…)."""
+    if vtype == "country":
+        from ...services.country_service import CountryService
+        return [(f"{r.tag} · {r.name}", r.tag)
+                for r in CountryService(ctx).list_tags(include_vanilla=True)]
+    if vtype == "state":
+        from ...services.state_service import StateService
+        return [(f"{s.id} · {s.name}", str(s.id))
+                for s in StateService(ctx).list_states()]
+    if vtype == "idea":
+        from ...services.idea_service import IdeaService
+        return [(f"{i.id} · {i.category}", i.id)
+                for i in IdeaService(ctx).list_ideas()]
+    if vtype == "event":
+        from ...services.event_service import EventService
+        try:
+            return EventService(ctx).event_options()
+        except Exception:                                 # noqa: BLE001
+            return []
+    if vtype == "focus":
+        from ...services.focus_service import FocusService
+        try:
+            return [(fid, fid) for fid in FocusService(ctx).focus_ids()]
+        except Exception:                                 # noqa: BLE001
+            return []
+    if vtype == "modifier":
+        return [(f"{n} · {', '.join(m.scopes)}" if m.scopes else n, n)
+                for n, m in sorted(ScriptCatalog.modifiers().items())]
+    return []
 
 
 def value_type_of(parent_key: str, key: str) -> str | None:
@@ -224,7 +263,7 @@ def node_from_catalog(item) -> Pair:
     scope-iterator effects (every_/random_) insert as an empty block."""
     if item.name in _LIST_ITEM_TYPES:
         return Pair(item.name, Block())
-    template = _BLOCK_EFFECT_TEMPLATES.get(item.name)
+    template = _BLOCK_TEMPLATES.get(item.name)
     if template:
         try:
             root = pdx_parse(template, recover=False)
@@ -259,6 +298,7 @@ class BlockTreeEditor(ttk.Frame):
         self.focus_id = focus_id
         self.root_key = root_key              # the script field being edited
         self._on_change = on_change or (lambda: None)
+        self._shared_opts: dict[str, list[tuple[str, str]]] = {}
 
         self._hovered_stack = deque()
 
@@ -422,24 +462,33 @@ class BlockTreeEditor(ttk.Frame):
         """The '…' button next to typed values: searchable pick list instead of
         hand-typing tags / state ids / idea ids / modifier names."""
         def open_picker() -> None:
-            if vtype == "dynamic_modifier":
-                # resolved here (not per-editor value_options) so every script
-                # editor gets the picker without its own service wiring
-                from ...services.dynamic_modifier_service import \
-                    DynamicModifierService
-                options = DynamicModifierService.options(self.owner.context)
-            elif vtype in _VAR_FLAG_TYPES:
-                # flags/variables scanned from the mod — likewise wired centrally so
-                # every script editor gets the picker (type a new name to create one)
-                from ...services.script_vars_service import ScriptVarsService
-                options = ScriptVarsService(self.owner.context).options(vtype)
-            else:
-                options = self.owner.value_options(vtype)
             SinglePickDialog(self, self.owner, self.t(f"focuses.pick.{vtype}"),
-                             options,
+                             self._resolve_options(vtype),
                              lambda value: val_var.set(value),
                              current=val_var.get().strip())
         ttk.Button(row, text="…", width=2, command=open_picker).pack(side="left", padx=2)
+
+    def _resolve_options(self, vtype: str) -> list[tuple[str, str]]:
+        """Options for a typed-value picker. dynamic_modifier / flags / variables
+        are resolved centrally so every script editor gets them; the owner
+        (focuses/decisions/…) supplies the rest. When an owner offers no options
+        for a type — e.g. the scripted-GUI script editor, whose owner returns []
+        — fall back to the shared services so pickers like owns_state's state
+        list still work everywhere (cached per editor instance)."""
+        ctx = getattr(self.owner, "context", None)
+        if vtype == "dynamic_modifier":
+            from ...services.dynamic_modifier_service import \
+                DynamicModifierService
+            return DynamicModifierService.options(ctx)
+        if vtype in _VAR_FLAG_TYPES:
+            from ...services.script_vars_service import ScriptVarsService
+            return ScriptVarsService(ctx).options(vtype)
+        options = self.owner.value_options(vtype)
+        if options or ctx is None:
+            return options
+        if vtype not in self._shared_opts:
+            self._shared_opts[vtype] = _shared_value_options(ctx, vtype)
+        return self._shared_opts[vtype]
 
     def _tooltip_loc_field(self, row, key_var: tk.StringVar) -> None:
         """Extra field on custom_*_tooltip rows: the localized text behind the key.

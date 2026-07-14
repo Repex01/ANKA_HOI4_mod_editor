@@ -16,6 +16,7 @@ from tkinter import ttk
 
 from ...services._locutil import LocCatalog
 from ...services.interface_service import InterfaceService
+from ...services.scripted_loc_service import ScriptedLocService
 from ..base import EditorModule, EditorRegistry
 
 
@@ -29,6 +30,8 @@ class InterfaceEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = InterfaceService(context)
+        # Scripted-localisation names feed the inspector's "SL" text-insert button.
+        self._scripted_loc = ScriptedLocService(context)
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         # Widget text/tooltips reference loc keys from anywhere in vanilla, so
@@ -123,6 +126,14 @@ class InterfaceEditor(EditorModule):
 
     def value_options(self, vtype: str) -> list[tuple[str, str]]:
         return []
+
+    def scripted_loc_names(self) -> list[str]:
+        """Every ``defined_text`` name across the content layers — options for
+        the inspector's SL insert button (``[name]`` promotes in loc text)."""
+        try:
+            return self._scripted_loc.all_names(include_vanilla=True)
+        except Exception:
+            return []
 
     # ------------------------------------------------------------------ saving
     def save_all(self) -> None:

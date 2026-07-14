@@ -164,6 +164,22 @@ class ScriptedGuiService:
             pass
         doc.ref.names = [e.name for e in doc.entries()]
 
+    def create_doc(self, rel_file: str) -> SguiDocRef:
+        """Create an empty mod-side scripted_guis file (idempotent) with the
+        ``scripted_gui = {}`` wrapper ready, and return its ref."""
+        if not rel_file.startswith(SGUI_DIR):
+            rel_file = f"{SGUI_DIR}/{rel_file}"
+        if not rel_file.endswith(".txt"):
+            rel_file += ".txt"
+        target = ensure_filename_case(self.ctx.mod.path / rel_file)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            root = Block()
+            root.add("scripted_gui", Block())
+            dump_file(root, target)
+        return SguiDocRef(rel_file=rel_file, source_root=self.ctx.mod.path,
+                          is_vanilla=False, edited=True)
+
     def copy_to_mod(self, ref: SguiDocRef) -> SguiDocRef:
         if not ref.is_vanilla:
             return ref

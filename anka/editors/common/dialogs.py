@@ -116,14 +116,19 @@ class TextPromptDialog(BaseDialog):
 
 
 class MultiPickDialog(BaseDialog):
-    """Searchable multi-select list; calls `on_pick(selected)`."""
+    """Searchable multi-select list; calls `on_pick(selected_values)`.
 
-    def __init__(self, master, editor, title: str, items: list[str],
+    `items` may be plain strings or ``(display, value)`` pairs — the list shows
+    the display text but selection returns the values. Shift/Ctrl extend the
+    selection, and "Select all" / "Clear" act on the currently shown rows."""
+
+    def __init__(self, master, editor, title: str,
+                 items: "list[str] | list[tuple[str, str]]",
                  on_pick: Callable[[list[str]], None],
                  preselected: set[str] | None = None):
-        super().__init__(master, editor, title, (440, 520))
+        super().__init__(master, editor, title, (440, 540))
         self._on_pick = on_pick
-        self._items = items
+        self._options = [(it, it) if isinstance(it, str) else it for it in items]
         self._pre = preselected or set()
 
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
@@ -144,23 +149,36 @@ class MultiPickDialog(BaseDialog):
         sb.grid(row=1, column=1, sticky="ns")
         self._tree.configure(yscrollcommand=sb.set)
         self._tree.bind("<Double-1>", lambda e: self._submit())
+
+        tools = ttk.Frame(body, style="Card.TFrame")
+        tools.grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Button(tools, text=self.t("common.select_all"),
+                   command=self._select_all).pack(side="left")
+        ttk.Button(tools, text=self.t("common.clear_selection"),
+                   command=self._clear).pack(side="left", padx=6)
         self.buttons_row(body, self.t("common.save")).grid(
-            row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self._refresh()
 
     def _refresh(self) -> None:
         q = self._search.get().strip().lower()
         self._tree.delete(*self._tree.get_children())
         shown = 0
-        for item in self._items:
-            if q and q not in item.lower():
+        for display, value in self._options:
+            if q and q not in display.lower():
                 continue
             if shown >= 800:
                 break
-            self._tree.insert("", "end", iid=item, values=(item,))
-            if item in self._pre:
-                self._tree.selection_add(item)
+            self._tree.insert("", "end", iid=value, values=(display,))
+            if value in self._pre:
+                self._tree.selection_add(value)
             shown += 1
+
+    def _select_all(self) -> None:
+        self._tree.selection_set(self._tree.get_children())
+
+    def _clear(self) -> None:
+        self._tree.selection_remove(self._tree.selection())
 
     def _submit(self) -> None:
         picked = list(self._tree.selection())

@@ -16,8 +16,8 @@ from ...core.guitypes.schema import AttrKind, SGUI_SCALARS
 from ...core.pdx import Block, Pair, dumps
 from ...core.pdx import parse as pdx_parse
 from ...services.scripted_gui_service import build_handler_key
-from ..common import (InspectorBase, PdxPreviewDialog, ScriptEditorDialog,
-                      SinglePickDialog, TextPromptDialog)
+from ..common import (InspectorBase, MultiPickDialog, PdxPreviewDialog,
+                      ScriptEditorDialog, SinglePickDialog, TextPromptDialog)
 
 _SCRIPT_FIELDS = ("visible", "ai_enabled", "ai_check", "ai_check_scope",
                   "ai_test_scopes", "ai_weights")
@@ -180,13 +180,12 @@ class SguiInspector(InspectorBase):
             line.grid(row=row, column=0, columnspan=2, sticky="ew", pady=1)
             ttk.Label(line, text=pair.key, style="CardMuted.TLabel").pack(
                 side="left", padx=(10, 0))
+            ttk.Button(line, text="✎", width=3,
+                       command=lambda p=pair, bk=block_key:
+                       self._edit_handler(bk, p)).pack(side="left", padx=(6, 0))
             ttk.Button(line, text="🗑", width=3,
                        command=lambda k=pair.key, bk=block_key:
                        self._remove_handler(bk, k)).pack(side="right")
-            ttk.Button(line, text="✎", width=3,
-                       command=lambda p=pair, bk=block_key:
-                       self._edit_handler(bk, p)).pack(side="right",
-                                                       padx=(0, 2))
             row += 1
         return row
 
@@ -233,6 +232,23 @@ class SguiInspector(InspectorBase):
         self.owner.mark_dirty(self.doc)
         self._rebuild()
 
+    def _add_keys(self, block_key: str, keys: list[str],
+                  payload_factory=None) -> None:
+        """Add several handler keys at once (one rebuild). Duplicates already in
+        the block are skipped so re-picking an element is harmless."""
+        keys = [k for k in keys if k]
+        if not keys:
+            return
+        block = self._handler_block(block_key, create=True)
+        existing = {p.key for p in block.pairs()}
+        for key in keys:
+            if key in existing:
+                continue
+            block.add(key, payload_factory() if payload_factory else Block())
+            existing.add(key)
+        self.owner.mark_dirty(self.doc)
+        self._rebuild()
+
     # ------------------------------------------------------------ add wizards
     def _pick_element(self, title: str, only: tuple[str, ...],
                       then) -> None:
@@ -254,46 +270,72 @@ class SguiInspector(InspectorBase):
 
         SinglePickDialog(self, self, title, options, picked)
 
+    def _pick_elements(self, title: str, only: tuple[str, ...], then) -> None:
+        """Multi-select variant (shift/ctrl + Select all): pick several window
+        elements at once. ``✏ custom`` is offered as an extra choice; when it is
+        among the picks the user is prompted for one extra name."""
+        elements = self.owner.window_elements(
+            self.entry.get_attr("window_name"))
+        options = [(f"{name} · {type_key}", name)
+                   for name, type_key in sorted(elements.items())
+                   if not only or type_key.lower() in only]
+        options.append((f"✏ {self.t('interface.sgui.custom_element')}",
+                        "__custom__"))
+
+        def picked(values: list[str]) -> None:
+            names = [v for v in values if v != "__custom__"]
+            if "__custom__" in values:
+                TextPromptDialog(
+                    self, self, title, self.t("interface.sgui.element_name"),
+                    lambda name: then(names + [name]), pattern=r"^\w+$")
+            elif names:
+                then(names)
+
+        MultiPickDialog(self, self, title, options, picked)
+
     def _add_effect(self) -> None:
         if not self._editable:
             return
 
-        def element_picked(element: str) -> None:
+        def elements_picked(elements: list[str]) -> None:
             options = [(label, label) for label, _m, _k in _HANDLER_KINDS
                        if label not in ("click_enabled", "visible")]
-            SinglePickDialog(self, self, self.t("interface.sgui.pick_kind"),
-                             options,
-                             lambda kind: self._add_key(
-                                 "effects", _compose(element, kind)))
+            SinglePickDialog(
+                self, self, self.t("interface.sgui.pick_kind"), options,
+                lambda kind: self._add_keys(
+                    "effects", [_compose(el, kind) for el in elements]))
 
-        self._pick_element(self.t("interface.sgui.pick_element"),
-                           _CLICKABLE, element_picked)
+        self._pick_elements(self.t("interface.sgui.pick_element"),
+                            _CLICKABLE, elements_picked)
 
     def _add_trigger(self) -> None:
         if not self._editable:
             return
 
-        def element_picked(element: str) -> None:
+        def elements_picked(elements: list[str]) -> None:
             options = [("click_enabled", "click_enabled"),
                        ("visible", "visible")]
-            SinglePickDialog(self, self, self.t("interface.sgui.pick_kind"),
-                             options,
-                             lambda kind: self._add_key(
-                                 "triggers", _compose(element, kind)))
+            SinglePickDialog(
+                self, self, self.t("interface.sgui.pick_kind"), options,
+                lambda kind: self._add_keys(
+                    "triggers", [_compose(el, kind) for el in elements]))
 
-        self._pick_element(self.t("interface.sgui.pick_element"), (),
-                           element_picked)
+        self._pick_elements(self.t("interface.sgui.pick_element"), (),
+                            elements_picked)
 
     def _add_property(self) -> None:
         if not self._editable:
             return
 
-        def picked(element: str) -> None:
-            payload = Block()
-            payload.add("frame", "some_variable")
-            self._add_key("properties", element, payload)
+        def picked(elements: list[str]) -> None:
+            def payload() -> Block:
+                block = Block()
+                block.add("frame", "some_variable")
+                return block
 
-        self._pick_element(self.t("interface.sgui.pick_element"), (), picked)
+            self._add_keys("properties", elements, payload)
+
+        self._pick_elements(self.t("interface.sgui.pick_element"), (), picked)
 
     def _add_dynamic_list(self) -> None:
         if not self._editable:

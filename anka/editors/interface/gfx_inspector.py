@@ -8,6 +8,7 @@ strip with frame separators when ``noOfFrames > 1``.
 """
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -24,6 +25,7 @@ from ...config.constants import (
 )
 from ...core.images.converter import ImageConverter
 from ...core.pdx import Block, dumps
+from ...services.interface_service import sprite_texture_stem
 from ...core.pdx import parse as pdx_parse
 from ...core.guitypes.schema import AttrKind, AttrSpec
 from ..common import InspectorBase, PdxPreviewDialog, ScriptEditorDialog
@@ -336,10 +338,14 @@ class SpriteInspector(InspectorBase):
             return
         source = Path(src)
         current = (var.get() or "").replace("\\", "/")
+        # Name the DDS after the sprite (unique), not the source image, so
+        # identically-named source files can't overwrite one another on import.
+        stem = sprite_texture_stem(self.view.name) if self.view.name \
+            else re.sub(r"\W+", "_", source.stem).strip("_") or "sprite"
         if current and current.lower().endswith((".dds", ".tga", ".png")):
-            dest_rel = str(Path(current).parent / (source.stem + ".dds"))
+            dest_rel = str(Path(current).parent / (stem + ".dds"))
         else:
-            dest_rel = f"gfx/interface/{source.stem}.dds"
+            dest_rel = f"gfx/interface/{stem}.dds"
         dest = self.owner.context.mod.path / dest_rel
         try:
             ImageConverter.convert(source, dest)

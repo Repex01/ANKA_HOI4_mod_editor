@@ -15,8 +15,9 @@ from tkinter import messagebox, ttk
 from ...config.constants import HOI4_LANGUAGES
 from ...core.guitypes.schema import AttrKind, AttrSpec
 from ...core.pdx import Block
+from ...ui.widgets.tooltip import Tooltip
 from ..common import (IconPickerDialog, InspectorBase, PdxPreviewDialog,
-                      ScriptEditorDialog, TextPromptDialog)
+                      ScriptEditorDialog, SinglePickDialog, TextPromptDialog)
 
 _SECTION_ORDER = ("common", "layout", "graphics", "text", "grid", "scroll",
                   "behavior", "sound", "animation")
@@ -380,8 +381,15 @@ class WidgetInspector(InspectorBase):
         syncing = [False]      # guards programmatic loc_var writes, per row
 
         self._label(row, name)
-        e = ttk.Entry(b, textvariable=var, width=26)
-        e.grid(row=row, column=1, sticky="w", padx=(8, 0), pady=3)
+        cell = ttk.Frame(b, style="Card.TFrame")
+        cell.grid(row=row, column=1, sticky="ew", padx=(8, 0), pady=3)
+        cell.columnconfigure(0, weight=1)
+        e = ttk.Entry(cell, textvariable=var, width=24)
+        e.grid(row=0, column=0, sticky="ew")
+        sl_btn = ttk.Button(cell, text="SL", width=3,
+                            command=lambda: self._pick_scripted_loc(e))
+        sl_btn.grid(row=0, column=1, padx=(4, 0))
+        Tooltip(sl_btn, self.t("interface.loc.sl_hint"), self.palette)
         row += 1
 
         chk = ttk.Checkbutton(b, text=self.t("interface.loc.is_key"),
@@ -449,6 +457,25 @@ class WidgetInspector(InspectorBase):
         else:
             loc_cell.grid_remove()
         return row
+
+    def _pick_scripted_loc(self, entry: ttk.Entry) -> None:
+        """SL button: pick a scripted-localisation name and insert ``[name]``
+        into the text field at the cursor, keeping whatever is already there."""
+        names = self.owner.scripted_loc_names()
+        if not names:
+            messagebox.showinfo("ANKA", self.t("interface.loc.no_scripted_loc"))
+            return
+
+        def picked(name: str) -> None:
+            try:
+                entry.insert("insert", f"[{name}]")
+            except tk.TclError:
+                entry.insert("end", f"[{name}]")
+            entry.focus_set()
+
+        SinglePickDialog(self, self.owner,
+                         self.t("interface.loc.pick_scripted_loc"),
+                         [(n, n) for n in names], picked)
 
     def _sprite_row(self, row: int, name: str, current: str,
                     on_commit) -> int:

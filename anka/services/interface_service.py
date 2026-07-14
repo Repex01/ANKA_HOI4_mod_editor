@@ -26,6 +26,17 @@ INTERFACE_DIR = "interface"
 # unless the caller passes another file.
 DEFAULT_SPRITES_FILE = "interface/anka_interface.gfx"
 
+
+def sprite_texture_stem(name: str) -> str:
+    """Filename stem for a sprite's imported DDS: the sprite name with any
+    leading ``GFX_`` prefix stripped and sanitised (``GFX_donbas_ukr`` →
+    ``donbas_ukr``). Naming the texture after the (unique) sprite name — rather
+    than the source image's filename — stops identically-named source images in
+    different folders from overwriting each other on import."""
+    base = re.sub(r"(?i)^gfx_", "", (name or "").strip())
+    return re.sub(r"\W+", "_", base).strip("_") or "sprite"
+
+
 _NAME_RE = re.compile(r'name\s*=\s*"?([^"\s{}]+)"?', re.IGNORECASE)
 _KEY_RE = re.compile(r"^[ \t]*([A-Za-z_][\w.]*)[ \t]*=[ \t]*\{")
 _BITMAPFONT_RE = re.compile(
@@ -326,8 +337,9 @@ class InterfaceService:
         from ..core.images.converter import ImageConverter
 
         source = Path(source)
-        stem = re.sub(r"\W+", "_", source.stem).strip("_") or "sprite"
-        rel_texture = f"gfx/interface/{stem}.dds"
+        # Name the DDS after the sprite (unique), not the source file — otherwise
+        # two provinces whose source images share a filename overwrite each other.
+        rel_texture = f"gfx/interface/{sprite_texture_stem(name)}.dds"
         img = ImageConverter.load(source)
         dds = ImageConverter.save_dds(img, self.ctx.mod.path / rel_texture)
 

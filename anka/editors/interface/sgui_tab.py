@@ -75,6 +75,8 @@ class ScriptedGuiTab(ttk.Frame):
         self._btn_list = ttk.Button(bar, text="☰ " + self.t("interface.gfx.panel"),
                                     command=self._toggle_list)
         self._btn_list.pack(side="left")
+        ttk.Button(bar, text="🗎 " + self.t("interface.sgui.new_file"),
+                   command=self._new_file).pack(side="left", padx=(8, 0))
         ttk.Button(bar, text="➕ " + self.t("interface.sgui.new_entry"),
                    command=self._new_entry).pack(side="left", padx=4)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
@@ -259,9 +261,37 @@ class ScriptedGuiTab(ttk.Frame):
             self._copy_btn.pack_forget()
 
     # ----------------------------------------------------------------- actions
+    def _new_file(self) -> None:
+        def create(name: str) -> None:
+            ref = self.service.create_doc(name)
+            if any(d.ref.rel_file == ref.rel_file for d in self._mod_docs):
+                messagebox.showerror("ANKA", self.t("focuses.err.file_exists"))
+                return
+            self.reload_tree()
+            file_iid = f"f::{ref.rel_file}"
+            if self._tree.exists(file_iid):
+                self._tree.selection_set(file_iid)
+                self._tree.see(file_iid)
+
+        TextPromptDialog(self._tree, self, self.t("interface.sgui.new_file"),
+                         self.t("interface.gfx.file_label"), create,
+                         pattern=r"^[\w./-]+$")
+
+    def _target_doc(self):
+        """The mod file new entries go into: the one whose file (or entry) is
+        selected in the tree if it is editable, else the shared ANKA default."""
+        sel = self._tree.selection()
+        if sel:
+            payload = self._items.get(sel[0])
+            if payload is not None:
+                doc_or_ref = payload[1]
+                if hasattr(doc_or_ref, "entries") and not doc_or_ref.ref.is_vanilla:
+                    return doc_or_ref
+        return self.service.mod_target_doc()
+
     def _new_entry(self) -> None:
         def create(name: str) -> None:
-            doc = self.service.mod_target_doc()
+            doc = self._target_doc()
             self.service.add_entry(doc, name)
             if all(d.ref.path != doc.ref.path for d in self._mod_docs):
                 self._mod_docs.append(doc)

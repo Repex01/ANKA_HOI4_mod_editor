@@ -106,6 +106,9 @@ class GuiDesignerTab(ttk.Frame):
     def value_options(self, vtype: str) -> list[tuple[str, str]]:
         return self.editor.value_options(vtype)
 
+    def scripted_loc_names(self) -> list[str]:
+        return self.editor.scripted_loc_names()
+
     def suggest_sprite_name(self, source) -> str:
         return self.service.suggest_sprite_name(source)
 
@@ -216,6 +219,13 @@ class GuiDesignerTab(ttk.Frame):
         for widget in (self.canvas.canvas, self.tree._tree):
             widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
             widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
+            widget.bind("<Control-d>",
+                        lambda e: (self.duplicate_nodes(list(self.selection)),
+                                   "break")[1])
+            widget.bind("<Control-c>",
+                        lambda e: (self.copy_selection(), "break")[1])
+            widget.bind("<Control-v>",
+                        lambda e: (self.paste_clipboard(), "break")[1])
 
         panel = ttk.Frame(center, style="Card.TFrame", padding=(8, 6))
         panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -806,21 +816,33 @@ class GuiDesignerTab(ttk.Frame):
         self.schedule_render(0)
         self._select_paths([parent_path + (index,)])
 
-    def _unique_name(self, type_key: str) -> str:
-        base = type_key.lower().replace("type", "")
+    def _taken_names(self) -> set[str]:
+        """Every element name currently in the open window."""
         taken: set[str] = set()
 
         def collect(node) -> None:
-            taken.add(node.name)
+            if node.name:
+                taken.add(node.name)
             for child in node.children():
                 collect(child)
 
         if self.window is not None:
             collect(self.window)
+        return taken
+
+    def _fresh_name(self, type_key: str, taken: set[str]) -> str:
+        """A unique ``anka_<type>_<n>`` name; adds it to `taken` so repeated
+        calls (duplicating / pasting several nodes at once) stay distinct."""
+        base = type_key.lower().replace("type", "")
         i = 1
         while f"anka_{base}_{i}" in taken:
             i += 1
-        return f"anka_{base}_{i}"
+        name = f"anka_{base}_{i}"
+        taken.add(name)
+        return name
+
+    def _unique_name(self, type_key: str) -> str:
+        return self._fresh_name(type_key, self._taken_names())
 
     def reparent_nodes(self, paths: list[IndexPath],
                        new_parent_path: IndexPath) -> None:
@@ -943,6 +965,102 @@ class GuiDesignerTab(ttk.Frame):
         self.tree.refresh()
         self.schedule_render(0)
         self._select_paths([path[:-1] + (index,)])
+
+    # --------------------------------------------------------- copy/paste/dup
+    def duplicate_nodes(self, paths: list[IndexPath]) -> None:
+        """Ctrl+D: clone each selected element next to itself, keeping its exact
+        position (a fresh unique name avoids a duplicate-name warning). Group
+        selections duplicate as one undo step; the copies become the selection."""
+        if not self.editable or self.doc is None or not paths:
+            return
+        from ...core.guitypes.views import GuiNode
+        taken = self._taken_names()
+        specs: list[tuple[IndexPath, str]] = []
+        for path in sorted(paths):
+            node = self.node_at(path)
+            if node is None or not path:
+                continue
+            block = pdx_parse(node.snapshot(), recover=False)
+            copy = GuiNode(next(p for p in block.pairs()))
+            if copy.name:
+                copy.set_attr("name", self._fresh_name(node.type_key, taken))
+            specs.append((path[:-1], dumps(block, top_level=True)))
+        self._insert_copies(specs, "interface.cmd.duplicate")
+
+    def copy_selection(self) -> None:
+        """Ctrl+C: put the selected element(s) on the clipboard as PDX text."""
+        if not self.selection:
+            return
+        self.inspector.flush_pending()
+        snaps = [self.node_at(p).snapshot() for p in sorted(self.selection)
+                 if self.node_at(p) is not None]
+        if snaps:
+            self.clipboard_clear()
+            self.clipboard_append("\n".join(snaps))
+
+    def paste_clipboard(self) -> None:
+        """Ctrl+V: parse the clipboard as PDX and add every widget it holds to
+        the selected container (else the current window), each with a fresh
+        unique name. Non-widget clipboard text is ignored."""
+        if not self.editable or self.doc is None or self.window is None:
+            return
+        try:
+            text = self.clipboard_get()
+        except tk.TclError:
+            return
+        if not text or not text.strip():
+            return
+        try:
+            parsed = pdx_parse(text, recover=False)
+        except Exception:                                 # noqa: BLE001
+            return
+        from ...core.guitypes.schema import widget_spec
+        from ...core.guitypes.views import GuiNode
+        from ...core.pdx import Block
+
+        parent_path: IndexPath = ()
+        if self.selection:
+            node = self.node_at(self.selection[0])
+            if node is not None:
+                parent_path = (self.selection[0] if node.is_container
+                               else self.selection[0][:-1])
+        taken = self._taken_names()
+        specs: list[tuple[IndexPath, str]] = []
+        for pair in parsed.pairs():
+            if not isinstance(pair.value, Block) or widget_spec(pair.key) is None:
+                continue                                  # skip non-widget pairs
+            node = GuiNode(pair)
+            if node.name:
+                node.set_attr("name", self._fresh_name(node.type_key, taken))
+            specs.append((parent_path, dumps(Block([pair]), top_level=True)))
+        self._insert_copies(specs, "interface.cmd.paste")
+
+    def _insert_copies(self, specs: list[tuple[IndexPath, str]],
+                       label: str) -> None:
+        """Create each ``(parent_path, node_text)`` as a new child, appended in
+        order (per-parent indices assigned so multiple inserts don't collide),
+        as one undo step; the created nodes become the selection."""
+        if not specs:
+            return
+        counters: dict[IndexPath, int] = {}
+        children: list = []
+        new_paths: list[IndexPath] = []
+        for parent_path, node_text in specs:
+            if parent_path not in counters:
+                parent = self.node_at(parent_path) or self.window
+                counters[parent_path] = len(parent.children())
+            index = counters[parent_path]
+            counters[parent_path] += 1
+            children.append(CreateNodeCommand(self.doc, self.wi, parent_path,
+                                              index, node_text))
+            new_paths.append(parent_path + (index,))
+        command = children[0] if len(children) == 1 else CompoundCommand(
+            children, label)
+        command.redo(self)
+        self._record(command)
+        self.tree.refresh()
+        self.schedule_render(0)
+        self._select_paths(new_paths)
 
     # ---------------------------------------------------------------- palette
     def palette_add(self, type_key: str) -> None:
