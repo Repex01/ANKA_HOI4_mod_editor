@@ -24,14 +24,6 @@ class WipEditor(EditorModule):
         return frame
 
 
-@EditorRegistry.register
-class TechnologiesEditor(WipEditor):
-    id = "technologies"
-    name_key = "editors.technologies.name"
-    desc_key = "editors.technologies.desc"
-    order = 95
-
-
 #@EditorRegistry.register
 class LocalisationEditor(WipEditor):
     id = "localisation"

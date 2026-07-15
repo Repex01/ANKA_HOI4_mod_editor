@@ -1,0 +1,66 @@
+{
+  "chains": {
+    "yearly_4": [
+      { "id": 0, "x": 0, "y": 0, "cost": 1.5, "year_offset": 0 },
+      { "id": 1, "x": 0, "y": 2, "cost": 1.5, "year_offset": 2,
+        "paths": [{ "to": 0, "coeff": 1 }] },
+      { "id": 2, "x": 0, "y": 4, "cost": 1.5, "year_offset": 4,
+        "paths": [{ "to": 1, "coeff": 1 }] },
+      { "id": 3, "x": 0, "y": 6, "cost": 1.5, "year_offset": 6,
+        "paths": [{ "to": 2, "coeff": 1 }] }
+    ],
+    "yearly_6": [
+      { "id": 0, "x": 0, "y": 0, "cost": 1.5, "year_offset": 0 },
+      { "id": 1, "x": 0, "y": 2, "cost": 1.5, "year_offset": 1,
+        "paths": [{ "to": 0, "coeff": 1 }] },
+      { "id": 2, "x": 0, "y": 4, "cost": 1.5, "year_offset": 2,
+        "paths": [{ "to": 1, "coeff": 1 }] },
+      { "id": 3, "x": 0, "y": 6, "cost": 1.5, "year_offset": 3,
+        "paths": [{ "to": 2, "coeff": 1 }] },
+      { "id": 4, "x": 0, "y": 8, "cost": 1.5, "year_offset": 4,
+        "paths": [{ "to": 3, "coeff": 1 }] },
+      { "id": 5, "x": 0, "y": 10, "cost": 1.5, "year_offset": 5,
+        "paths": [{ "to": 4, "coeff": 1 }] }
+    ]
+  },
+  "branches": {
+    "fork_2": [
+      { "id": 0, "x": 0, "y": 0, "cost": 1.5 },
+      { "id": 1, "x": -1, "y": 2, "cost": 1.5, "year_offset": 2,
+        "paths": [{ "to": 0, "coeff": 1 }] },
+      { "id": 2, "x": 1, "y": 2, "cost": 1.5, "year_offset": 2,
+        "paths": [{ "to": 0, "coeff": 1 }] }
+    ],
+    "xor_pair": [
+      { "id": 0, "x": 0, "y": 0, "cost": 1.5 },
+      { "id": 1, "x": -1, "y": 2, "cost": 2, "year_offset": 2,
+        "paths": [{ "to": 0, "coeff": 1 }], "xor": [2] },
+      { "id": 2, "x": 1, "y": 2, "cost": 2, "year_offset": 2,
+        "paths": [{ "to": 0, "coeff": 1 }], "xor": [1] }
+    ],
+    "diamond": [
+      { "id": 0, "x": 0, "y": 0, "cost": 1.5 },
+      { "id": 1, "x": -1, "y": 2, "cost": 1.5, "year_offset": 1,
+        "paths": [{ "to": 0, "coeff": 1 }] },
+      { "id": 2, "x": 1, "y": 2, "cost": 1.5, "year_offset": 1,
+        "paths": [{ "to": 0, "coeff": 1 }] },
+      { "id": 3, "x": 0, "y": 4, "cost": 2, "year_offset": 3,
+        "paths": [{ "to": 1, "coeff": 1 }, { "to": 2, "coeff": 1 }] }
+    ]
+  },
+  "doctrines": {
+    "column_4": [
+      { "id": 0, "x": 0, "y": 0 },
+      { "id": 1, "x": 1, "y": 0, "paths": [{ "to": 0 }] },
+      { "id": 2, "x": 2, "y": 0, "paths": [{ "to": 1 }] },
+      { "id": 3, "x": 3, "y": 0, "paths": [{ "to": 2 }] }
+    ],
+    "column_xor_fork": [
+      { "id": 0, "x": 0, "y": 0 },
+      { "id": 1, "x": 1, "y": -1, "paths": [{ "to": 0 }], "xor": [2] },
+      { "id": 2, "x": 1, "y": 1, "paths": [{ "to": 0 }], "xor": [1] },
+      { "id": 3, "x": 2, "y": -1, "paths": [{ "to": 1 }] },
+      { "id": 4, "x": 2, "y": 1, "paths": [{ "to": 2 }] }
+    ]
+  }
+}

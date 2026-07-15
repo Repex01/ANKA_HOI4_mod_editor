@@ -45,14 +45,16 @@ class LocCatalog:
     """
 
     def __init__(self, mod_root: Path, game_root: Path,
-                 vanilla_filter: str, default_pattern: str,
+                 vanilla_filter: "str | tuple[str, ...]", default_pattern: str,
                  dep_roots: "tuple[Path, ...] | list[Path]" = ()):
         self.mod_root = Path(mod_root)
         self.game_root = Path(game_root)
         # Dependency mod roots (load order, lowest→highest priority). Their loc is a
         # read-only base like vanilla, but ranks above the game and is indexed in full.
         self.dep_roots = [Path(r) for r in dep_roots]
-        self._filter = vanilla_filter.lower()
+        if isinstance(vanilla_filter, str):
+            vanilla_filter = (vanilla_filter,)
+        self._filters = tuple(f.lower() for f in vanilla_filter)
         self._default = default_pattern            # e.g. "anka_decisions_l_{lang}.yml"
         self._cache: dict[str, dict[str, str]] = {}
         self._files: dict[str, dict[str, Path]] = {}      # lang -> key -> mod file
@@ -74,7 +76,8 @@ class LocCatalog:
         game_dir = self.game_root / _LOC_DIR
         if game_dir.is_dir():
             for yml in sorted(game_dir.rglob(f"*_l_{language}.yml")):
-                if self._filter not in yml.name.lower():
+                name = yml.name.lower()
+                if not any(f in name for f in self._filters):
                     continue
                 try:
                     loc = LocFile.load(yml)

@@ -87,6 +87,61 @@ class IconService:
         registry.register_sprite(shine)
         return registry.save()
 
+    # --- technologies -------------------------------------------------------
+    def add_tech_icon(
+        self,
+        source: str | Path | Image.Image,
+        tech_id: str,
+        gfx_file: str = "anka_technologies.gfx",
+        compressed: bool = False,
+        max_size: tuple[int, int] | None = (120, 60),
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_<tech_id>_medium`` and register it. Returns (dds, gfx).
+
+        Vanilla tech icons have no canonical size (103×50, 94×45, 143×55 …), so
+        the source dimensions are kept; ``max_size`` only downscales oversized
+        images, preserving aspect ratio."""
+        img = source if isinstance(source, Image.Image) else ImageConverter.load(source)
+        if max_size is not None and (img.width > max_size[0] or img.height > max_size[1]):
+            img = img.copy()
+            img.thumbnail(max_size, Image.LANCZOS)
+        sprite = f"GFX_{tech_id}_medium"
+        rel_texture = f"{GAME_DIRS.GFX_TECHNOLOGIES}/{tech_id}_medium.dds"
+        return self._add_icon(img, sprite, rel_texture, gfx_file, None, compressed)
+
+    def add_tech_tab_icon(
+        self,
+        source_normal: str | Path | Image.Image,
+        folder_id: str,
+        source_active: str | Path | Image.Image | None = None,
+        gfx_file: str = "anka_technologies.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate the two-frame ``GFX_<folder_id>_tab`` sprite (frame 1 = folder
+        open, frame 2 = closed, side by side). When no ``source_active`` is given,
+        the second frame is a darkened copy of the first. Returns (dds, gfx)."""
+        normal = (source_normal if isinstance(source_normal, Image.Image)
+                  else ImageConverter.load(source_normal)).convert("RGBA")
+        if source_active is None:
+            from PIL import ImageEnhance
+            active = ImageEnhance.Brightness(normal).enhance(0.6)
+        else:
+            active = (source_active if isinstance(source_active, Image.Image)
+                      else ImageConverter.load(source_active)).convert("RGBA")
+            if active.size != normal.size:
+                active = active.resize(normal.size, Image.LANCZOS)
+        strip = Image.new("RGBA", (normal.width * 2, normal.height), (0, 0, 0, 0))
+        strip.paste(normal, (0, 0))
+        strip.paste(active, (normal.width, 0))
+        sprite = f"GFX_{folder_id}_tab"
+        rel_texture = f"{GAME_DIRS.GFX_TECHNOLOGIES}/{folder_id}_tab.dds"
+        dds_path = ImageConverter.save_dds(strip, self.mod_root / rel_texture,
+                                           None, compressed)
+        gfx_path = self.mod_root / GAME_DIRS.INTERFACE / gfx_file
+        registry = SpriteRegistry(gfx_path)
+        registry.register(sprite, rel_texture, noOfFrames=2).save()
+        return dds_path, gfx_path
+
     # --- decisions --------------------------------------------------------
     def add_decision_icon(
         self,

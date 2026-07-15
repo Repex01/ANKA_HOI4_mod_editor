@@ -12,7 +12,7 @@ from pathlib import Path
 _ROOT = Path(__file__).resolve().parents[2]
 
 # Basic constants
-VERSION = "0.6"
+VERSION = "0.8"
 
 class Paths:
     ROOT: Path = _ROOT
@@ -47,12 +47,17 @@ class GAME_DIRS:
     EVENTS = "events"
     LOCALISATION = "localisation"
     INTERFACE = "interface"
+    TECHNOLOGIES = "common/technologies"
+    TECHNOLOGY_TAGS = "common/technology_tags"
+    AI_FOCUSES = "common/ai_focuses"
+    DOCTRINES = "common/doctrines"
     GFX_FLAGS = "gfx/flags"
     GFX_GOALS = "gfx/interface/goals"        # focus icons
     GFX_DECISIONS = "gfx/interface/decisions"  # decision icons
     GFX_IDEAS = "gfx/interface/ideas"
     GFX_EVENTS = "gfx/event_pictures"
     GFX_LEADERS = "gfx/leaders"              # country-leader portraits
+    GFX_TECHNOLOGIES = "gfx/interface/technologies"  # tech icons (GFX_<id>_medium)
 
 
 # HOI4 flag dimensions (TGA, RGBA). Order matters: (folder-relative path, size).
