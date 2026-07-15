@@ -117,9 +117,10 @@ class MapEditor(EditorModule):
             on_rect_select=self._rect_select,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        from ...ui.hotkeys import bind_ctrl
         for widget in (self.canvas.canvas, self._tree):
-            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
-            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.undo(), "break")[1])
+            bind_ctrl(widget, "y", lambda e: (self.redo(), "break")[1])
             # F1–F4 switch render mode, 1–4 switch tool (only while the map/tree has
             # focus, so typing digits in inspector fields is unaffected).
             for i, mode in enumerate(RENDER_MODES):
@@ -551,6 +552,35 @@ class MapEditor(EditorModule):
                 st.set_state_category(category)
         n = self._batch_edit_states(state_ids, mutate)
         self._status.configure(text=self.t("map.batch_applied", count=n))
+
+    def batch_rename_states(self, state_ids: list[int], base: str,
+                            language: str) -> None:
+        """Localise every selected state as ``<base>_<n>`` (ascending id order;
+        a single state gets `base` verbatim). Writes the value under each
+        state's own name key (usually ``STATE_<id>``), so every script/GUI
+        reference — which points at the key, never the display text — stays
+        valid; nothing else needs rewriting."""
+        ids = sorted(state_ids)
+        refs_by_id = {r.state_id: r
+                      for r in self.states.list_docs(include_vanilla=True)}
+        renamed = 0
+        for n, sid in enumerate(ids, start=1):
+            key = f"STATE_{sid}"
+            ref = refs_by_id.get(sid)
+            if ref is not None:
+                try:
+                    doc = self.states.load(ref)
+                    if doc.state is not None and doc.state.name_key:
+                        key = doc.state.name_key
+                except Exception:
+                    pass
+            value = base if len(ids) == 1 else f"{base}_{n}"
+            self.loc.set(key, language, value)
+            renamed += 1
+        self.states.invalidate()
+        self._refresh_tree()
+        self.canvas.refresh()
+        self._status.configure(text=self.t("map.batch_applied", count=renamed))
 
     def batch_cores(self, state_ids: list[int], add: str | None = None,
                     remove: str | None = None) -> None:
@@ -1444,7 +1474,16 @@ class MapEditor(EditorModule):
         if old == fields:
             return
         self.map.set_def(pid, **fields)
-        self._record(SetDefCommand(pid, old, dict(fields)))
+        commands = [SetDefCommand(pid, old, dict(fields))]
+        if "type" in fields:
+            # a type flip changes who counts as coastal — the province itself
+            # and every neighbor (sea neighbors make land coastal; land makes
+            # sea coastal; lake never is)
+            for q, was, now in self.map.recompute_coastal_around(pid):
+                commands.append(SetDefCommand(q, {"coastal": was},
+                                              {"coastal": now}))
+        self._record(commands[0] if len(commands) == 1
+                     else CompoundCommand(commands, "map.cmd.def"))
         self.canvas.refresh()          # terrain/type feed the render LUTs
 
     def land_terrains(self) -> list[str]:

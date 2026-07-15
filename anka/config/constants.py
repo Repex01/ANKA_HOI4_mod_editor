@@ -49,6 +49,7 @@ class GAME_DIRS:
     INTERFACE = "interface"
     TECHNOLOGIES = "common/technologies"
     TECHNOLOGY_TAGS = "common/technology_tags"
+    EQUIPMENT = "common/units/equipment"
     AI_FOCUSES = "common/ai_focuses"
     DOCTRINES = "common/doctrines"
     GFX_FLAGS = "gfx/flags"
@@ -58,6 +59,8 @@ class GAME_DIRS:
     GFX_EVENTS = "gfx/event_pictures"
     GFX_LEADERS = "gfx/leaders"              # country-leader portraits
     GFX_TECHNOLOGIES = "gfx/interface/technologies"  # tech icons (GFX_<id>_medium)
+    GFX_ARCHETYPES = "gfx/interface/archetypes"   # equipment pictures (GFX_<pic>_medium)
+    GFX_IDEOLOGIES = "gfx/interface/ideologies"   # ideology/sub-ideology icons
 
 
 # HOI4 flag dimensions (TGA, RGBA). Order matters: (folder-relative path, size).

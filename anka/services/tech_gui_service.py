@@ -38,7 +38,8 @@ DEFAULT_SLOT = (70.0, 70.0)
 # anchor and its size.
 DEFAULT_ITEM_OFFSET = (-56.0, -7.0)
 DEFAULT_ITEM_SIZE = (183.0, 84.0)
-DEFAULT_SMALL_ITEM_SIZE = (62.0, 76.0)
+# The game's default tech look is the 72×72 square (vanilla *_small_item).
+DEFAULT_SMALL_ITEM_SIZE = (72.0, 72.0)
 
 
 @dataclass
@@ -94,6 +95,15 @@ class ItemLayout:
     node: GuiNode | None = None
 
 
+def _default_small_item() -> ItemLayout:
+    """Square fallback matching vanilla small items. Folders without a
+    ``techtree_<folder>_small_item`` container (industry, electronics, custom
+    folders) still render non-equipment techs as squares — the game's default
+    look — instead of stretching them to the wide item box."""
+    return ItemLayout(offset=(0.0, 0.0), size=DEFAULT_SMALL_ITEM_SIZE,
+                      icon_pos=(3.0, 3.0))
+
+
 @dataclass
 class FolderView:
     folder_id: str
@@ -104,7 +114,7 @@ class FolderView:
     labels: list[TextLabel] = field(default_factory=list)
     background_sprite: str = ""
     item: ItemLayout = field(default_factory=ItemLayout)
-    small_item: ItemLayout | None = None
+    small_item: ItemLayout = field(default_factory=_default_small_item)
     tab_sprite: str = ""
 
     @property
@@ -396,6 +406,51 @@ class TechGuiService:
             it for it in view.container.block.items
             if not (isinstance(it, Pair) and it.value is info.node.block)]
         return True
+
+    def remove_folder_gui(self, folder_id: str, *, doctrine: bool = False) -> bool:
+        """Delete the interface side of a folder from the mod-side .gui: the
+        container, the tab button and the item containers. Vanilla .gui files
+        are never touched (their leftovers are inert once the tags entry is
+        gone)."""
+        ref = self.gui_ref_for(doctrine)
+        if ref is None or ref.is_vanilla:
+            return False
+        doc = self.interface.load_gui(ref)
+        root_name = ROOT_DOCTRINE_WINDOW if doctrine else ROOT_TECH_WINDOW
+        root = self._find_window(doc, root_name)
+        changed = False
+
+        def drop(node: GuiNode | None) -> None:
+            nonlocal changed
+            if node is None or node.parent is None:
+                return
+            node.parent.block.items = [
+                it for it in node.parent.block.items
+                if not (isinstance(it, Pair) and it is node.pair)]
+            changed = True
+
+        if root is not None:
+            drop(self._find_child(root, folder_id))
+            tabs = self._find_child(root, "folder_tabs")
+            if tabs is not None:
+                drop(self._find_child(tabs, f"{folder_id}_tab"))
+            for suffix in ("item", "small_item"):
+                drop(self._find_child(root, f"techtree_{folder_id}_{suffix}"))
+        # item containers may also live as stand-alone top-level windows
+        gt = doc.gui_types()
+        if gt is not None:
+            names = {f"techtree_{folder_id}_item".lower(),
+                     f"techtree_{folder_id}_small_item".lower()}
+            for window in doc.windows():
+                if window.name.lower() in names:
+                    gt.items = [it for it in gt.items
+                                if not (isinstance(it, Pair)
+                                        and it is window.pair)]
+                    changed = True
+        if changed:
+            self.interface.save(doc)
+            self.invalidate()
+        return changed
 
     def create_folder_gui(self, folder_id: str, *, doctrine: bool = False,
                           template_folder: str = "infantry_folder",

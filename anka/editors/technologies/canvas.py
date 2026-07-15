@@ -78,11 +78,13 @@ class TechCanvas(ttk.Frame):
                  on_link_end: Callable[[], None] | None = None,
                  on_gridbox_move: Callable[[str, tuple[float, float]], None] | None = None,
                  link_hints: dict[str, str] | None = None,
-                 icons_ready: Callable[[], bool] | None = None):
+                 icons_ready: Callable[[], bool] | None = None,
+                 icon_frames: Callable[[str], int] | None = None):
         super().__init__(master, style="TFrame")
         self.palette = palette
         self._resolve_icon = resolve_icon
         self._icons_ready = icons_ready
+        self._icon_frames = icon_frames
         self._on_delete = on_delete
         self._on_link_end = on_link_end
         self._on_gridbox_move = on_gridbox_move
@@ -470,6 +472,16 @@ class TechCanvas(ttk.Frame):
                         pil = im.convert("RGBA")
                 except Exception:
                     pil = None
+            # Frame strips (noOfFrames > 1) store frames side by side; the game
+            # draws only one frame, so crop the first — otherwise square icons
+            # render as wide rectangles.
+            if pil is not None and self._icon_frames is not None:
+                try:
+                    frames = max(1, int(self._icon_frames(sprite)))
+                except Exception:
+                    frames = 1
+                if frames > 1:
+                    pil = pil.crop((0, 0, max(1, pil.width // frames), pil.height))
             self._pil_cache[sprite] = pil if pil is not None else self._placeholder()
             # Each item is sized by its own node's layout (big vs small item), so
             # the photo must be built per item, not once for the sprite.

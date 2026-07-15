@@ -193,6 +193,13 @@ class HierarchyPanel(ttk.Frame):
                  if (p := self.items.get(iid)) is not None and p[0] == "node"]
         if paths:
             self.tab.delete_nodes(paths)
+            return
+        windows = [(p[1], p[2]) for iid in self._tree.selection()
+                   if (p := self.items.get(iid)) is not None
+                   and p[0] == "window"]
+        if windows:
+            doc, wi = windows[0]
+            self.tab.delete_window(doc, wi)
 
     # ------------------------------------------------------------- selection
     def select_node(self, doc, wi: int, path: IndexPath | None) -> None:

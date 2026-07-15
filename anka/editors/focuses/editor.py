@@ -120,10 +120,12 @@ class FocusesEditor(EditorModule):
             icons_ready=self.resolver_ready,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        from ...ui.hotkeys import bind_ctrl
         for widget in (self.canvas.canvas, self._list):
-            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
-            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
-            widget.bind("<Control-Shift-Z>", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.undo(), "break")[1])
+            bind_ctrl(widget, "y", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.redo(), "break")[1],
+                      shift=True)
         self._build_problems(center)
 
         side = ttk.Frame(root, style="TFrame")

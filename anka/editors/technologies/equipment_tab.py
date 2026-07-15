@@ -1,31 +1,34 @@
-"""Sprites tab: browse and edit every ``.gfx`` entry across content layers.
+"""Equipment tab: browse and edit ``common/units/equipment`` across content layers.
 
-Layout mirrors the established editor skeleton: toolbar · collapsible
-file→sprite tree (left) · schema-driven sprite inspector (center) · problems
-panel (bottom). Vanilla files are read-only with one-click copy-to-mod; new
-sprites go into an existing mod .gfx (else ``interface/anka_sprites.gfx``).
+Layout mirrors the established editor skeleton (see `SpritesTab`): toolbar ·
+collapsible file→equipment tree (left) · block-backed inspector (right) ·
+problems panel (bottom). Vanilla files are read-only with one-click
+copy-to-mod; new entries go into an existing mod file (else
+``anka_equipment.txt``). Archetypes are marked with ★ in the tree.
 """
 from __future__ import annotations
 
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.guitypes.schema import SPRITE_KINDS
+from ...services.equipment_service import (
+    ANKA_EQUIPMENT_FILE,
+    EquipmentService,
+)
 from ..common import SinglePickDialog, TextPromptDialog
-from .gfx_inspector import SpriteInspector
-
-from ...services.interface_service import DEFAULT_SPRITES_FILE as DEFAULT_GFX_FILE
+from .equipment_inspector import EquipmentInspector
 
 
-class SpritesTab(ttk.Frame):
+class EquipmentTab(ttk.Frame):
     def __init__(self, master, editor):
         super().__init__(master, style="TFrame")
-        self.editor = editor
+        self.editor = editor                  # TechnologiesEditor (owner protocol)
         self.t = editor.t
         self.palette = editor.palette
         self.context = editor.context
-        self.service = editor.service
         self.loc_language = editor.loc_language
+        self.service = EquipmentService(editor.context)
+        self.tech_service = editor.service    # languages() + enable_equipments scan
         self._mod_docs: list = []
         self._vanilla_refs: list = []
         self._dirty: set[str] = set()
@@ -40,6 +43,9 @@ class SpritesTab(ttk.Frame):
         self.reload_tree()
 
     # ----------------------------------------------------------- owner protocol
+    def value_options(self, vtype: str) -> list[tuple[str, str]]:
+        return self.editor.value_options(vtype)
+
     @property
     def resolver(self):
         return self.editor.resolver
@@ -47,26 +53,44 @@ class SpritesTab(ttk.Frame):
     def resolver_ready(self) -> bool:
         return self.editor.resolver_ready()
 
+    def import_equipment_icon(self, path, picture: str) -> str | None:
+        """Convert an image into ``GFX_<picture>_medium`` (DDS + registration)."""
+        try:
+            dds, _gfx = self.context.icons.add_equipment_icon(path, picture)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("technologies.err.icon",
+                                                error=str(exc)))
+            return None
+        sprite = f"GFX_{picture}_medium"
+        self.editor.interface.resolver().add(sprite, dds)
+        return sprite
+
+    def reuse_equipment_sprite(self, picture: str, source: str) -> str | None:
+        """Point ``GFX_<picture>_medium`` at an existing sprite's texture."""
+        return self.editor.reuse_sprite(f"GFX_{picture}_medium", source)
+
     def loc_get(self, key: str, language: str) -> str:
-        return self.editor.loc_get(key, language)
+        return self.service.loc_get(key, language) or ""
 
     def loc_set(self, key: str, language: str, text: str) -> None:
-        self.editor.loc_set(key, language, text)
+        self.service.loc_set(key, language, text)
 
-    def value_options(self, vtype: str) -> list[tuple[str, str]]:
-        return self.editor.value_options(vtype)
+    def languages(self) -> list[str]:
+        return self.tech_service.languages()
 
     # ------------------------------------------------------------------- build
     def _build_toolbar(self) -> None:
         bar = ttk.Frame(self, style="TFrame")
         bar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-        self._btn_list = ttk.Button(bar, text="☰ " + self.t("interface.gfx.panel"),
+        self._btn_list = ttk.Button(bar, text="☰ " + self.t("equipment.panel"),
                                     command=self._toggle_list)
         self._btn_list.pack(side="left")
-        ttk.Button(bar, text="➕ " + self.t("interface.gfx.new_sprite"),
-                   command=self._new_sprite).pack(side="left", padx=4)
-        ttk.Button(bar, text="🗎 " + self.t("interface.gfx.new_file"),
+        ttk.Button(bar, text="➕ " + self.t("equipment.new_equipment"),
+                   command=self._new_equipment).pack(side="left", padx=4)
+        ttk.Button(bar, text="🗎 " + self.t("equipment.new_file"),
                    command=self._new_file).pack(side="left", padx=4)
+        ttk.Button(bar, text="🗑 " + self.t("equipment.delete"),
+                   command=self._delete_selected).pack(side="left", padx=4)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
@@ -89,7 +113,7 @@ class SpritesTab(ttk.Frame):
         ttk.Entry(panel, textvariable=self._search).grid(
             row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self._vanilla = tk.BooleanVar(value=False)
-        ttk.Checkbutton(panel, text=self.t("interface.show_vanilla"),
+        ttk.Checkbutton(panel, text=self.t("equipment.show_vanilla"),
                         style="Card.TCheckbutton", variable=self._vanilla,
                         command=self.reload_tree).grid(row=1, column=0,
                                                        sticky="w", pady=(0, 6))
@@ -102,6 +126,8 @@ class SpritesTab(ttk.Frame):
         self._tree.tag_configure("file", font=("Segoe UI Semibold", 10))
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
         self._tree.bind("<Delete>", self._delete_selected)
+        self._tree.bind("<Button-3>", self._tree_context)
+        self._menu: tk.Menu | None = None
 
     def _build_center(self) -> None:
         center = ttk.Frame(self, style="TFrame")
@@ -112,9 +138,9 @@ class SpritesTab(ttk.Frame):
         host.grid(row=0, column=0, sticky="nsew")
         host.rowconfigure(0, weight=1)
         host.columnconfigure(0, weight=1)
-        self.inspector = SpriteInspector(host, self)
+        self.inspector = EquipmentInspector(host, self)
         self.inspector.grid(row=0, column=0, sticky="nsew")
-        self._placeholder = ttk.Label(host, text=self.t("interface.gfx.select_hint"),
+        self._placeholder = ttk.Label(host, text=self.t("equipment.select_hint"),
                                       style="Muted.TLabel")
         self._placeholder.grid(row=0, column=0)
         self._show_inspector(False)
@@ -126,7 +152,7 @@ class SpritesTab(ttk.Frame):
         self._problems = ttk.Treeview(panel, columns=("sev", "subject", "msg"),
                                       show="headings", height=4)
         self._problems.heading("sev", text="!")
-        self._problems.heading("subject", text=self.t("interface.gfx.col.sprite"))
+        self._problems.heading("subject", text=self.t("equipment.col.equipment"))
         self._problems.heading("msg", text=self.t("focuses.col.problem"))
         self._problems.column("sev", width=30, anchor="center", stretch=False)
         self._problems.column("subject", width=260, stretch=False)
@@ -165,22 +191,24 @@ class SpritesTab(ttk.Frame):
     # ------------------------------------------------------------------- tree
     def reload_tree(self, keep_selection: bool = False) -> None:
         selected = self._tree.selection() if keep_selection else ()
-        # Dependency-mod files come back with is_vanilla=True even when the
-        # checkbox is off (layered_docs always lists them): they must show as
-        # read-only base files, never as editable mod docs — and never twice.
-        refs = self.service.list_gfx_docs(include_vanilla=self._vanilla.get())
+        # Dependency-mod files are is_vanilla=True even with the checkbox off
+        # (layered_docs always lists them): read-only base files, never
+        # editable mod docs — and never twice (duplicate iids break the tree).
+        refs = self.service.list_docs(include_vanilla=self._vanilla.get())
         self._mod_docs = []
         for ref in refs:
             if ref.is_vanilla:
                 continue
             try:
-                self._mod_docs.append(self.service.load_gfx(ref))
+                self._mod_docs.append(self.service.load(ref))
             except Exception:
                 continue
         self._vanilla_refs = [r for r in refs if r.is_vanilla]
         self._refresh_tree()
         if selected and self._tree.exists(selected[0]):
             self._tree.selection_set(selected[0])
+
+    _REL_PREFIX = "common/units/equipment/"
 
     def _refresh_tree(self) -> None:
         query = self._search.get().strip().lower()
@@ -199,8 +227,9 @@ class SpritesTab(ttk.Frame):
                 return          # empty mod files stay visible (fresh files)
             file_iid = f"f::{rel_file}"
             self._tree.insert("", "end", iid=file_iid,
-                              text=rel_file[len("interface/"):]
-                              if rel_file.startswith("interface/") else rel_file,
+                              text=rel_file[len(self._REL_PREFIX):]
+                              if rel_file.startswith(self._REL_PREFIX)
+                              else rel_file,
                               open=bool(query) or file_iid in open_files,
                               tags=("file",) + (("vanilla",) if is_vanilla else ()))
             self._items[file_iid] = ("file", payload, is_vanilla)
@@ -211,10 +240,11 @@ class SpritesTab(ttk.Frame):
                 self._items[iid] = ("entry", payload, index)
 
         for doc in self._mod_docs:
-            add_file(doc.ref.rel_file, [v.name or v.type_key
-                                        for v in doc.entries()], False, doc)
+            add_file(doc.ref.rel_file,
+                     [("★ " if e.is_archetype else "") + e.id
+                      for e in doc.equipments], False, doc)
         for ref in self._vanilla_refs:
-            add_file(ref.rel_file, ref.names, True, ref)
+            add_file(ref.rel_file, ref.equipment_ids, True, ref)
 
     def _on_select(self, _event=None) -> None:
         sel = self._tree.selection()
@@ -230,13 +260,13 @@ class SpritesTab(ttk.Frame):
             self._show_inspector(False)
             return
         _kind, doc_or_ref, index = payload
-        is_vanilla = not hasattr(doc_or_ref, "entries")
+        is_vanilla = not hasattr(doc_or_ref, "equipments")
         try:
-            doc = (self.service.load_gfx(doc_or_ref) if is_vanilla else doc_or_ref)
+            doc = (self.service.load(doc_or_ref) if is_vanilla else doc_or_ref)
         except Exception:
             self._show_inspector(False)
             return
-        entries = doc.entries()
+        entries = doc.equipments
         if index >= len(entries):
             self._show_inspector(False)
             return
@@ -256,51 +286,87 @@ class SpritesTab(ttk.Frame):
     def _mod_target_doc(self):
         for doc in self._mod_docs:
             return doc
-        ref = self.service.create_doc(DEFAULT_GFX_FILE, "spriteTypes")
-        doc = self.service.load_gfx(ref)
+        ref = self.service.create_doc(ANKA_EQUIPMENT_FILE)
+        doc = self.service.load(ref)
         self._mod_docs.append(doc)
         return doc
 
-    def _new_sprite(self) -> None:
-        kinds = [(spec.type_key, spec.type_key) for spec in
-                 sorted(SPRITE_KINDS.values(), key=lambda s: s.type_key.lower())]
+    def _new_equipment(self) -> None:
+        kinds = [(self.t("equipment.kind.archetype"), "archetype"),
+                 (self.t("equipment.kind.equipment"), "equipment")]
 
         def kind_picked(kind: str) -> None:
-            TextPromptDialog(self._tree, self,
-                             self.t("interface.gfx.new_sprite"),
-                             self.t("interface.gfx.name_label"),
-                             lambda name: create(kind, name),
-                             initial="GFX_", pattern=r"^\S+$")
+            if kind == "archetype":
+                ask_id(None)
+            else:
+                options = [(a, a) for a in self.service.archetypes()]
+                SinglePickDialog(self._tree, self.editor,
+                                 self.t("equipment.pick_archetype"),
+                                 options, ask_id)
 
-        def create(kind: str, name: str) -> None:
+        def ask_id(archetype: str | None) -> None:
+            TextPromptDialog(self._tree, self.editor,
+                             self.t("equipment.new_equipment"),
+                             self.t("equipment.name_label"),
+                             lambda eid: ask_copy_source(archetype, eid),
+                             taken=set(self.service.equipment_index()))
+
+        def ask_copy_source(archetype: str | None, eid: str) -> None:
+            """Optionally seed the new entry with the stats of an existing
+            entry of the same category (same archetype / other archetypes)."""
+            sources = (self.service.archetypes() if archetype is None
+                       else self.service.concrete_ids_of(archetype))
+            if not sources:
+                create(archetype, eid, None)
+                return
+            options = [("— " + self.t("equipment.copy_stats_none"), "")]
+            options += [(s, s) for s in sources]
+            SinglePickDialog(self._tree, self.editor,
+                             self.t("equipment.copy_stats_from"),
+                             options,
+                             lambda source: create(archetype, eid,
+                                                   source or None))
+
+        def create(archetype: str | None, eid: str,
+                   copy_from: str | None) -> None:
             doc = self._mod_target_doc()
-            doc.add_entry(kind, name)
+            try:
+                eq = self.service.add_equipment(doc, eid, archetype=archetype)
+            except ValueError as exc:
+                messagebox.showerror("ANKA", str(exc))
+                return
+            if copy_from:
+                self.service.copy_stats_from(eq, copy_from)
             self.mark_dirty(doc)
             self.save_all()
             self.reload_tree()
-            index = len(doc.entries()) - 1
+            index = len(doc.equipments) - 1
             iid = f"e::{doc.ref.rel_file}::{index}"
             if self._tree.exists(iid):
                 self._tree.selection_set(iid)
                 self._tree.see(iid)
 
-        SinglePickDialog(self._tree, self, self.t("interface.gfx.pick_kind"),
-                         kinds, kind_picked)
+        SinglePickDialog(self._tree, self.editor,
+                         self.t("equipment.pick_kind"), kinds, kind_picked)
 
     def _new_file(self) -> None:
         def create(name: str) -> None:
-            rel = f"interface/{name}.gfx" if not name.endswith(".gfx") \
-                else f"interface/{name}"
-            ref = self.service.create_doc(rel, "spriteTypes")
-            doc = self.service.load_gfx(ref)
+            try:
+                ref = self.service.create_doc(name)
+            except FileExistsError:
+                messagebox.showerror("ANKA", self.t("equipment.err.file_exists",
+                                                    name=name))
+                return
+            doc = self.service.load(ref)
             self._mod_docs.append(doc)
-            self.mark_dirty(doc)
-            self.save_all()
             self.reload_tree()
+            file_iid = f"f::{ref.rel_file}"
+            if self._tree.exists(file_iid):
+                self._tree.selection_set(file_iid)
 
-        TextPromptDialog(self._tree, self, self.t("interface.gfx.new_file"),
-                         self.t("interface.gfx.file_label"), create,
-                         pattern=r"^[\w./-]+$")
+        TextPromptDialog(self._tree, self.editor, self.t("equipment.new_file"),
+                         self.t("equipment.file_label"), create,
+                         pattern=r"^[\w.-]+$")
 
     def _copy_to_mod(self) -> None:
         if self._copy_ref is None:
@@ -314,15 +380,31 @@ class SpritesTab(ttk.Frame):
             if self._tree.exists(iid):
                 self._tree.selection_set(iid)
                 self._tree.see(iid)
+        else:
+            file_iid = f"f::{new_ref.rel_file}"
+            if self._tree.exists(file_iid):
+                self._tree.selection_set(file_iid)
 
-    def delete_sprite(self, doc, view) -> None:
-        doc.remove_entry(view)
-        self.mark_dirty(doc)
-        self._show_inspector(False)
-        self.reload_tree(keep_selection=False)
-        file_iid = f"f::{doc.ref.rel_file}"
-        if self._tree.exists(file_iid):
-            self._tree.selection_set(file_iid)
+    def _tree_context(self, event) -> None:
+        """Right-click on an editable (mod) equipment entry: delete."""
+        iid = self._tree.identify_row(event.y)
+        if not iid:
+            return
+        self._tree.selection_set(iid)
+        payload = self._items.get(iid)
+        if payload is None or payload[0] != "entry" \
+                or not hasattr(payload[1], "equipments"):
+            return                            # vanilla entries are read-only
+        if self._menu is not None:
+            self._menu.destroy()
+        menu = tk.Menu(self._tree, **self.editor._menu_colors())
+        self._menu = menu
+        menu.add_command(label="🗑 " + self.t("equipment.delete"),
+                         command=self._delete_selected)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
 
     def _delete_selected(self, _event=None) -> None:
         sel = self._tree.selection()
@@ -332,27 +414,73 @@ class SpritesTab(ttk.Frame):
         if payload is None or payload[0] != "entry":
             return
         _kind, doc, index = payload
-        if not hasattr(doc, "entries"):
+        if not hasattr(doc, "equipments"):
+            return                           # vanilla entries are read-only
+        entries = doc.equipments
+        if index >= len(entries):
             return
-        entries = doc.entries()
-        if index < len(entries):
-            view = entries[index]
-            if messagebox.askyesno("ANKA", self.t("interface.gfx.confirm_delete",
-                                                  name=view.name)):
-                self.delete_sprite(doc, view)
+        eq = entries[index]
+        used_by = self.service.referencing_ids(eq.id) if eq.is_archetype else []
+        message = self.t("equipment.confirm_delete", name=eq.id)
+        if used_by:
+            message += "\n" + self.t("equipment.warn.referenced",
+                                     ids=", ".join(used_by[:8]))
+        if not messagebox.askyesno("ANKA", message):
+            return
+        touched = self.service.remove_equipment(doc, eq)
+        self.mark_dirty(doc)
+        for other in touched:
+            self.mark_dirty(other)
+        self._show_inspector(False)
+        self.reload_tree(keep_selection=False)
+        file_iid = f"f::{doc.ref.rel_file}"
+        if self._tree.exists(file_iid):
+            self._tree.selection_set(file_iid)
+
+    def rename_equipment(self, doc, eq, new_id: str) -> None:
+        """Rename an entry: service rename + loc carry-over + a warning when
+        technologies still unlock the old id (v1 warns, does not rewrite —
+        those documents belong to the tech tab's undo history)."""
+        old = eq.id
+        try:
+            self.service.rename_equipment(doc, eq, new_id)
+        except ValueError as exc:
+            messagebox.showerror("ANKA", str(exc))
+            return
+        self.service.rename_loc(old, new_id)
+        self.mark_dirty(doc)
+        self.save_all()
+        count = self._tech_reference_count(old)
+        if count:
+            messagebox.showwarning("ANKA", self.t("equipment.warn.tech_refs",
+                                                  count=count, id=old))
+        self.reload_tree(keep_selection=True)
+        self.inspector.show(doc, eq, editable=True)
+
+    def _tech_reference_count(self, eid: str) -> int:
+        count = 0
+        try:
+            for ref in self.tech_service.list_docs(include_vanilla=False):
+                tech_doc = self.tech_service.load(ref)
+                count += sum(1 for tech in tech_doc.techs
+                             if eid in tech.enable_equipments)
+        except Exception:
+            return 0
+        return count
 
     # ---------------------------------------------------------------- validation
     def _validate(self) -> None:
-        issues = self.service.validate_gfx(self._mod_docs)
+        issues = self.service.validate(self._mod_docs,
+                                       language=self.loc_language)
         self._problems.delete(*self._problems.get_children())
         errors = 0
         for i, issue in enumerate(issues):
             if issue.severity == "error":
                 errors += 1
-            msg = self.t(f"interface.gfx.issue.{issue.code}", detail=issue.detail)
+            msg = self.t(f"equipment.issue.{issue.code}", detail=issue.detail)
             self._problems.insert("", "end", iid=str(i),
                                   values=("⛔" if issue.severity == "error"
-                                          else "⚠", issue.subject, msg),
+                                          else "⚠", issue.tech_id, msg),
                                   tags=(issue.severity,))
         n = len(issues)
         label = f"⚠ {n}" if not errors else f"⛔ {errors} · ⚠ {n - errors}"
@@ -374,6 +502,7 @@ class SpritesTab(ttk.Frame):
                     self.service.save(doc)
                     self._dirty.discard(str(doc.ref.path))
                 except Exception as exc:                  # noqa: BLE001
-                    messagebox.showerror("ANKA", self.t("focuses.err.save",
+                    messagebox.showerror("ANKA", self.t("equipment.err.save",
                                                         error=str(exc)))
-        self._validate()
+        if self._problems_visible:
+            self._validate()

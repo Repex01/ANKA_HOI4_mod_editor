@@ -1,0 +1,8 @@
+{
+  "blocks": [
+    {
+      "name": "415",
+      "text": "415 = {\n\tadd_extra_state_shared_building_slots = 3\n}\n"
+    }
+  ]
+}

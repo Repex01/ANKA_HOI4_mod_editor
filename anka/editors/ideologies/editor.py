@@ -390,6 +390,35 @@ class IdeologiesEditor(EditorModule):
                                                   name=entry.name)):
                 self.delete_entry(doc, entry)
 
+    # ------------------------------------------------------------------- icons
+    def ideology_sprite(self, name: str, *, group: bool) -> str:
+        return f"GFX_ideology_{name}_group" if group else f"GFX_ideology_{name}"
+
+    def import_ideology_icon(self, path, name: str, *, group: bool) -> str | None:
+        """Convert an image into the ideology (group) / sub-ideology (type)
+        icon sprite: DDS under gfx/interface/ideologies + .gfx registration."""
+        try:
+            if group:
+                dds, _gfx = self.context.icons.add_ideology_group_icon(path, name)
+            else:
+                dds, _gfx = self.context.icons.add_ideology_type_icon(path, name)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("ideology.err.icon",
+                                                error=str(exc)))
+            return None
+        sprite = self.ideology_sprite(name, group=group)
+        self.resolver.add(sprite, dds)
+        return sprite
+
+    def reuse_ideology_icon(self, source_sprite: str, name: str, *,
+                            group: bool) -> str | None:
+        """Gallery pick: bake the picked sprite's texture into this ideology's
+        own icon (copied into the mod, so it keeps working stand-alone)."""
+        path = self.resolver.resolve(source_sprite)
+        if path is None:
+            return None
+        return self.import_ideology_icon(path, name, group=group)
+
     # ----------------------------------------------------------- shared protocol
     def known_names(self) -> list[str]:
         names = [e.name for doc in self._mod_docs for e in doc.entries()]

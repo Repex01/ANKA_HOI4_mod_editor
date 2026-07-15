@@ -21,7 +21,7 @@ from ...core.pdx import parse as pdx_parse
 from ..common.commands import CompoundCommand, CommandStack
 from .canvas import GuiDesignCanvas
 from .commands import (TOUCH_TREE, CreateNodeCommand, DeleteNodeCommand,
-                       ReorderCommand, SetAttrCommand)
+                       DeleteWindowCommand, ReorderCommand, SetAttrCommand)
 from .inspectors import WidgetInspector
 from .palette import WidgetPalette
 from .tree_panel import HierarchyPanel
@@ -216,16 +216,19 @@ class GuiDesignerTab(ttk.Frame):
             on_delete=self.delete_nodes,
             on_zoom=lambda z: self._zoom_lbl.configure(text=f"{int(z * 100)}%"))
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        from ...ui.hotkeys import bind_ctrl
         for widget in (self.canvas.canvas, self.tree._tree):
-            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
-            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
-            widget.bind("<Control-d>",
-                        lambda e: (self.duplicate_nodes(list(self.selection)),
-                                   "break")[1])
-            widget.bind("<Control-c>",
-                        lambda e: (self.copy_selection(), "break")[1])
-            widget.bind("<Control-v>",
-                        lambda e: (self.paste_clipboard(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.undo(), "break")[1])
+            bind_ctrl(widget, "y", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.redo(), "break")[1],
+                      shift=True)
+            bind_ctrl(widget, "d",
+                      lambda e: (self.duplicate_nodes(list(self.selection)),
+                                 "break")[1])
+            bind_ctrl(widget, "c",
+                      lambda e: (self.copy_selection(), "break")[1])
+            bind_ctrl(widget, "v",
+                      lambda e: (self.paste_clipboard(), "break")[1])
 
         panel = ttk.Frame(center, style="Card.TFrame", padding=(8, 6))
         panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
@@ -314,15 +317,19 @@ class GuiDesignerTab(ttk.Frame):
 
     # ------------------------------------------------------------------- docs
     def reload_docs(self) -> None:
+        # Dependency-mod files are is_vanilla=True even with the checkbox off
+        # (layered_docs always lists them): read-only base files, never
+        # editable mod docs.
+        refs = self.service.list_gui_docs(include_vanilla=self.tree.show_vanilla)
         self.mod_docs = []
-        for ref in self.service.list_gui_docs(include_vanilla=False):
+        for ref in refs:
+            if ref.is_vanilla:
+                continue
             try:
                 self.mod_docs.append(self.service.load_gui(ref))
             except Exception:
                 continue
-        self.vanilla_refs = ([r for r in self.service.list_gui_docs(True)
-                              if r.is_vanilla]
-                             if self.tree.show_vanilla else [])
+        self.vanilla_refs = [r for r in refs if r.is_vanilla]
         self.tree.refresh()
 
     def load_doc(self, ref):
@@ -924,6 +931,32 @@ class GuiDesignerTab(ttk.Frame):
         self.schedule_render(0)
         self._select_paths([])
 
+    def delete_window(self, doc, wi: int) -> None:
+        """Delete a top-level window from a mod document (undoable)."""
+        if doc is None or doc.ref.is_vanilla:
+            return
+        windows = doc.windows()
+        if wi >= len(windows):
+            return
+        window = windows[wi]
+        if not messagebox.askyesno("ANKA", self.t(
+                "interface.gui.confirm_delete_window",
+                name=window.name or window.type_key)):
+            return
+        command = DeleteWindowCommand(doc, wi, window.snapshot())
+        command.redo(self)
+        self._record(command)
+        if doc is self.doc and wi == self.wi:
+            self.doc = None
+            self.wi = 0
+            self.window = None
+            self.selection = []
+            self._show_inspector(False)
+        elif doc is self.doc and wi < self.wi:
+            self.wi -= 1
+        self.tree.refresh()
+        self.schedule_render(0)
+
     def reorder_node(self, path: IndexPath, delta: int) -> None:
         if not self.editable or not path:
             return
@@ -1128,6 +1161,11 @@ class GuiDesignerTab(ttk.Frame):
                 menu.add_separator()
                 menu.add_command(label="🗑 " + self.t("interface.gfx.delete"),
                                  command=lambda: self.delete_nodes(moved))
+            else:
+                menu.add_separator()
+                menu.add_command(
+                    label="🗑 " + self.t("interface.gui.delete_window"),
+                    command=lambda d=self.doc, w=self.wi: self.delete_window(d, w))
         menu.add_command(label="📋 " + self.t("interface.gui.copy_pdx"),
                          command=lambda: self._copy_pdx(node))
         menu.tk_popup(x, y)

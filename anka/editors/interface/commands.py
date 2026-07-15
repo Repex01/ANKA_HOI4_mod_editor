@@ -184,3 +184,36 @@ class CreateWindowCommand(Command):
         if windows:
             self.doc.gui_types().items.remove(windows[-1].pair)
             tab.mark_dirty(self.doc)
+
+
+class DeleteWindowCommand(Command):
+    """Remove the `window_index`-th top-level window; undo re-parses the
+    snapshot and splices it back into the same window slot."""
+
+    label_key = "interface.cmd.delete_window"
+    touches = frozenset({TOUCH_RENDER, TOUCH_TREE})
+
+    def __init__(self, doc, window_index: int, snapshot: str):
+        self.doc = doc
+        self.window_index = window_index
+        self.snapshot = snapshot
+
+    def redo(self, tab) -> None:
+        windows = self.doc.windows()
+        if self.window_index < len(windows):
+            self.doc.gui_types().items.remove(windows[self.window_index].pair)
+            tab.mark_dirty(self.doc)
+
+    def undo(self, tab) -> None:
+        parsed = pdx_parse(self.snapshot, recover=False)
+        pair = next((it for it in parsed.items if isinstance(it, Pair)), None)
+        if pair is None:
+            return
+        gt = self.doc.gui_types(create=True)
+        windows = self.doc.windows()
+        if self.window_index < len(windows):
+            raw_index = gt.items.index(windows[self.window_index].pair)
+        else:
+            raw_index = len(gt.items)
+        gt.items.insert(raw_index, pair)
+        tab.mark_dirty(self.doc)

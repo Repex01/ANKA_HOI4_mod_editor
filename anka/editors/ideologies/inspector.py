@@ -114,12 +114,41 @@ class IdeologyInspector(InspectorBase):
             "write", lambda *_: self._debounce("loc", self._commit_loc, 1200))
         name_entry.bind("<FocusOut>", lambda e: self._commit_loc())
         r += 1
+
+        ttk.Label(b, text=self.t("ideology.desc"),
+                  style="CardMuted.TLabel").grid(row=r, column=0, sticky="nw",
+                                                 pady=3)
+        self._desc_text = tk.Text(b, height=3, wrap="word", relief="flat",
+                                  bg=self.palette.surface_alt,
+                                  fg=self.palette.text,
+                                  insertbackground=self.palette.text,
+                                  font=("Segoe UI", 9))
+        self._desc_text.grid(row=r, column=1, sticky="ew", padx=(8, 0), pady=3)
+        self._desc_text.bind(
+            "<KeyRelease>",
+            lambda e: self._debounce("loc_desc", self._commit_desc, 1200))
+        self._desc_text.bind("<FocusOut>", lambda e: self._commit_desc())
+        r += 1
+
+        # ideology (group) icon — GFX_ideology_<name>_group
+        self._group_photo = self._icon_preview(
+            self.owner.ideology_sprite(self.entry.name, group=True), (72, 72))
+        ttk.Label(b, image=self._group_photo).grid(row=r, column=0, pady=(4, 0))
+        if self._editable:
+            ttk.Button(b, text="🖼 " + self.t("ideology.pick_icon"),
+                       command=lambda: self._pick_icon(self.entry.name,
+                                                       group=True)).grid(
+                row=r, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
+        r += 1
         self._reload_loc()
         return r
 
     def _reload_loc(self) -> None:
-        value = self.owner.loc_get(self.entry.name, self._lang.get())
-        self._name_var.set(value)
+        lang = self._lang.get()
+        self._name_var.set(self.owner.loc_get(self.entry.name, lang))
+        self._desc_text.delete("1.0", "end")
+        self._desc_text.insert(
+            "1.0", self.owner.loc_get(f"{self.entry.name}_desc", lang))
 
     def _commit_loc(self) -> None:
         if not self._guard() or self.entry is None:
@@ -129,6 +158,34 @@ class IdeologyInspector(InspectorBase):
         if name and name != self.owner.loc_get(key, lang):
             self.owner.loc_set(key, lang, name)
             self.owner.refresh_tree_labels()
+
+    def _commit_desc(self) -> None:
+        if not self._guard() or self.entry is None:
+            return
+        key, lang = f"{self.entry.name}_desc", self._lang.get()
+        text = self._desc_text.get("1.0", "end").strip()
+        if text and text != self.owner.loc_get(key, lang):
+            self.owner.loc_set(key, lang, text)
+
+    def _pick_icon(self, name: str, *, group: bool) -> None:
+        """Gallery picker + custom import for ideology / sub-ideology icons."""
+        if not self._editable or not self.owner.resolver_ready():
+            return
+        from ..common.dialogs import IconPickerDialog
+        target = self.owner.ideology_sprite(name, group=group)
+
+        def picked(sprite: str) -> None:
+            if self.owner.reuse_ideology_icon(sprite, name, group=group):
+                self._rebuild()
+
+        def imported(path, _keep_size: bool = False) -> None:
+            if self.owner.import_ideology_icon(path, name, group=group):
+                dialog.destroy()
+                self._rebuild()
+
+        dialog = IconPickerDialog(self, self.owner, self.owner.resolver,
+                                  target, picked, imported,
+                                  prefixes=("GFX_ideology_",))
 
     def _on_language(self, _event=None) -> None:
         self.flush_pending()
@@ -422,9 +479,11 @@ class IdeologyInspector(InspectorBase):
         ttk.Button(head, text="➕", width=3,
                    command=self._add_type).pack(side="right")
         r += 1
+        lang = self._lang.get()
+        self._type_photos: list = []
         for itype in self.entry.types():
             line = ttk.Frame(b, style="Card.TFrame")
-            line.grid(row=r, column=0, columnspan=2, sticky="ew", pady=1)
+            line.grid(row=r, column=0, columnspan=2, sticky="ew", pady=(4, 1))
             ttk.Label(line, text=itype.name, style="Card.TLabel").pack(
                 side="left", padx=(10, 6))
             var = tk.BooleanVar(value=itype.can_be_randomly_selected)
@@ -450,7 +509,56 @@ class IdeologyInspector(InspectorBase):
                            command=lambda it=itype: self._pick_type_color(it)).pack(
                     side="right")
             r += 1
+            r = self._type_detail_row(r, itype, lang)
         return r
+
+    def _type_detail_row(self, r: int, itype, lang: str) -> int:
+        """Sub-ideology extras: icon (``GFX_ideology_<type>``) + localized
+        name/description in the currently selected language."""
+        b = self.body
+        detail = ttk.Frame(b, style="Card.TFrame")
+        detail.grid(row=r, column=0, columnspan=2, sticky="ew",
+                    pady=(0, 3), padx=(24, 0))
+        detail.columnconfigure(1, weight=1)
+        photo = self._icon_preview(
+            self.owner.ideology_sprite(itype.name, group=False), (36, 36))
+        self._type_photos.append(photo)
+        icon_lbl = ttk.Label(detail, image=photo)
+        icon_lbl.grid(row=0, column=0, rowspan=2, padx=(0, 8))
+        if self._editable:
+            icon_lbl.configure(cursor="hand2")
+            icon_lbl.bind("<Button-1>",
+                          lambda _e, n=itype.name: self._pick_icon(n, group=False))
+
+        def loc_row(row: int, suffix: str, label_key: str) -> None:
+            key = itype.name + suffix
+            ttk.Label(detail, text=self.t(label_key),
+                      style="CardMuted.TLabel").grid(row=row, column=1,
+                                                     sticky="w")
+            var = tk.StringVar(value=self.owner.loc_get(key, lang))
+            entry = ttk.Entry(detail, textvariable=var)
+            entry.grid(row=row, column=2, sticky="ew", padx=(6, 0), pady=1)
+
+            def commit(k=key, v=var) -> None:
+                if not self._guard():
+                    return
+                text = v.get().strip()
+                if text and text != self.owner.loc_get(k, self._lang.get()):
+                    self.owner.loc_set(k, self._lang.get(), text)
+
+            var.trace_add("write", lambda *_a, k=key, c=commit:
+                          self._debounce(f"tloc:{k}", c, 1200))
+            entry.bind("<FocusOut>", lambda _e, c=commit: c())
+
+        detail.columnconfigure(2, weight=3)
+        loc_row(0, "", "focuses.inspector.name")
+        loc_row(1, "_desc", "ideology.desc")
+        if self._editable:
+            ttk.Button(detail, text="🖼", width=3,
+                       command=lambda n=itype.name: self._pick_icon(
+                           n, group=False)).grid(row=0, column=3, rowspan=2,
+                                                 padx=(6, 0))
+        return r + 1
 
     def _commit_type_random(self, itype, var: tk.BooleanVar) -> None:
         if not self._guard():

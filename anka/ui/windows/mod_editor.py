@@ -11,6 +11,7 @@ from tkinter import ttk
 
 from ...domain.mod import Mod, ModContext
 from ...editors import EditorRegistry, EditorServices
+from ..widgets.scrollable import ScrollableFrame
 
 
 class ModEditorScreen(ttk.Frame):
@@ -43,7 +44,7 @@ class ModEditorScreen(ttk.Frame):
 
         body = ttk.Frame(self, style="TFrame")
         body.pack(fill="both", expand=True, padx=20, pady=(4, 16))
-        body.columnconfigure(0, weight=0, minsize=210)
+        body.columnconfigure(0, weight=0, minsize=150)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
 
@@ -51,9 +52,14 @@ class ModEditorScreen(ttk.Frame):
         sidebar.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
         ttk.Label(sidebar, text=t("editor.modules"), style="CardMuted.TLabel").pack(
             anchor="w", padx=8, pady=(0, 6))
+        # Scrolls when the module list outgrows the window height.
+        scroll = ScrollableFrame(sidebar, bg=self.app.palette.surface,
+                                 autohide=True, width=150)
+        scroll.pack(fill="both", expand=True)
+        scroll.body.configure(style="Sidebar.TFrame")
         for module in self._modules:
             label = module.title + ("" if module.implemented else "  ·")
-            btn = ttk.Button(sidebar, text=label, style="Sidebar.TButton",
+            btn = ttk.Button(scroll.body, text=label, style="Sidebar.TButton",
                              command=lambda m=module: self._select(m))
             btn.pack(fill="x", pady=2)
             self._buttons[module.id] = btn

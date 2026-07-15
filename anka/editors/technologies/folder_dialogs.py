@@ -37,8 +37,9 @@ class NewFolderDialog(BaseDialog):
                                                     sticky="ew", padx=(10, 0), pady=4)
 
         label(1, "technologies.folder.display_name")
-        self._name = tk.StringVar()
-        ttk.Entry(body, textvariable=self._name).grid(row=1, column=1, columnspan=2,
+        # NB: not `self._name` — that is tkinter's internal widget name.
+        self._display_name = tk.StringVar()
+        ttk.Entry(body, textvariable=self._display_name).grid(row=1, column=1, columnspan=2,
                                                       sticky="ew", padx=(10, 0),
                                                       pady=4)
 
@@ -140,7 +141,7 @@ class NewFolderDialog(BaseDialog):
             return
 
         # 4. localisation
-        name = self._name.get().strip()
+        name = self._display_name.get().strip()
         if name:
             editor.service.loc_set(folder_id, editor.loc_language, name)
 

@@ -27,6 +27,7 @@ from ...services.technology_service import (
     Technology,
     TechnologyService,
 )
+from ...ui.widgets.tooltip import attach_help
 from ..base import EditorModule, EditorRegistry
 from ..common import TextPromptDialog
 from ..common.commands import Command, CommandStack
@@ -86,6 +87,8 @@ class TechnologiesEditor(EditorModule):
         self._history = CommandStack(limit=60)
         self._baselines: dict[Path, str] = {}
         self._restoring = False
+        self._equipment_tab = None
+        self._tree_built = False
         self._resolver_ready = threading.Event()
         threading.Thread(target=self._warm_resolver, daemon=True).start()
 
@@ -100,7 +103,41 @@ class TechnologiesEditor(EditorModule):
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
+        self._nb = ttk.Notebook(parent)
+        self._pages: dict[str, ttk.Frame] = {}
+        for key in ("tree", "equipment"):
+            page = ttk.Frame(self._nb, style="TFrame", padding=(0, 8, 0, 0))
+            page.rowconfigure(0, weight=1)
+            page.columnconfigure(0, weight=1)
+            self._nb.add(page, text=self.t(f"technologies.tab.{key}"))
+            self._pages[key] = page
+        self._nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self._build_tab("tree")
+        return self._nb
+
+    def _on_tab_changed(self, _event=None) -> None:
+        index = self._nb.index(self._nb.select())
+        key = ("tree", "equipment")[index]
+        if self._tree_built:
+            self.inspector.flush_pending()
+        if self._equipment_tab is not None:
+            self._equipment_tab.flush_pending()
+        self._build_tab(key)
+
+    def _build_tab(self, key: str) -> None:
+        if key == "equipment":
+            if self._equipment_tab is None:
+                from .equipment_tab import EquipmentTab
+                self._equipment_tab = EquipmentTab(self._pages[key], self)
+                self._equipment_tab.grid(row=0, column=0, sticky="nsew")
+            return
+        if not self._tree_built:
+            self._tree_built = True
+            self._build_tree_tab(self._pages[key])
+
+    def _build_tree_tab(self, parent) -> None:
         root = ttk.Frame(parent, style="TFrame")
+        root.grid(row=0, column=0, sticky="nsew")
         root.columnconfigure(1, weight=1)
         root.rowconfigure(1, weight=1)
 
@@ -129,12 +166,22 @@ class TechnologiesEditor(EditorModule):
                 "single": self.t("technologies.link_status.path"),
             },
             icons_ready=self.resolver_ready,
+            icon_frames=self.icon_frames,
         )
         self.canvas.grid(row=0, column=0, sticky="nsew")
+        from ...ui.hotkeys import bind_ctrl
         for widget in (self.canvas.canvas, self._folders_list):
-            widget.bind("<Control-z>", lambda e: (self.undo(), "break")[1])
-            widget.bind("<Control-y>", lambda e: (self.redo(), "break")[1])
-            widget.bind("<Control-Shift-Z>", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.undo(), "break")[1])
+            bind_ctrl(widget, "y", lambda e: (self.redo(), "break")[1])
+            bind_ctrl(widget, "z", lambda e: (self.redo(), "break")[1],
+                      shift=True)
+        for letter, action in (("c", self.copy_selection),
+                               ("v", self.paste_clipboard),
+                               ("d", self.duplicate_selection)):
+            bind_ctrl(self.canvas.canvas, letter,
+                      lambda e, a=action: (a(), "break")[1])
+        self._folders_list.bind(
+            "<Delete>", lambda e: (self._delete_selected_folder(), "break")[1])
         self._build_problems(center)
 
         side = ttk.Frame(root, style="TFrame")
@@ -147,7 +194,6 @@ class TechnologiesEditor(EditorModule):
         side.columnconfigure(0, minsize=340)
 
         self._reload_folders()
-        return root
 
     def _build_toolbar(self, root) -> None:
         bar = ttk.Frame(root, style="TFrame")
@@ -159,14 +205,21 @@ class TechnologiesEditor(EditorModule):
         self._folder_label = ttk.Label(bar, text="—", style="Muted.TLabel")
         self._folder_label.pack(side="left", padx=12)
 
-        ttk.Button(bar, text="➕ " + self.t("technologies.add_tech"),
-                   command=self._add_tech_toolbar).pack(side="left", padx=2)
-        ttk.Button(bar, text="🏷 " + self.t("technologies.tags.title"),
-                   command=self._open_tags).pack(side="left", padx=2)
+        b_add = ttk.Button(bar, text="➕ " + self.t("technologies.add_tech"),
+                           command=self._add_tech_toolbar)
+        b_add.pack(side="left", padx=2)
+        b_tags = ttk.Button(bar, text="🏷 " + self.t("technologies.tags.title"),
+                            command=self._open_tags)
+        b_tags.pack(side="left", padx=2)
+        attach_help(b_add, self.t, "technologies.add_tech", self.palette)
+        attach_help(b_tags, self.t, "technologies.tags", self.palette)
+        attach_help(self._btn_folders, self.t, "technologies.folders", self.palette)
         from ...services.doctrine_service import DoctrineService
         if DoctrineService(self.context).exists():
-            ttk.Button(bar, text="🎖 " + self.t("technologies.doctrines.title"),
-                       command=self._open_doctrines).pack(side="left", padx=2)
+            b_doc = ttk.Button(bar, text="🎖 " + self.t("technologies.doctrines.title"),
+                               command=self._open_doctrines)
+            b_doc.pack(side="left", padx=2)
+            attach_help(b_doc, self.t, "technologies.doctrines", self.palette)
         self._undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo,
                                     state="disabled")
         self._undo_btn.pack(side="left", padx=(6, 1))
@@ -180,6 +233,8 @@ class TechnologiesEditor(EditorModule):
             bar, text=self.t("technologies.panel.inspector") + " ▸",
             command=self._toggle_inspector)
         self._btn_inspector.pack(side="right")
+        attach_help(self._btn_inspector, self.t, "technologies.inspector",
+                    self.palette)
         self._btn_problems = ttk.Button(bar, text="⚠ 0", command=self._toggle_problems)
         self._btn_problems.pack(side="right", padx=4)
 
@@ -236,6 +291,10 @@ class TechnologiesEditor(EditorModule):
             btns, text="➕ " + self.t("technologies.new_folder"),
             style="Accent.TButton", command=self._new_folder)
         self._new_folder_btn.grid(row=0, column=0, sticky="ew")
+        attach_help(self._new_folder_btn, self.t, "technologies.new_folder",
+                    self.palette)
+        attach_help(self._folders_list, self.t, "technologies.folders",
+                    self.palette)
 
     def _build_problems(self, center) -> None:
         panel = ttk.Frame(center, style="Card.TFrame", padding=(8, 6))
@@ -345,8 +404,19 @@ class TechnologiesEditor(EditorModule):
             menu.add_command(
                 label="🛠 " + self.t("technologies.generate_folder_gui"),
                 command=lambda: self._generate_folder_gui(row))
+        vanilla_refs = self._vanilla_refs_for(row)
+        if vanilla_refs:
+            menu.add_command(
+                label=("⧉ " + self.t("technologies.copy_folder_to_mod",
+                                     count=len(vanilla_refs))),
+                command=lambda: self._copy_folder_to_mod(row))
         menu.add_command(label="🏷 " + self.t("technologies.tags.title"),
                          command=self._open_tags)
+        fdef = self.service.folders().get(row)
+        if fdef is not None and not fdef.is_vanilla:
+            menu.add_separator()
+            menu.add_command(label="🗑 " + self.t("technologies.delete_folder"),
+                             command=lambda: self._delete_folder(row))
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
@@ -387,7 +457,7 @@ class TechnologiesEditor(EditorModule):
         if self._folder_view is not None and not self._folder_view.has_gui:
             label += "  ⚠ " + self.t("technologies.no_gui")
         self._folder_label.configure(text=label)
-        self.inspector.show(None)
+        self.inspector.show_folder(self._folder_view)
         self.refresh_canvas(keep_view=False)
         self._validate()
 
@@ -439,9 +509,10 @@ class TechnologiesEditor(EditorModule):
                 px = gb.cell_to_px(cell)
             else:
                 px = (cell[0] * 70.0, cell[1] * 70.0)     # unresolved fallback
+            # Squares are the default look: only techs that unlock equipment
+            # (or force the flag off) use the wide item box.
             small = (tech.get_flag("force_use_small_tech_layout")
-                     or (view.small_item is not None
-                         and not tech.enable_equipments
+                     or (not tech.enable_equipments
                          and not tech.enable_equipment_modules))
             nodes.append(CanvasNode(
                 tid=tech.id, px=px, cell=cell, gridbox=gb_name,
@@ -771,12 +842,16 @@ class TechnologiesEditor(EditorModule):
                     cell = gb.px_to_cell(px)
             menu.add_command(label="➕ " + t("technologies.add_tech_here"),
                              command=lambda: self._on_create(gridbox, cell, px))
+            menu.add_command(label="📥 " + t("technologies.paste"),
+                             command=self.paste_clipboard)
             self._add_template_menu(menu, gridbox, cell, px)
         else:
             ref, doc, tech = found
             editable = self._editable(ref)
             menu.add_command(label="🔍 " + t("technologies.center_here"),
                              command=lambda: self.canvas.center_on(tid))
+            menu.add_command(label="📋 " + t("technologies.copy"),
+                             command=self.copy_selection)
             if ref.is_vanilla:
                 menu.add_command(
                     label="⧉ " + t("technologies.copy_file_to_mod", file=ref.name),
@@ -948,6 +1023,41 @@ class TechnologiesEditor(EditorModule):
         self.refresh_canvas()
         self._validate()
 
+    def _vanilla_refs_for(self, folder_id: str) -> list[TechDocRef]:
+        """Distinct vanilla files holding techs of this folder — the ones that
+        must be copied into the mod before they can be edited."""
+        seen: dict[Path, TechDocRef] = {}
+        for ref, _tech in self.service.techs_in_folder(folder_id):
+            if not self._editable(ref) and ref.path not in seen:
+                seen[ref.path] = ref
+        return list(seen.values())
+
+    def _copy_folder_to_mod(self, folder_id: str) -> None:
+        """Copy every vanilla file this folder's techs live in into the mod, so the
+        whole folder becomes editable in one go (per-file override semantics)."""
+        refs = self._vanilla_refs_for(folder_id)
+        if not refs:
+            return
+        names = "\n".join(f"• {r.rel_file}" for r in refs[:12])
+        if len(refs) > 12:
+            names += f"\n… (+{len(refs) - 12})"
+        if not messagebox.askyesno("ANKA", self.t(
+                "technologies.confirm_copy_folder", folder=folder_id,
+                count=len(refs), files=names)):
+            return
+        failed: list[str] = []
+        for ref in refs:
+            try:
+                self._copy_file_to_mod(ref)
+            except Exception as exc:                      # noqa: BLE001
+                failed.append(f"{ref.rel_file}: {exc}")
+        self._reload_folders()
+        self._folders_list.selection_set(folder_id)
+        self.open_folder(folder_id)
+        if failed:
+            messagebox.showerror("ANKA", self.t("technologies.err.save",
+                                                error="\n".join(failed)))
+
     def _duplicate(self, doc: TechDocument, tech: Technology) -> None:
         taken = set(self.service.tech_index())
         new_id = tech.id + "_copy"
@@ -962,6 +1072,140 @@ class TechnologiesEditor(EditorModule):
         self.refresh_canvas()
         self._validate()
         self.canvas.set_selection([dup.id], notify=True)
+
+    # -------------------------------------------------------- copy/paste/dup
+    def copy_selection(self) -> None:
+        """Ctrl+C: put the selected tech block(s) on the clipboard as PDX text."""
+        self.inspector.flush_pending()
+        snaps: list[str] = []
+        for tid in self.canvas.selection:
+            found = self._find(tid)
+            if found is not None:
+                from ...core.pdx import Block, Pair
+                tech = found[2]
+                snaps.append(dumps(Block([Pair(tech.id, tech.block)])).rstrip("\n"))
+        if snaps:
+            self.canvas.clipboard_clear()
+            self.canvas.clipboard_append("\n".join(snaps))
+
+    def paste_clipboard(self) -> None:
+        """Ctrl+V: parse the clipboard as PDX tech block(s) and add them to the
+        current folder with fresh unique ids, two rows below their source cell."""
+        if self._folder_id is None:
+            return
+        try:
+            text = self.canvas.clipboard_get()
+        except tk.TclError:
+            return
+        if not text or not text.strip():
+            return
+        from ...core.pdx import Block
+        from ...core.pdx import parse as pdx_parse
+        try:
+            parsed = pdx_parse(text, recover=False)
+        except Exception:                                  # noqa: BLE001
+            return
+        pairs = [p for p in parsed.pairs() if isinstance(p.value, Block)]
+        # a whole copied file may wrap techs in `technologies = { ... }`
+        if len(pairs) == 1 and pairs[0].key.lower() == "technologies":
+            pairs = [p for p in pairs[0].value.pairs()
+                     if isinstance(p.value, Block) and not p.key.startswith("@")]
+        if not pairs:
+            return
+        doc = self._target_doc()
+        if doc is None:
+            return
+        created: list[str] = []
+        for pair in pairs:
+            tech = self.service.paste_tech(doc, pair, folder=self._folder_id)
+            created.append(tech.id)
+        self.mark_dirty([doc])
+        self.refresh_canvas()
+        self._validate()
+        self.canvas.set_selection(created, notify=True)
+
+    def duplicate_selection(self) -> None:
+        """Ctrl+D: duplicate every selected (editable) tech in place."""
+        created: list[str] = []
+        touched: list[TechDocument] = []
+        taken = set(self.service.tech_index())
+        for tid in list(self.canvas.selection):
+            found = self._find(tid)
+            if found is None or not self._editable(found[0]):
+                continue
+            _ref, doc, tech = found
+            new_id = tech.id + "_copy"
+            while new_id in taken:
+                new_id += "_copy"
+            try:
+                dup = self.service.duplicate_tech(doc, tech, new_id)
+            except ValueError:
+                continue
+            taken.add(new_id)
+            created.append(dup.id)
+            if doc not in touched:
+                touched.append(doc)
+        if not created:
+            return
+        self.mark_dirty(touched)
+        self.refresh_canvas()
+        self._validate()
+        self.canvas.set_selection(created, notify=True)
+
+    # ---------------------------------------------------------- folder delete
+    def _delete_selected_folder(self) -> None:
+        sel = self._folders_list.selection()
+        if sel:
+            self._delete_folder(sel[0])
+
+    def _delete_folder(self, folder_id: str) -> None:
+        """Delete a mod-defined folder: its technology_tags entry, its GUI
+        container/tab/items (mod-side .gui only) and every ``folder = {...}``
+        assignment in editable tech documents."""
+        fdef = self.service.folders().get(folder_id)
+        if fdef is None:
+            return
+        if fdef.is_vanilla:
+            messagebox.showerror("ANKA", self.t("technologies.err.vanilla_folder",
+                                                folder=folder_id))
+            return
+        assigned = self.service.techs_in_folder(folder_id)
+        if not messagebox.askyesno("ANKA", self.t(
+                "technologies.confirm_delete_folder", folder=folder_id,
+                count=len(assigned))):
+            return
+        try:
+            touched = self.service.remove_folder_assignments(folder_id)
+            self.service.remove_folder(folder_id)
+        except Exception as exc:                           # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("technologies.err.save",
+                                                error=str(exc)))
+            return
+        try:
+            self.gui.remove_folder_gui(folder_id,
+                                       doctrine=fdef.doctrine)
+        except Exception:
+            pass                     # tags entry is gone; GUI leftovers are inert
+        # save straight through the service: some touched documents were never
+        # opened in this session, so the editor's dirty tracking may not know them
+        errors: list[str] = []
+        for tdoc in touched:
+            try:
+                self.service.save(tdoc)
+                self._dirty.discard(tdoc.ref.path)
+                self._baselines[tdoc.ref.path] = dumps(tdoc.root)
+            except Exception as exc:                       # noqa: BLE001
+                errors.append(f"{tdoc.ref.rel_file}: {exc}")
+        if errors:
+            messagebox.showerror("ANKA", self.t("technologies.err.save",
+                                                error="\n".join(errors)))
+        if self._folder_id == folder_id:
+            self._folder_id = None
+            self._folder_view = None
+            self._folder_label.configure(text="—")
+            self.inspector.show(None)
+            self.canvas.set_model(CanvasModel(), keep_view=False)
+        self._reload_folders()
 
     def rename_tech(self, tech: Technology, new_id: str) -> None:
         found = self._find(tech.id)
@@ -1216,6 +1460,66 @@ class TechnologiesEditor(EditorModule):
         self.canvas.render()
         return sprite
 
+    def icon_frames(self, sprite: str) -> int:
+        """noOfFrames of a sprite (frame strips must be cropped for display).
+        Falls back to 1 while the catalog is still warming."""
+        if not self.resolver_ready():
+            return 1
+        sdef = self.interface.sprite_catalog().get(sprite)
+        return sdef.view.no_of_frames() if sdef is not None else 1
+
+    def reuse_sprite(self, target: str, source: str) -> str | None:
+        """Point `target` at `source`'s texture. The game looks a tech icon up by
+        id (``GFX_<id>_medium``) and a tab by folder, so "picking" an existing
+        sprite means re-registering the target to the same texture."""
+        if not source or source == target:
+            return target
+        sdef = self.interface.sprite_catalog().get(source)
+        if sdef is None or not sdef.view.texture:
+            return None
+        from ...core.gfx import SpriteRegistry
+        from ...core.guitypes import SpriteView
+        try:
+            registry = SpriteRegistry(
+                self.context.mod.path / "interface/anka_technologies.gfx")
+            registry.register(target, sdef.view.texture,
+                              noOfFrames=sdef.view.no_of_frames()).save()
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("technologies.err.icon",
+                                                error=str(exc)))
+            return None
+        # keep the live catalogs in sync: the resolver maps the name to the
+        # texture, the catalog carries noOfFrames (needed to crop frame strips).
+        # The source's texture path is relative to *its* content root.
+        resolved = self.interface.resolver().resolve(source)
+        if resolved is not None:
+            self.interface.resolver().add(target, resolved)
+        from ...core.pdx import Block
+        catalog = self.interface.sprite_catalog()
+        for container in registry.root.get_all_ci("spriteTypes"):
+            if not isinstance(container, Block):
+                continue
+            for pair in container.pairs():
+                if isinstance(pair.value, Block):
+                    view = SpriteView(pair)
+                    if view.name == target:
+                        catalog.add(view, sdef.root)
+        self.canvas.invalidate_icon(target)
+        self.canvas.render()
+        return target
+
+    def import_tab_icon(self, path, folder_id: str) -> str | None:
+        """Convert an image into the folder's ``GFX_<folder>_tab`` strip."""
+        try:
+            dds, _gfx = self.context.icons.add_tech_tab_icon(Path(path), folder_id)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("technologies.err.icon",
+                                                error=str(exc)))
+            return None
+        sprite = f"GFX_{folder_id}_tab"
+        self.interface.resolver().add(sprite, dds)
+        return sprite
+
     def value_options(self, vtype: str) -> list[tuple[str, str]]:
         """(display, value) choices for typed script fields; cached per session."""
         if vtype == "event":
@@ -1254,5 +1558,8 @@ class TechnologiesEditor(EditorModule):
         return opts
 
     def on_leave(self) -> None:
-        self.inspector.flush_pending()
-        self._save()
+        if self._tree_built:
+            self.inspector.flush_pending()
+            self._save()
+        if self._equipment_tab is not None:
+            self._equipment_tab.save_all()

@@ -178,15 +178,19 @@ class ScriptedGuiTab(ttk.Frame):
     # ------------------------------------------------------------------- tree
     def reload_tree(self, keep_selection: bool = False) -> None:
         selected = self._tree.selection() if keep_selection else ()
+        # Dependency-mod files are is_vanilla=True even with the checkbox off
+        # (layered_docs always lists them): read-only base files, never
+        # editable mod docs — and never twice (duplicate iids break the tree).
+        refs = self.service.list_docs(include_vanilla=self._vanilla.get())
         self._mod_docs = []
-        for ref in self.service.list_docs(include_vanilla=False):
+        for ref in refs:
+            if ref.is_vanilla:
+                continue
             try:
                 self._mod_docs.append(self.service.load(ref))
             except Exception:
                 continue
-        self._vanilla_refs = ([r for r in self.service.list_docs(True)
-                               if r.is_vanilla]
-                              if self._vanilla.get() else [])
+        self._vanilla_refs = [r for r in refs if r.is_vanilla]
         self._refresh_tree()
         if selected and self._tree.exists(selected[0]):
             self._tree.selection_set(selected[0])

@@ -163,6 +163,7 @@ class ProvinceInspector(InspectorBase):
         self.owner.set_province_def(self.pid, **fields)
         self._set_terrain_choices(new_type)
         self._terrain_var.set(fields.get("terrain", d.terrain))
+        self.show(self.pid)      # coastal (own + via neighbors) may have changed
 
     def _commit_terrain(self) -> None:
         if self._loading or self.pid is None:
@@ -1011,6 +1012,31 @@ class BatchStateInspector(InspectorBase):
                    command=lambda: self._core_op(add=True)).pack(side="left", padx=(8, 0))
         ttk.Button(core_row, text="－ " + self.t("map.batch_remove_core"),
                    command=lambda: self._core_op(add=False)).pack(side="left", padx=4)
+        r += 1
+
+        # Rename every selected state to "<base>_<n>" (ascending id order).
+        ttk.Separator(b).grid(row=r, column=0, columnspan=3, sticky="ew", pady=8); r += 1
+        ttk.Label(b, text=self.t("map.batch_rename"), style="Heading.TLabel").grid(
+            row=r, column=0, columnspan=3, sticky="w", pady=(0, 3)); r += 1
+        ttk.Label(b, text=self.t("map.batch_rename_hint"), style="CardMuted.TLabel",
+                  wraplength=300, justify="left").grid(
+            row=r, column=0, columnspan=3, sticky="w", pady=(0, 4)); r += 1
+        ttk.Label(b, text=self.t("map.state_name"), style="CardMuted.TLabel").grid(
+            row=r, column=0, sticky="w", pady=3)
+        self._rename_var = tk.StringVar()
+        rename_entry = ttk.Entry(b, textvariable=self._rename_var, width=18)
+        rename_entry.grid(row=r, column=1, columnspan=2, sticky="ew",
+                          padx=(8, 0), pady=3)
+        rename_entry.bind("<Return>", lambda e: self._rename()); r += 1
+        ttk.Label(b, text=self.t("focuses.inspector.language"),
+                  style="CardMuted.TLabel").grid(row=r, column=0, sticky="w", pady=3)
+        self._rename_lang = tk.StringVar(value=self.owner.loc_language)
+        ttk.Combobox(b, textvariable=self._rename_lang, state="readonly", width=14,
+                     values=list(HOI4_LANGUAGES)).grid(
+            row=r, column=1, columnspan=2, sticky="w", padx=(8, 0), pady=3); r += 1
+        ttk.Button(b, text=self.t("map.batch_rename_apply"),
+                   command=self._rename).grid(row=r, column=0, columnspan=3,
+                                              sticky="ew", pady=(4, 0)); r += 1
 
     def _pick_row(self, row: int, label: str) -> tk.StringVar:
         b = self.body
@@ -1035,6 +1061,7 @@ class BatchStateInspector(InspectorBase):
         self._owner_var.set("")
         self._ctrl_var.set("")
         self._cat_var.set(self.KEEP)
+        self._rename_var.set("")
 
     def _apply(self) -> None:
         if not self.state_ids:
@@ -1055,3 +1082,10 @@ class BatchStateInspector(InspectorBase):
             self.owner.batch_cores(self.state_ids, add=tag)
         else:
             self.owner.batch_cores(self.state_ids, remove=tag)
+
+    def _rename(self) -> None:
+        base = self._rename_var.get().strip()
+        if not base or not self.state_ids:
+            return
+        self.owner.batch_rename_states(self.state_ids, base,
+                                       self._rename_lang.get())

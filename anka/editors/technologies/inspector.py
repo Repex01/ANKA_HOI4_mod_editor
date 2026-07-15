@@ -18,7 +18,8 @@ from ...services.technology_service import (
     TechDocument,
     Technology,
 )
-from ..common import MultiPickDialog, SinglePickDialog, TextPromptDialog
+from ..common import (IconPickerDialog, MultiPickDialog, SinglePickDialog,
+                      TextPromptDialog)
 from ..common.inspector_base import InspectorBase
 from ..common.script_editor import ScriptEditorDialog
 
@@ -42,6 +43,8 @@ class TechInspector(InspectorBase):
         super().__init__(master, owner)
         self.tech: Technology | None = None
         self.doc: TechDocument | None = None
+        self._folder = None            # FolderView when a folder is shown
+        self._tab_photo = None
         self._sections: list[ttk.Widget] = []
         self._loc_photo = None
         self._placeholder = ttk.Label(self.body,
@@ -57,6 +60,7 @@ class TechInspector(InspectorBase):
         try:
             self.tech = tech
             self.doc = doc
+            self._folder = None
             self._editable = editable and tech is not None
             for w in self._sections:
                 w.destroy()
@@ -71,11 +75,211 @@ class TechInspector(InspectorBase):
         finally:
             self._loading = False
 
+    def show_folder(self, view) -> None:
+        """Folder properties (no tech selected). Two editability domains:
+        localisation and the tab icon always work (loc overrides and mod-side
+        sprite re-registration are collision-safe even for vanilla folders);
+        the structure (ledger / doctrine / available) only for definitions
+        living in a mod file."""
+        self.flush_pending()
+        self._loading = True
+        try:
+            self.tech = self.doc = None
+            self._folder = view
+            self._editable = view is not None
+            for w in self._sections:
+                w.destroy()
+            self._sections = []
+            if view is None:
+                self._placeholder.grid()
+                return
+            self._placeholder.grid_remove()
+            self._build_folder_form(view)
+        finally:
+            self._loading = False
+
     def refresh(self) -> None:
         if self.tech is not None and self.doc is not None:
             self.show(self.tech, self.doc, self._editable)
+        elif self._folder is not None:
+            self.show_folder(self._folder)
+
+    # ---------------------------------------------------------- folder form
+    def _build_folder_form(self, view) -> None:
+        t = self.t
+        struct_ok = not view.definition.is_vanilla
+
+        # --- identity + structure (technology_tags definition) ---------------
+        sec = self._section(t("technologies.folder.section"))
+        ttk.Label(sec, text=view.folder_id, style="CardTitle.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w")
+        if not struct_ok:
+            ttk.Label(sec, text="🔒 " + t("technologies.folder.vanilla_def"),
+                      style="CardMuted.TLabel").grid(row=1, column=0, columnspan=2,
+                                                     sticky="w")
+
+        ttk.Label(sec, text=t("technologies.col.ledger"),
+                  style="CardMuted.TLabel").grid(row=2, column=0, sticky="w", pady=2)
+        ledger_var = tk.StringVar(value=view.definition.ledger or "")
+        ledger = ttk.Combobox(sec, textvariable=ledger_var, width=10,
+                              state="readonly" if struct_ok else "disabled",
+                              values=("army", "navy", "air", "military",
+                                      "civilian", "all", "hidden"))
+        ledger.grid(row=2, column=1, sticky="w", padx=(8, 0))
+        ledger.bind("<<ComboboxSelected>>",
+                    lambda e: self._commit_folder_def(ledger=ledger_var.get()))
+
+        doct_var = tk.BooleanVar(value=view.definition.doctrine)
+        doct = ttk.Checkbutton(
+            sec, text=t("technologies.tags.doctrine"), style="Card.TCheckbutton",
+            variable=doct_var,
+            command=lambda: self._commit_folder_def(doctrine=doct_var.get()),
+            state="normal" if struct_ok else "disabled")
+        doct.grid(row=3, column=0, columnspan=2, sticky="w")
+
+        filled = "●" if view.definition.available.strip() else "○"
+        avail = ttk.Button(sec, text=f"{filled} available",
+                           state="normal" if struct_ok else "disabled",
+                           command=self._edit_folder_available)
+        avail.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+
+        # --- localisation (always editable: loc overrides are collision-safe) -
+        loc = self._section(t("technologies.inspector.loc"))
+        langs = self.owner.service.languages()
+        self._folder_lang = tk.StringVar(
+            value=self.owner.loc_language if self.owner.loc_language in langs
+            else langs[0])
+        combo = ttk.Combobox(loc, textvariable=self._folder_lang, values=langs,
+                             state="readonly", width=12)
+        combo.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        combo.bind("<<ComboboxSelected>>", lambda e: self._reload_folder_loc())
+
+        self._folder_name = tk.StringVar()
+        self._folder_desc = tk.StringVar()
+        ttk.Label(loc, text=t("technologies.field.loc_name"),
+                  style="CardMuted.TLabel").grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Entry(loc, textvariable=self._folder_name).grid(
+            row=1, column=1, sticky="ew", padx=(8, 0))
+        ttk.Label(loc, text=t("technologies.field.loc_desc"),
+                  style="CardMuted.TLabel").grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Entry(loc, textvariable=self._folder_desc).grid(
+            row=2, column=1, sticky="ew", padx=(8, 0))
+        for var, which in ((self._folder_name, "name"), (self._folder_desc, "desc")):
+            var.trace_add("write", lambda *_a, w=which:
+                          self._debounce(f"folder_loc_{w}",
+                                         lambda: self._commit_folder_loc(w)))
+        self._reload_folder_loc()
+
+        # --- tab icon (mod-side sprite re-registration overrides vanilla) -----
+        icon_sec = self._section(t("technologies.folder.tab_icon"))
+        tab_sprite = view.tab_sprite or f"GFX_{view.folder_id}_tab"
+        self._tab_photo = self._icon_preview(tab_sprite, (96, 52))
+        ttk.Label(icon_sec, image=self._tab_photo).grid(row=0, column=0, pady=(2, 0))
+        row = ttk.Frame(icon_sec, style="Card.TFrame")
+        row.grid(row=0, column=1, sticky="w", padx=(8, 0), pady=(2, 0))
+        ttk.Button(row, text="🖼 " + t("technologies.pick_icon"),
+                   command=lambda: self._pick_tab_icon(view)).pack(side="left")
+        ttk.Button(row, text=t("technologies.import_icon"),
+                   command=lambda: self._import_tab_icon(view)).pack(
+            side="left", padx=(4, 0))
+
+    def _commit_folder_def(self, **changes) -> None:
+        if self._folder is None or self._loading:
+            return
+        try:
+            self.owner.service.update_folder(self._folder.folder_id, **changes)
+        except (PermissionError, KeyError) as exc:
+            messagebox.showerror("ANKA", str(exc))
+            return
+        self.owner._reload_folders()
+        if "doctrine" in changes and self.owner._folder_id == self._folder.folder_id:
+            # doctrine flips the target .gui file — reopen for a consistent view
+            self.owner.open_folder(self._folder.folder_id)
+
+    def _edit_folder_available(self) -> None:
+        view = self._folder
+        if view is None:
+            return
+
+        def apply(text: str) -> None:
+            self._commit_folder_def(available=text)
+            self.refresh()
+
+        ScriptEditorDialog(self, self.owner, "available",
+                           view.definition.available, apply, kinds=("trigger",))
+
+    def _reload_folder_loc(self) -> None:
+        if self._folder is None:
+            return
+        lang = self._folder_lang.get()
+        fid = self._folder.folder_id
+        self._loading = True
+        try:
+            self._folder_name.set(self.owner.service.loc_get(fid, lang) or "")
+            self._folder_desc.set(
+                self.owner.service.loc_get(f"{fid}_desc", lang) or "")
+        finally:
+            self._loading = False
+
+    def _commit_folder_loc(self, which: str) -> None:
+        if self._folder is None or self._loading:
+            return
+        lang = self._folder_lang.get()
+        fid = self._folder.folder_id
+        if which == "name":
+            self.owner.service.loc_set(fid, lang, self._folder_name.get().strip())
+            if lang == self.owner.loc_language:
+                self.owner._refresh_folders()
+        else:
+            self.owner.service.loc_set(f"{fid}_desc", lang,
+                                       self._folder_desc.get().strip())
+
+    def _pick_tab_icon(self, view) -> None:
+        if not self.owner.resolver_ready():
+            return
+        target = f"GFX_{view.folder_id}_tab"
+
+        def picked(sprite: str) -> None:
+            if self.owner.reuse_sprite(target, sprite):
+                self.refresh()
+
+        def imported(path, _keep_size: bool = False) -> None:
+            if self.owner.import_tab_icon(path, view.folder_id):
+                dialog.destroy()
+                self.refresh()
+
+        dialog = IconPickerDialog(self, self.owner, self.owner.resolver, target,
+                                  picked, imported, prefixes=("GFX_",))
+
+    def _import_tab_icon(self, view) -> None:
+        path = filedialog.askopenfilename(filetypes=[
+            (self.t("common.images"),
+             " ".join(f"*{e}" for e in SUPPORTED_IMPORT_FORMATS))])
+        if path and self.owner.import_tab_icon(path, view.folder_id):
+            self.refresh()
 
     # --------------------------------------------------------------- helpers
+    def _icon_preview(self, sprite: str, size=(48, 48)):
+        """Frame-strip aware thumbnail: sprites with ``noOfFrames > 1`` store
+        their frames side by side — show only the first, like the game does."""
+        from PIL import Image, ImageTk
+        img = None
+        path = (self.owner.resolver.resolve(sprite)
+                if sprite and self.owner.resolver_ready() else None)
+        if path is not None:
+            try:
+                with Image.open(path) as im:
+                    img = im.convert("RGBA")
+                frames = self.owner.icon_frames(sprite)
+                if frames > 1:
+                    img = img.crop((0, 0, max(1, img.width // frames), img.height))
+                img.thumbnail(size, Image.LANCZOS)
+            except Exception:
+                img = None
+        if img is None:
+            img = Image.new("RGBA", size, (0, 0, 0, 0))
+        return ImageTk.PhotoImage(img)
+
     def _touch(self, canvas: bool = False) -> None:
         if self.doc is not None:
             self.owner.mark_dirty([self.doc])
@@ -409,9 +613,10 @@ class TechInspector(InspectorBase):
         self._loc_photo = self._icon_preview(icon_sprite, (96, 52))
         ttk.Label(loc, image=self._loc_photo).grid(row=3, column=0, pady=(6, 0))
         if self._editable:
-            ttk.Button(loc, text=t("technologies.import_icon"),
-                       command=self._import_icon).grid(row=3, column=1, sticky="w",
-                                                       padx=(8, 0), pady=(6, 0))
+            # the gallery picker also offers custom-image import
+            ttk.Button(loc, text="🖼 " + t("technologies.pick_icon"),
+                       command=self._pick_icon).grid(row=3, column=1, sticky="w",
+                                                     padx=(8, 0), pady=(6, 0))
 
     # -------------------------------------------------------------- section ops
     def _rename(self) -> None:
@@ -575,13 +780,21 @@ class TechInspector(InspectorBase):
         if which == "name":
             self.owner.refresh_canvas()
 
-    def _import_icon(self) -> None:
-        if self.tech is None:
+    def _pick_icon(self) -> None:
+        """Gallery picker, like the other editors. A tech's icon is looked up by
+        id, so picking re-registers ``GFX_<id>_medium`` onto the chosen texture."""
+        if self.tech is None or not self.owner.resolver_ready():
             return
-        path = filedialog.askopenfilename(filetypes=[
-            (self.t("common.images"), " ".join(f"*{e}" for e in SUPPORTED_IMPORT_FORMATS))])
-        if not path:
-            return
-        sprite = self.owner.import_icon(path, self.tech)
-        if sprite:
-            self.refresh()
+        target = f"GFX_{self.tech.id}_medium"
+
+        def picked(sprite: str) -> None:
+            if self.owner.reuse_sprite(target, sprite):
+                self.refresh()
+
+        def imported(path, _keep_size: bool = False) -> None:
+            if self.owner.import_icon(path, self.tech):
+                dialog.destroy()
+                self.refresh()
+
+        dialog = IconPickerDialog(self, self.owner, self.owner.resolver, target,
+                                  picked, imported, prefixes=("GFX_",))

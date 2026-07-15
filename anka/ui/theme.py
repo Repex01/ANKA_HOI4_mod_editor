@@ -97,7 +97,7 @@ class ThemeManager:
 
         # Big, flat sidebar / menu buttons
         s.configure("Sidebar.TButton", background=p.surface, foreground=p.text,
-                    relief="flat", anchor="w", padding=(16, 12), font=FONT)
+                    relief="flat", anchor="w", padding=(10, 8), font=FONT)
         s.map("Sidebar.TButton", background=[("active", p.surface_alt), ("pressed", p.surface_alt)])
 
         s.configure("Menu.TButton", background=p.surface, foreground=p.text,

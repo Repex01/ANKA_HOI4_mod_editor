@@ -142,6 +142,56 @@ class IconService:
         registry.register(sprite, rel_texture, noOfFrames=2).save()
         return dds_path, gfx_path
 
+    # --- equipment -----------------------------------------------------------
+    def add_equipment_icon(
+        self,
+        source: str | Path | Image.Image,
+        picture: str,
+        gfx_file: str = "anka_equipment.gfx",
+        compressed: bool = False,
+        max_size: tuple[int, int] | None = (120, 60),
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_<picture>_medium`` — the sprite the game shows for
+        equipment whose ``picture = <picture>`` (or whose id matches). Vanilla
+        equipment art has no canonical size, so the source dimensions are kept;
+        ``max_size`` only downscales oversized images. Returns (dds, gfx)."""
+        img = source if isinstance(source, Image.Image) else ImageConverter.load(source)
+        if max_size is not None and (img.width > max_size[0] or img.height > max_size[1]):
+            img = img.copy()
+            img.thumbnail(max_size, Image.LANCZOS)
+        sprite = f"GFX_{picture}_medium"
+        rel_texture = f"{GAME_DIRS.GFX_ARCHETYPES}/{picture}.dds"
+        return self._add_icon(img, sprite, rel_texture, gfx_file, None, compressed)
+
+    # --- ideologies -----------------------------------------------------------
+    def add_ideology_group_icon(
+        self,
+        source: str | Path | Image.Image,
+        ideology: str,
+        gfx_file: str = "anka_ideologies.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_ideology_<ideology>_group`` (politics-view group icon).
+        The source dimensions are kept. Returns (dds, gfx)."""
+        sprite = f"GFX_ideology_{ideology}_group"
+        rel_texture = f"{GAME_DIRS.GFX_IDEOLOGIES}/{ideology}_group.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              None, compressed)
+
+    def add_ideology_type_icon(
+        self,
+        source: str | Path | Image.Image,
+        itype: str,
+        gfx_file: str = "anka_ideologies.gfx",
+        compressed: bool = False,
+    ) -> tuple[Path, Path]:
+        """Generate ``GFX_ideology_<type>`` (leader sub-ideology icon).
+        The source dimensions are kept. Returns (dds, gfx)."""
+        sprite = f"GFX_ideology_{itype}"
+        rel_texture = f"{GAME_DIRS.GFX_IDEOLOGIES}/{itype}.dds"
+        return self._add_icon(source, sprite, rel_texture, gfx_file,
+                              None, compressed)
+
     # --- decisions --------------------------------------------------------
     def add_decision_icon(
         self,

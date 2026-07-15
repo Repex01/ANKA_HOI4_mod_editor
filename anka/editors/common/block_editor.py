@@ -316,6 +316,7 @@ class BlockTreeEditor(ttk.Frame):
         self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all(
             "<MouseWheel>", self._wheel))
         self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
+        self._canvas.bind("<Button-3>", lambda e: self._save_menu(e, None))
         self.render()
 
     def _wheel(self, event) -> None:
@@ -359,6 +360,52 @@ class BlockTreeEditor(ttk.Frame):
         row = ttk.Frame(parent, style="Card.TFrame")
         row.pack(fill="x", pady=1, anchor="w")
         return row
+
+    # ------------------------------------------------------------ saved blocks
+    def _bind_save_menu(self, widget, item) -> None:
+        """Right-click on any row/container: save that node — or the whole edited
+        content — into the personal snippet library (re-inserted later from the
+        picker as a ``[BLOCK]`` entry)."""
+        widget.bind("<Button-3>", lambda e: self._save_menu(e, item), add="+")
+
+    def _save_menu(self, event, item) -> None:
+        menu = tk.Menu(self, tearoff=0, bg=self.palette.surface,
+                       fg=self.palette.text,
+                       activebackground=self.palette.accent,
+                       activeforeground=self.palette.accent_text, bd=0)
+        if item is not None:
+            menu.add_command(label="💾 " + self.t("focuses.blocks.save_block"),
+                             command=lambda: self._save_snippet(item))
+        menu.add_command(label="💾 " + self.t("focuses.blocks.save_all"),
+                         command=lambda: self._save_snippet(None))
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    def _save_snippet(self, item) -> None:
+        from ...core.pdx import dumps
+        if item is None:                      # whole edited content
+            text = dumps(self.root_block, top_level=True)
+            initial = self.root_key or "my_block"
+        elif isinstance(item, Pair):
+            text = dumps(Block([item]), top_level=True)
+            initial = item.key
+        else:                                 # bare Scalar / anonymous Block
+            text = dumps(Block([item]), top_level=True)
+            initial = "my_block"
+        if not text.strip():
+            return
+        from .dialogs import TextPromptDialog
+        from ...services import saved_blocks
+
+        def submit(name: str) -> None:
+            saved_blocks.add(name, text)
+
+        TextPromptDialog(self, self.owner, self.t("focuses.blocks.save_block"),
+                         self.t("focuses.blocks.saved_name"), submit,
+                         initial=initial, pattern=r"^.+$")
 
     def _del_btn(self, row, owner_block: Block, item) -> None:
         ttk.Button(row, text="✕", width=2,
@@ -414,6 +461,7 @@ class BlockTreeEditor(ttk.Frame):
                      kinds: tuple[str, ...] | None = None) -> None:
         kinds = self.kinds if kinds is None else kinds
         row = self._row(parent)
+        self._bind_save_menu(row, pair)
         self._key_widget(row, pair)
 
         # Comparison operators (<, >, <=, >=, !=) are only meaningful for triggers.
@@ -531,6 +579,7 @@ class BlockTreeEditor(ttk.Frame):
     def _render_bare(self, owner_block: Block, scalar: Scalar, parent,
                      parent_key: str = "") -> None:
         row = self._row(parent)
+        self._bind_save_menu(row, scalar)
         var = tk.StringVar(value=scalar.raw)
         ttk.Entry(row, textvariable=var, width=20).pack(side="left")
         var.trace_add("write", lambda *_: (setattr(scalar, "raw", var.get()),
@@ -550,8 +599,10 @@ class BlockTreeEditor(ttk.Frame):
                        highlightcolor=self.palette.border, highlightthickness=1)
         box.pack(fill="x", pady=2, padx=(depth and 0, 0), anchor="w")
         self._add_hover(box)
+        self._bind_save_menu(box, item)
         head = ttk.Frame(box, style="Card.TFrame")
         head.pack(fill="x", padx=4, pady=(3, 0))
+        self._bind_save_menu(head, item)
         if pair is not None:
             self._key_widget(head, pair)
             ttk.Label(head, text="= {", style="CardMuted.TLabel").pack(side="left", padx=4)
@@ -655,7 +706,8 @@ class BlockTreeEditor(ttk.Frame):
                           with_rules=parent_key in _RULE_PARENTS)
 
     def _insert(self, block: Block, node) -> None:
-        block.items.append(node)
+        # a saved [BLOCK] snippet may carry several top-level items
+        block.items.extend(node if isinstance(node, list) else [node])
         self.render()
         self._on_change()
 
@@ -695,6 +747,7 @@ class BlockPickerDialog(BaseDialog):
         self._list.configure(yscrollcommand=sb.set)
         self._list.bind("<Double-1>", lambda e: self._submit())
         self._list.bind("<<ListboxSelect>>", self._show_doc)
+        self._list.bind("<Button-3>", self._saved_context)
 
         self._doc = tk.Text(body, height=7, wrap="word", state="disabled",
                             bg=self.palette.surface, fg=self.palette.text_muted,
@@ -733,6 +786,11 @@ class BlockPickerDialog(BaseDialog):
                             ("tooltip", "custom_modifier_tooltip")))
         entries.append(("✏  " + t("focuses.blocks.custom_leaf"), ("custom_leaf", None)))
         entries.append(("✏  " + t("focuses.blocks.custom_block"), ("custom_block", None)))
+        # personal snippet library — distinguished by the [BLOCK] prefix
+        from ...services import saved_blocks
+        for saved in saved_blocks.all_blocks():
+            if not q or q in saved["name"].lower():
+                entries.append((f"[BLOCK] {saved['name']}", ("saved", saved)))
         if self._with_rules:
             for rule in _GAME_RULES:
                 if not q or q in rule:
@@ -751,11 +809,40 @@ class BlockPickerDialog(BaseDialog):
         sel = self._list.curselection()
         return self._entries[sel[0]][1] if sel else None
 
+    def _saved_context(self, event) -> None:
+        """Right-click on a ``[BLOCK]`` entry: offer deleting it from the library."""
+        index = self._list.nearest(event.y)
+        if not (0 <= index < len(self._entries)):
+            return
+        kind, data = self._entries[index][1]
+        if kind != "saved":
+            return
+        self._list.selection_clear(0, "end")
+        self._list.selection_set(index)
+        menu = tk.Menu(self, tearoff=0, bg=self.palette.surface,
+                       fg=self.palette.text,
+                       activebackground=self.palette.accent,
+                       activeforeground=self.palette.accent_text, bd=0)
+
+        def delete() -> None:
+            from ...services import saved_blocks
+            saved_blocks.remove(data["name"])
+            self._refresh()
+
+        menu.add_command(label="🗑 " + self.t("focuses.blocks.delete_saved"),
+                         command=delete)
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
     def _show_doc(self, _event=None) -> None:
         payload = self._selected()
         self._doc.configure(state="normal")
         self._doc.delete("1.0", "end")
-        if payload and payload[0] == "catalog":
+        if payload and payload[0] == "saved":
+            self._doc.insert("1.0", payload[1]["text"])
+        elif payload and payload[0] == "catalog":
             item = payload[1]
             parts = [item.title]
             if item.scopes:
@@ -796,6 +883,14 @@ class BlockPickerDialog(BaseDialog):
                 node = Pair(data, Scalar(f"{fid}_tt"))
         elif kind == "rule":
             node = Pair(data, Scalar("yes"))
+        elif kind == "saved":
+            try:
+                parsed = pdx_parse(data["text"], recover=False)
+            except Exception:
+                return
+            if not parsed.items:
+                return
+            node = list(parsed.items)
         elif kind == "catalog":
             node = node_from_catalog(data)
         elif kind == "custom_block":

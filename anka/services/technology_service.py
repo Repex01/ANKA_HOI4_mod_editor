@@ -662,6 +662,7 @@ class TechFolderDef:
     available: str = ""          # trigger script text ("" = always)
     is_vanilla: bool = True
     block: Block | None = None
+    source: Path | None = None   # the technology_tags file declaring it
 
 
 @dataclass
@@ -913,6 +914,36 @@ class TechnologyService:
         self._invalidate_index()
         return dup
 
+    def paste_tech(self, doc: TechDocument, pair: Pair, *,
+                   folder: str | None = None) -> Technology:
+        """Insert a copied ``<id> = {...}`` pair under a fresh unique id.
+        When `folder` is given the tech is (re)assigned to it: an existing
+        assignment shifts two rows down (paste next to the source), a missing
+        one is created at the origin."""
+        taken = set(self.tech_index())
+        new_id = pair.key if pair.key not in taken else pair.key + "_copy"
+        while new_id in taken or doc.find(new_id) is not None:
+            new_id += "_copy"
+        copy_root = pdx_parse(dumps(Block([pair])))
+        copy_pair = next(p for p in copy_root.pairs())
+        copy_pair.key = new_id
+        tech = Technology(copy_pair)
+        if folder:
+            fa = tech.folder_in(folder)
+            if fa is None:
+                tech.add_folder(folder, 0, 0)
+            else:
+                x, y = fa.cell(doc.consts)
+                fa.set_cell(x, y + 2, doc)
+        techs_block = doc.techs_block
+        if techs_block is None:
+            techs_block = Block()
+            doc.root.add("technologies", techs_block)
+        techs_block.items.append(copy_pair)
+        doc.techs.append(tech)
+        self._invalidate_index()
+        return tech
+
     def remove_tech(self, doc: TechDocument, tech: Technology) -> list[TechDocument]:
         """Delete a tech and scrub references to it in every editable document.
         Returns the list of *other* documents that were modified."""
@@ -1007,7 +1038,8 @@ class TechnologyService:
                             available=(dumps(avail, top_level=False)
                                        if avail is not None else ""),
                             is_vanilla=is_vanilla,
-                            block=pair.value)
+                            block=pair.value,
+                            source=file)
         self._tags_cache = (categories, folders)
         return self._tags_cache
 
@@ -1063,6 +1095,73 @@ class TechnologyService:
         fol.add(folder_id, blk)
         path.parent.mkdir(parents=True, exist_ok=True)
         dump_file(root, path)
+        self._tags_cache = None
+
+    def remove_folder(self, folder_id: str) -> None:
+        """Delete a mod-side folder definition from its technology_tags file."""
+        fdef = self.folders().get(folder_id)
+        if fdef is None:
+            raise KeyError(folder_id)
+        if fdef.is_vanilla or fdef.source is None:
+            raise PermissionError("Folder is defined in a read-only layer")
+        root = parse_file(fdef.source)
+        fol = root.get_block_ci("technology_folders")
+        if fol is not None:
+            fol.items = [
+                it for it in fol.items
+                if not (isinstance(it, Pair)
+                        and it.key.lower() == folder_id.lower())]
+        dump_file(root, fdef.source)
+        self._tags_cache = None
+
+    def remove_folder_assignments(self, folder_id: str) -> list[TechDocument]:
+        """Strip ``folder = { name = <folder_id> ... }`` from every tech in
+        every editable document. Returns the touched documents."""
+        touched: list[TechDocument] = []
+        for ref in self.list_docs(include_vanilla=False):
+            try:
+                doc = self.load(ref)
+            except Exception:
+                continue
+            changed = False
+            for tech in doc.techs:
+                if tech.folder_in(folder_id) is not None:
+                    tech.remove_folder(folder_id)
+                    changed = True
+            if changed:
+                touched.append(doc)
+        return touched
+
+    def update_folder(self, folder_id: str, *, ledger: str | None = None,
+                      doctrine: bool | None = None,
+                      available: str | None = None) -> None:
+        """Edit a folder definition in place. Only mod-side (non-vanilla)
+        definitions are writable; the file is re-parsed so on-disk formatting
+        of the untouched parts survives."""
+        fdef = self.folders().get(folder_id)
+        if fdef is None:
+            raise KeyError(folder_id)
+        if fdef.is_vanilla or fdef.source is None:
+            raise PermissionError("Folder is defined in a read-only layer")
+        root = parse_file(fdef.source)
+        fol = root.get_block_ci("technology_folders")
+        blk = fol.get_block_ci(folder_id) if fol is not None else None
+        if blk is None:
+            raise KeyError(folder_id)
+        if ledger is not None:
+            blk.set_ci("ledger", ledger)
+        if doctrine is not None:
+            if doctrine:
+                blk.set_ci("doctrine", True)
+            else:
+                blk.remove_ci("doctrine")
+        if available is not None:
+            if available.strip():
+                parsed = pdx_parse(available, recover=False)
+                blk.set_ci("available", Block(parsed.items))
+            else:
+                blk.remove_ci("available")
+        dump_file(root, fdef.source)
         self._tags_cache = None
 
     # --- ai_focuses hint --------------------------------------------------------

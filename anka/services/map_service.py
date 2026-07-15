@@ -826,18 +826,50 @@ class MapService:
         return SplitResult(ids=ids, donors=donors, new_defs=new_defs,
                            deltas=deltas, orphaned=orphaned)
 
-    def _recompute_coastal(self, pid: int) -> None:
-        """Set a land province's ``coastal`` flag from its current sea adjacency."""
+    def coastal_value(self, pid: int) -> bool:
+        """What ``coastal`` should be for a province given its current neighbors:
+        land → borders a sea province; sea → borders a land province (a port
+        anchorage); lake → never coastal."""
         d = self.by_id.get(pid)
-        if d is None or d.type != "land":
+        if d is None:
+            return False
+        if d.type == "land":
+            return any((nd := self.by_id.get(n)) is not None and nd.type == "sea"
+                       for n in self.neighbors_of(pid))
+        if d.type == "sea":
+            return any((nd := self.by_id.get(n)) is not None and nd.type == "land"
+                       for n in self.neighbors_of(pid))
+        return False
+
+    def _recompute_coastal(self, pid: int) -> None:
+        """Refresh a province's ``coastal`` flag from its current adjacency."""
+        d = self.by_id.get(pid)
+        if d is None:
             return
         self._bboxes.pop(pid, None)
-        is_coastal = any((nd := self.by_id.get(n)) is not None and nd.type == "sea"
-                         for n in self.neighbors_of(pid))
+        is_coastal = self.coastal_value(pid)
         if d.coastal != is_coastal:
             d.coastal = is_coastal
             d.dirty = True
             self.dirty_csv = True
+
+    def recompute_coastal_around(self, pid: int) -> list[tuple[int, bool, bool]]:
+        """After a type change: refresh ``coastal`` on the province *and* every
+        neighbor (turning a province into sea makes adjacent land coastal;
+        turning it into land/lake may strip that). Returns ``(pid, old, new)``
+        per changed province so the caller can record undo commands."""
+        changes: list[tuple[int, bool, bool]] = []
+        for q in [pid, *self.neighbors_of(pid)]:
+            d = self.by_id.get(q)
+            if d is None:
+                continue
+            value = self.coastal_value(q)
+            if d.coastal != value:
+                changes.append((q, d.coastal, value))
+                d.coastal = value
+                d.dirty = True
+                self.dirty_csv = True
+        return changes
 
     def split_province(self, pid: int, k: int, *, seed: int | None = None,
                        strategy: str = "organic", smooth_passes: int = 2,

@@ -102,14 +102,15 @@ class FocusInspector(ttk.Frame):
                   style="CardMuted.TLabel").grid(row=fr, column=0, sticky="nw", pady=3)
         # A Text (not Entry) so it grows to fit a long name; Enter commits instead
         # of inserting a newline (a focus name is one loc line).
-        self._name = tk.Text(f, height=1, wrap="word", bg=self.palette.surface_alt,
+        # NB: not `self._name` — that is tkinter's internal widget name.
+        self._name_text = tk.Text(f, height=1, wrap="word", bg=self.palette.surface_alt,
                              fg=self.palette.text, insertbackground=self.palette.text,
                              relief="flat", font=("Segoe UI", 10))
-        self._name.grid(row=fr, column=1, sticky="ew", padx=(8, 0), pady=3); fr += 1
-        self._name.bind("<FocusOut>", lambda e: self._commit_loc())
-        self._name.bind("<Return>", lambda e: (self._commit_loc(), "break")[1])
-        self._name.bind("<KeyRelease>", lambda e: (
-            self._auto_grow(self._name, 1),
+        self._name_text.grid(row=fr, column=1, sticky="ew", padx=(8, 0), pady=3); fr += 1
+        self._name_text.bind("<FocusOut>", lambda e: self._commit_loc())
+        self._name_text.bind("<Return>", lambda e: (self._commit_loc(), "break")[1])
+        self._name_text.bind("<KeyRelease>", lambda e: (
+            self._auto_grow(self._name_text, 1),
             self._debounce("loc", self._commit_loc, 1200)))
 
         ttk.Label(f, text=self.t("focuses.inspector.desc"),
@@ -315,11 +316,11 @@ class FocusInspector(ttk.Frame):
             self._loaded_desc = self.owner.service.focus_desc(focus.text or focus.id, lang)
             name = (self._loaded_name
                     if self._loaded_name != (focus.text or focus.id) else "")
-            self._set_text(self._name, name)
+            self._set_text(self._name_text, name)
             self._desc.configure(state="normal")   # a disabled Text ignores edits
             self._desc.delete("1.0", "end")
             self._desc.insert("1.0", self._loaded_desc.replace("\\n", "\n"))
-            self._auto_grow(self._name, 1)
+            self._auto_grow(self._name_text, 1)
             self._auto_grow(self._desc, 3)
             self._x.set(str(focus.x))
             self._y.set(str(focus.y))
@@ -522,7 +523,7 @@ class FocusInspector(ttk.Frame):
             return
         focus = self.focus_obj
         lang = self._lang.get()
-        name = self._name.get("1.0", "end").strip()
+        name = self._name_text.get("1.0", "end").strip()
         desc = self._desc.get("1.0", "end").strip()
         key = focus.text or focus.id
         current_name = self.owner.service.focus_name(key, lang)
