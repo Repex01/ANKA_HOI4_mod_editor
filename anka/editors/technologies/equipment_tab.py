@@ -284,6 +284,13 @@ class EquipmentTab(ttk.Frame):
 
     # ----------------------------------------------------------------- actions
     def _mod_target_doc(self):
+        """The mod document new equipment goes to: the file selected in the
+        tree (or the file of the selected entry), else the first mod file,
+        else a fresh ``anka_equipment.txt``."""
+        sel = self._tree.selection()
+        payload = self._items.get(sel[0]) if sel else None
+        if payload is not None and hasattr(payload[1], "equipments"):
+            return payload[1]                  # mod doc ("file" or "entry" row)
         for doc in self._mod_docs:
             return doc
         ref = self.service.create_doc(ANKA_EQUIPMENT_FILE)
@@ -339,6 +346,7 @@ class EquipmentTab(ttk.Frame):
                 self.service.copy_stats_from(eq, copy_from)
             self.mark_dirty(doc)
             self.save_all()
+            self._sync_enum(add=[eid])
             self.reload_tree()
             index = len(doc.equipments) - 1
             iid = f"e::{doc.ref.rel_file}::{index}"
@@ -386,7 +394,7 @@ class EquipmentTab(ttk.Frame):
                 self._tree.selection_set(file_iid)
 
     def _tree_context(self, event) -> None:
-        """Right-click on an editable (mod) equipment entry: delete."""
+        """Right-click on an editable (mod) equipment entry: move / delete."""
         iid = self._tree.identify_row(event.y)
         if not iid:
             return
@@ -395,16 +403,70 @@ class EquipmentTab(ttk.Frame):
         if payload is None or payload[0] != "entry" \
                 or not hasattr(payload[1], "equipments"):
             return                            # vanilla entries are read-only
+        _kind, doc, index = payload
+        entries = doc.equipments
+        if index >= len(entries):
+            return
+        eq = entries[index]
         if self._menu is not None:
             self._menu.destroy()
         menu = tk.Menu(self._tree, **self.editor._menu_colors())
         self._menu = menu
+        move = tk.Menu(menu, **self.editor._menu_colors())
+        targets = [d for d in self._mod_docs if d is not doc]
+        for target in targets:
+            rel = target.ref.rel_file
+            label = (rel[len(self._REL_PREFIX):]
+                     if rel.startswith(self._REL_PREFIX) else rel)
+            move.add_command(
+                label="🗎 " + label,
+                command=lambda t=target: self._move_entry(doc, eq, t))
+        if targets:
+            move.add_separator()
+        move.add_command(label="➕ " + self.t("equipment.new_file"),
+                         command=lambda: self._move_entry_new_file(doc, eq))
+        menu.add_cascade(label="↳ " + self.t("equipment.move_to"), menu=move)
+        menu.add_separator()
         menu.add_command(label="🗑 " + self.t("equipment.delete"),
                          command=self._delete_selected)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def _move_entry(self, src, eq, dst) -> None:
+        try:
+            self.service.move_equipment(src, eq, dst)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", str(exc))
+            return
+        self.mark_dirty(src)
+        self.mark_dirty(dst)
+        self.save_all()
+        self.reload_tree()
+        index = next((i for i, e in enumerate(dst.equipments)
+                      if e is eq), None)
+        if index is not None:
+            iid = f"e::{dst.ref.rel_file}::{index}"
+            if self._tree.exists(iid):
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
+
+    def _move_entry_new_file(self, src, eq) -> None:
+        def create(name: str) -> None:
+            try:
+                ref = self.service.create_doc(name)
+            except FileExistsError:
+                messagebox.showerror("ANKA", self.t("equipment.err.file_exists",
+                                                    name=name))
+                return
+            dst = self.service.load(ref)
+            self._mod_docs.append(dst)
+            self._move_entry(src, eq, dst)
+
+        TextPromptDialog(self._tree, self.editor, self.t("equipment.new_file"),
+                         self.t("equipment.file_label"), create,
+                         pattern=r"^[\w.-]+$")
 
     def _delete_selected(self, _event=None) -> None:
         sel = self._tree.selection()
@@ -431,6 +493,10 @@ class EquipmentTab(ttk.Frame):
         self.mark_dirty(doc)
         for other in touched:
             self.mark_dirty(other)
+        # save immediately: the id index is built from the on-disk files, so an
+        # unsaved delete would keep the id "taken" for new equipment
+        self.save_all()
+        self._sync_enum(remove=[eq.id])
         self._show_inspector(False)
         self.reload_tree(keep_selection=False)
         file_iid = f"f::{doc.ref.rel_file}"
@@ -450,12 +516,25 @@ class EquipmentTab(ttk.Frame):
         self.service.rename_loc(old, new_id)
         self.mark_dirty(doc)
         self.save_all()
+        self._sync_enum(add=[new_id], remove=[old])
         count = self._tech_reference_count(old)
         if count:
             messagebox.showwarning("ANKA", self.t("equipment.warn.tech_refs",
                                                   count=count, id=old))
         self.reload_tree(keep_selection=True)
         self.inspector.show(doc, eq, editable=True)
+
+    def _sync_enum(self, add: list[str] = (), remove: list[str] = ()) -> None:
+        """Mirror equipment CRUD into ``script_enum_equipment_bonus_type``
+        (common/script_enums.txt). An id still defined by a lower layer
+        (vanilla / dependency) is never removed — the game would log errors."""
+        try:
+            index = self.service.equipment_index(refresh=True)
+            remove = [r for r in remove if r not in index]
+            self.service.sync_bonus_enum(add=add, remove=remove)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", self.t("equipment.err.enum_sync",
+                                                error=str(exc)))
 
     def _tech_reference_count(self, eid: str) -> int:
         count = 0

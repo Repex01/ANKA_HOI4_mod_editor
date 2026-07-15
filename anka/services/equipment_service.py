@@ -727,6 +727,28 @@ class EquipmentService:
         self._invalidate_index()
         return touched
 
+    def move_equipment(self, src: EquipmentDocument, eq: Equipment,
+                       dst: EquipmentDocument) -> None:
+        """Move an entry between two mod documents, keeping its block (and
+        therefore every unknown key) intact."""
+        if src.ref.is_vanilla or dst.ref.is_vanilla:
+            raise PermissionError("Refusing to move into/out of the base game")
+        if src is dst:
+            return
+        blk = src.equipments_block
+        if blk is not None:
+            blk.items = [it for it in blk.items
+                         if not (isinstance(it, Pair) and it is eq.pair)]
+        if eq in src.equipments:
+            src.equipments.remove(eq)
+        dst_blk = dst.equipments_block
+        if dst_blk is None:
+            dst_blk = Block()
+            dst.root.add("equipments", dst_blk)
+        dst_blk.items.append(eq.pair)
+        dst.equipments.append(eq)
+        self._invalidate_index()
+
     def rename_equipment(self, doc: EquipmentDocument, eq: Equipment,
                          new_id: str) -> str:
         """Rename and rewrite references in every editable equipment document.
@@ -780,6 +802,96 @@ class EquipmentService:
             out.extend(e.id for e in doc.equipments
                        if e.id != eid and e.references(eid))
         return out
+
+    # --- script_enums sync -------------------------------------------------------
+    SCRIPT_ENUMS_FILE = "common/script_enums.txt"
+    BONUS_ENUM = "script_enum_equipment_bonus_type"
+
+    def _ensure_mod_script_enums(self) -> Path | None:
+        """The mod-side ``common/script_enums.txt``. It is a single-file
+        override (the mod's copy replaces the whole vanilla file), so on first
+        use the highest existing layer is copied verbatim into the mod."""
+        target = self.ctx.mod.path / self.SCRIPT_ENUMS_FILE
+        if target.exists():
+            return target
+        for root in self.ctx.search_roots(self.SCRIPT_ENUMS_FILE):
+            source = root / self.SCRIPT_ENUMS_FILE
+            if source != target and source.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(source.read_bytes())
+                return target
+        return None
+
+    def sync_bonus_enum(self, add: list[str] | tuple = (),
+                        remove: list[str] | tuple = ()) -> bool:
+        """Keep ``script_enum_equipment_bonus_type`` in step with equipment
+        CRUD: the game logs startup errors when an equipment type is missing
+        from the enum. The block is edited *textually* so the file's extensive
+        vanilla comments survive. Returns True when the file changed."""
+        target = self._ensure_mod_script_enums()
+        if target is None:
+            return False
+        raw = target.read_bytes()
+        bom = raw.startswith(b"\xef\xbb\xbf")
+        text = raw.decode("utf-8-sig", errors="replace")
+        nl = "\r\n" if "\r\n" in text else "\n"
+        lines = text.splitlines(keepends=True)
+
+        # locate the enum block (brace depth, comments stripped)
+        start = end = None
+        depth = 0
+        for i, line in enumerate(lines):
+            code = line.split("#", 1)[0]
+            if start is None:
+                if self.BONUS_ENUM in code and "{" in code:
+                    start = i
+                    depth = code.count("{") - code.count("}")
+                    if depth <= 0:
+                        end = i
+                        break
+            else:
+                depth += code.count("{") - code.count("}")
+                if depth <= 0:
+                    end = i
+                    break
+        if start is None or end is None or end <= start:
+            if not add:
+                return False
+            # no enum block at all: append a fresh one
+            block = (f"{nl}{self.BONUS_ENUM} = {{{nl}"
+                     + "".join(f"\t{a}{nl}" for a in dict.fromkeys(add))
+                     + f"}}{nl}")
+            lines.append(block)
+            self._write_script_enums(target, lines, bom)
+            return True
+
+        remove_set = {r.strip() for r in remove if r and r.strip()}
+        existing: set[str] = set()
+        changed = False
+        body: list[str] = []
+        for line in lines[start + 1:end]:
+            token = line.split("#", 1)[0].strip()
+            if token and _ID_RE.match(token):
+                if token in remove_set:
+                    changed = True
+                    continue                     # drop the whole line
+                existing.add(token)
+            body.append(line)
+        additions = [a for a in dict.fromkeys(add)
+                     if a and _ID_RE.match(a) and a not in existing]
+        if additions:
+            body.extend(f"\t{a}{nl}" for a in additions)
+            changed = True
+        if not changed:
+            return False
+        lines[start + 1:end] = body
+        self._write_script_enums(target, lines, bom)
+        return True
+
+    @staticmethod
+    def _write_script_enums(target: Path, lines: list[str], bom: bool) -> None:
+        data = "".join(lines).encode("utf-8")
+        target.write_bytes(b"\xef\xbb\xbf" + data if bom else data)
 
     # --- localisation -----------------------------------------------------------
     def equipment_name(self, eid: str, language: str) -> str:
