@@ -2,3 +2,4 @@
 Pillow>=10.3        # image processing, native TGA + DDS (ARGB8888 / DXT) read & write
 lark>=1.1          # Paradox-script (PDX) grammar parsing
 tkinterdnd2>=0.4   # OS-native drag&drop (optional; app degrades gracefully if absent)
+numpy>=1.26        # map editor: province bitmap processing

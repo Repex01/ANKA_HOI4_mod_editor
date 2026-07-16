@@ -34,6 +34,7 @@ _ORPHAN_RGB = (255, 0, 220)        # bmp color with no definition.csv row
 _SEA_RGB = (38, 57, 87)            # sea/lake in owner & state modes
 _NEUTRAL_RGB = (150, 150, 150)     # land without owner
 _NO_STATE_RGB = (90, 90, 90)       # land not in any state (state mode)
+_RIVER_RGB = (64, 140, 255)        # rivers overlay on top of any render mode
 
 RENDER_MODES = ("provinces", "terrain", "owner", "state")
 
@@ -148,6 +149,7 @@ class MapService:
         self._bmp_source: Path | None = None
 
         self._luts: dict[str, np.ndarray] = {}      # mode -> uint8 [n, 3]
+        self._rivers: np.ndarray | bool | None = None  # bool [H, W]; False = unavailable
         self._bboxes: dict[int, tuple[int, int, int, int] | None] = {}
         self._political: tuple[dict[int, int], dict[int, str]] | None = None
         self._tag_colors: dict[str, tuple[int, int, int]] | None = None
@@ -492,13 +494,42 @@ class MapService:
         self._luts[mode] = lut
         return lut
 
+    def _rivers_mask(self) -> np.ndarray | None:
+        """Boolean river-pixel mask from ``rivers.bmp`` (lazy; None if missing
+        or the file does not match the province map's size)."""
+        if self._rivers is None:
+            self._rivers = False               # only try once
+            path = self.map_file(self.map_filenames().get("rivers", "rivers.bmp"))
+            if path is not None:
+                try:
+                    with Image.open(path) as im:
+                        if im.mode == "P":
+                            # Palette indices 0–11 are river pixels (sources,
+                            # flow-in/out markers and the river widths).
+                            mask = np.asarray(im, dtype=np.uint8) <= 11
+                        else:
+                            rgb = np.asarray(im.convert("RGB"), dtype=np.uint8)
+                            # Fallback: everything that is neither land (white)
+                            # nor sea (grey) is a river pixel.
+                            land = (rgb > 240).all(axis=2)
+                            grey = (np.abs(rgb.astype(np.int16)
+                                           - rgb[:, :, :1].astype(np.int16)) < 8).all(axis=2)
+                            mask = ~(land | grey)
+                    if self._codes is not None and mask.shape == self._codes.shape:
+                        self._rivers = mask
+                except Exception:
+                    self._rivers = False
+        return self._rivers if isinstance(self._rivers, np.ndarray) else None
+
     def render_view(self, mode: str, rect: tuple[int, int, int, int] | None = None,
                     scale: float = 1.0,
                     selected: set[int] | None = None,
-                    highlight: set[int] | None = None) -> Image.Image:
+                    highlight: set[int] | None = None,
+                    rivers: bool = False) -> Image.Image:
         """Render a map rectangle: `rect` = (x0, y0, x1, y1) exclusive on the
         right/bottom (None = whole map), scaled by `scale` (NEAREST).
-        `selected` provinces are brightened; `highlight` gets a lighter tint."""
+        `selected` provinces are brightened; `highlight` gets a lighter tint;
+        `rivers` overlays river pixels on top of the chosen mode."""
         self.ensure_bitmap()
         h, w = self._codes.shape
         if rect is None:
@@ -516,6 +547,10 @@ class MapService:
                     area = rgb[sel_mask].astype(np.uint16)
                     rgb[sel_mask] = ((area * (1 - strength))
                                      + int(255 * strength)).astype(np.uint8)
+        if rivers:
+            river_mask = self._rivers_mask()
+            if river_mask is not None:
+                rgb[river_mask[y0:y1, x0:x1]] = _RIVER_RGB
         img = Image.fromarray(rgb, "RGB")
         if scale != 1.0:
             tw = max(1, round((x1 - x0) * scale))

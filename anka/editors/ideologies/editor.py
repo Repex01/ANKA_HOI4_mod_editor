@@ -13,7 +13,6 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.gfx import SpriteResolver
 from ...services._locutil import LocCatalog
 from ...services.ideology_def_service import IdeologyDefService
 from ..base import EditorModule, EditorRegistry
@@ -31,8 +30,7 @@ class IdeologiesEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = IdeologyDefService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self.resolver = context.sprites
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         # Ideology + faction names live in loc files; the whole vanilla index is
@@ -41,7 +39,7 @@ class IdeologiesEditor(EditorModule):
                               vanilla_filter="",
                               default_pattern="anka_ideologies_l_{lang}.yml",
                               dep_roots=context.dependency_paths)
-        self._resolver_ready = threading.Event()
+        self._resolver_ready = context.warm_sprites()
         self._mod_docs: list = []
         self._vanilla_refs: list = []
         self._dirty: set = set()
@@ -51,7 +49,7 @@ class IdeologiesEditor(EditorModule):
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
+        threading.Thread(target=self._warm_loc, daemon=True).start()
         root = ttk.Frame(parent, style="TFrame")
         root.columnconfigure(1, weight=1)
         root.rowconfigure(1, weight=1)
@@ -79,12 +77,10 @@ class IdeologiesEditor(EditorModule):
         self.reload_tree()
         return root
 
-    def _warm_resolver(self) -> None:
-        try:
-            self.resolver.resolve("")
-            self.loc.get("CLOSE", self.loc_language)
-        finally:
-            self._resolver_ready.set()
+    def _warm_loc(self) -> None:
+        # The sprite map is warmed by the shared per-mod resolver (ModContext);
+        # only the vanilla loc index (first .get is the slow one) is preloaded here.
+        self.loc.get("CLOSE", self.loc_language)
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()

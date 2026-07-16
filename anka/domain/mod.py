@@ -7,6 +7,7 @@ never hard-code directory layout.
 """
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import cached_property
@@ -145,3 +146,31 @@ class ModContext:
         so a character created in one editor is immediately visible in another."""
         from ..services.character_service import CharacterService
         return CharacterService(self)
+
+    @cached_property
+    def sprites(self):
+        """Shared ``GFX_*`` → texture resolver. Building its map means parsing every
+        ``interface/**/*.gfx`` of the game + all DLC (seconds), so every editor module
+        of this mod shares one instance — and an icon registered in one editor is
+        immediately resolvable in another. Warm it via `warm_sprites`."""
+        from ..core.gfx import SpriteResolver
+        return SpriteResolver.for_mod(self.mod.path, self.game_path,
+                                      self.dependency_paths)
+
+    def warm_sprites(self) -> threading.Event:
+        """Build the shared sprite map in the background — at most once per context —
+        and return the event that is set when it is ready. Call from the UI thread."""
+        event: threading.Event | None = self.__dict__.get("_sprites_ready")
+        if event is None:
+            event = threading.Event()
+            self.__dict__["_sprites_ready"] = event
+            resolver = self.sprites
+
+            def warm() -> None:
+                try:
+                    resolver.resolve("")
+                finally:
+                    event.set()
+
+            threading.Thread(target=warm, daemon=True).start()
+        return event

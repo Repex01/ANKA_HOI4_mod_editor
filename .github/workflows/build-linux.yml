@@ -1,0 +1,75 @@
+# Build a one-file Linux binary of ANKA with PyInstaller.
+#
+# Triggers: manual run (workflow_dispatch) and version tags (v*).
+# Result: an "ANKA-linux" artifact (single executable, ~30 MB).
+#
+# Notes:
+#  * PyInstaller does NOT cross-compile — the Linux binary must be built on
+#    Linux, which is exactly what this workflow does.
+#  * Data files use ':' as the src:dest separator on Linux (';' is Windows-only).
+#  * tkinter comes from the distro package (python3-tk); the setup-python action
+#    ships its own CPython without Tk, so we use the system Python instead —
+#    it links against the distro Tcl/Tk. On ubuntu-22.04 that is Python 3.10
+#    (the codebase needs 3.10+; no 3.11+ features are used).
+#  * The binary is built on ubuntu-22.04 for a wider glibc compatibility range;
+#    binaries built on newer distros won't run on older ones.
+name: Build Linux binary
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system Python + Tk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip python3-venv python3-tk \
+            libtk8.6 tk8.6-dev binutils
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller
+        run: |
+          .venv/bin/pyinstaller --noconfirm --onefile --windowed --name ANKA \
+            --add-data "images:images" \
+            --add-data "locales:locales" \
+            --add-data "anka/config/data:anka/config/data" \
+            --add-data "anka/core/pdx/grammar.lark:anka/core/pdx" \
+            --add-data "anka/editors/effects/effects.json:anka/editors/effects" \
+            --add-data "anka/editors/effects/modifiers.json:anka/editors/effects" \
+            --add-data "anka/editors/effects/triggers.json:anka/editors/effects" \
+            --add-data "anka/editors/focuses/templates.json:anka/editors/focuses" \
+            --add-data "anka/editors/technologies/templates.json:anka/editors/technologies" \
+            --collect-all tkinterdnd2 \
+            main.py
+
+      - name: Smoke-check the binary
+        run: |
+          file dist/ANKA
+          # The app is a GUI; just verify the bundle unpacks and python boots.
+          # (No X server on CI — a real launch would need xvfb.)
+          sudo apt-get install -y xvfb
+          xvfb-run -a timeout 25 ./dist/ANKA & APP_PID=$!
+          sleep 20
+          if kill -0 $APP_PID 2>/dev/null; then
+            echo "binary launched and stayed alive"; kill $APP_PID
+          else
+            wait $APP_PID || { echo "binary exited early"; exit 1; }
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANKA-linux
+          path: dist/ANKA
+          if-no-files-found: error

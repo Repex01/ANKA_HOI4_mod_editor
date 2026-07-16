@@ -81,6 +81,7 @@ _VALUE_TYPES = {                     # by effect/trigger name in scalar form
     "has_defensive_war_with": "country", "has_offensive_war_with": "country",
     "has_wargoal_against": "country", "send_embargo": "country",
     "inherit_technology": "country",
+    "set_cosmetic_tag": "cosmetic_tag", "has_cosmetic_tag": "cosmetic_tag",
     "owns_state": "state", "controls_state": "state", "add_state_core": "state",
     "add_state_claim": "state", "remove_state_core": "state",
     "remove_state_claim": "state", "transfer_state": "state", "set_capital": "state",
@@ -183,6 +184,10 @@ def _shared_value_options(ctx, vtype: str) -> list[tuple[str, str]]:
         from ...services.country_service import CountryService
         return [(f"{r.tag} · {r.name}", r.tag)
                 for r in CountryService(ctx).list_tags(include_vanilla=True)]
+    if vtype == "cosmetic_tag":
+        from ...services.country_service import CountryService
+        return [(r.tag, r.tag)
+                for r in CountryService(ctx).list_cosmetic_tags(include_vanilla=True)]
     if vtype == "state":
         from ...services.state_service import StateService
         return [(f"{s.id} · {s.name}", str(s.id))

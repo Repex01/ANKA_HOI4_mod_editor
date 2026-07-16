@@ -44,6 +44,7 @@ class MapCanvas(ttk.Frame):
         self._band: tuple[int, int] | None = None   # rubber-band start (screen px)
 
         self.mode = "provinces"
+        self.show_rivers = True              # overlay rivers.bmp on any mode
         self.zoom = 0.25
         self.offset = (0.0, 0.0)            # map coords of the viewport's top-left
         self.selected: set[int] = set()
@@ -109,6 +110,11 @@ class MapCanvas(ttk.Frame):
             self.mode = mode
             self.refresh()
 
+    def set_rivers(self, show: bool) -> None:
+        if show != self.show_rivers:
+            self.show_rivers = show
+            self.refresh()
+
     def set_selection(self, ids: set[int], highlight: set[int] | None = None) -> None:
         self.selected = set(ids)
         self.highlight = set(highlight or ())
@@ -161,7 +167,8 @@ class MapCanvas(ttk.Frame):
         x1 = int(ox + vw / self.zoom) + 1
         y1 = int(oy + vh / self.zoom) + 1
         req = (self.mode, (x0, y0, x1, y1), self.zoom,
-               frozenset(self.selected), frozenset(self.highlight))
+               frozenset(self.selected), frozenset(self.highlight),
+               self.show_rivers)
         with self._req_lock:
             self._req_seq += 1
             self._req = (self._req_seq, req)
@@ -179,9 +186,12 @@ class MapCanvas(ttk.Frame):
                     self._req_lock.wait()
                 seq, req = self._req
                 self._req = None
-            mode, rect, scale, selected, highlight = req
+            if req is None:                       # shutdown sentinel (widget destroyed)
+                return
+            mode, rect, scale, selected, highlight, rivers = req
             try:
-                img = self._render(mode, rect, scale, set(selected), set(highlight))
+                img = self._render(mode, rect, scale, set(selected), set(highlight),
+                                   rivers)
             except Exception:
                 continue
             with self._req_lock:
@@ -326,3 +336,11 @@ class MapCanvas(ttk.Frame):
     def _on_destroy(self, event) -> None:
         if event.widget is self:
             self._destroyed = True
+            # Wake the render worker with a sentinel so its thread exits; a thread
+            # blocked on the condition forever would keep the canvas — and through
+            # the render callback the whole map service with its numpy arrays —
+            # referenced long after the editor screen is gone.
+            with self._req_lock:
+                self._req_seq += 1               # any in-flight render is now stale
+                self._req = (self._req_seq, None)
+                self._req_lock.notify()

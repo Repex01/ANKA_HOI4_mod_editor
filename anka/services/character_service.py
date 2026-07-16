@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config.constants import GAME_DIRS
-from ..core.gfx import SpriteResolver
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
@@ -60,8 +59,7 @@ class CharacterService:
         self._chars: dict[str, CharacterModel] | None = None
         self._recruited: dict[str, list[str]] | None = None
         self._names: dict[str, str] | None = None
-        self._sprites = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self._sprites = context.sprites   # per-mod shared resolver (ModContext)
 
     # --- file location ---------------------------------------------------
     def characters_file(self, tag: str) -> Path:

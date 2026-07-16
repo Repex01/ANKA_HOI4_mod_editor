@@ -15,7 +15,7 @@ from ..config.constants import Paths
 
 
 class Translator:
-    def __init__(self, language: str = "ru", fallback: str = "en"):
+    def __init__(self, language: str = "en", fallback: str = "en"):
         self._dir = Paths.LOCALES
         self.fallback = fallback
         self._fallback_map: dict[str, str] = self._load(fallback)

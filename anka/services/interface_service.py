@@ -120,7 +120,6 @@ class InterfaceService:
         self.ctx = context
         self._doc_cache: dict[str, tuple[float, object]] = {}
         self._catalog: SpriteCatalog | None = None
-        self._resolver: SpriteResolver | None = None
         self._fonts: list[str] | None = None
         self._windows: dict[str, WindowInfo] | None = None
         self._lock = threading.Lock()
@@ -257,12 +256,9 @@ class InterfaceService:
         return self._catalog
 
     def resolver(self) -> SpriteResolver:
-        with self._lock:
-            if self._resolver is None:
-                self._resolver = SpriteResolver.for_mod(
-                    self.ctx.mod.path, self.ctx.game_path,
-                    self.ctx.dependency_paths)
-        return self._resolver
+        # The per-mod shared instance (ModContext.sprites): one sprite map for
+        # every editor module instead of a duplicate scan per service.
+        return self.ctx.sprites
 
     def warm(self) -> None:
         """Build the heavy catalogs (call from a background thread)."""

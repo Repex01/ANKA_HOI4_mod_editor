@@ -15,7 +15,10 @@ from ..widgets.scrollable import ScrollableFrame
 
 
 class ModEditorScreen(ttk.Frame):
-    def __init__(self, master, app, mod: Mod):
+    def __init__(self, master, app, mod: Mod, progress=None):
+        """`progress(done, total, label)` — optional loading-screen callback,
+        called before each editor module is instantiated and before the first
+        module's UI is built (the two slow phases of opening a mod)."""
         super().__init__(master, style="TFrame")
         self.app = app
         self.mod = mod
@@ -26,10 +29,18 @@ class ModEditorScreen(ttk.Frame):
         )
         self.services = EditorServices(t=app.t, theme=app.theme, settings=app.settings)
 
-        self._modules = [cls(self.context, self.services) for cls in EditorRegistry.all()]
+        classes = EditorRegistry.all()
+        total = len(classes) + 1                 # +1 for building the first editor UI
+        self._modules = []
+        for i, cls in enumerate(classes):
+            if progress is not None:
+                progress(i, total, app.t(cls.name_key))
+            self._modules.append(cls(self.context, self.services))
         self._built: dict[str, ttk.Widget] = {}
         self._buttons: dict[str, ttk.Button] = {}
         self._active: str | None = None
+        if progress is not None:
+            progress(total - 1, total, "")
         self._build()
 
     def _build(self) -> None:

@@ -25,6 +25,7 @@ from .dialogs import (
     CharacterPickerDialog,
     CoresEditDialog,
     ImportTechDialog,
+    NewCosmeticTagDialog,
     NewCountryDialog,
     StatePickerDialog,
     TechPickerDialog,
@@ -51,8 +52,10 @@ class CountriesEditor(EditorModule):
         self._effects_loc_cat = None
         self._tech_selection: list[tuple[str, str]] = []
         self._tech_count_cache: dict[str, int] = {}
-        self._loading = False      # suppress dirty-tracking while populating fields
-        self._dirty = False        # any unsaved edits for the selected country?
+        self._loading = False          # suppress dirty-tracking while populating fields
+        self._dirty_name = False       # unsaved localisation-tab edits
+        self._dirty_politics = False   # unsaved politics-tab edits
+        self._loc_ctx: tuple[str, str | None] = ("english", None)  # loaded lang+ideology
         self._refs: list[CountryRef] = []
         self._selected: CountryRef | None = None
         self._color: tuple[int, int, int] | None = None
@@ -72,21 +75,28 @@ class CountriesEditor(EditorModule):
         return root
 
     def _wire_dirty(self) -> None:
-        """Mark the editor dirty when any auto-savable form field changes, so leaving
-        the editor persists real edits but never rewrites untouched countries."""
-        form_vars = [
+        """Mark the editor dirty when any auto-savable form field changes, so
+        switching country / leaving the editor persists real edits but never
+        rewrites untouched countries. Politics and localisation are tracked
+        separately so an edit in one never rewrites the other's files."""
+        politics_vars = [
             self._pol_ruling, self._pol_last_election, self._pol_freq, self._pol_elections,
             self._pol_research, self._pol_stability, self._pol_war, self._pol_manpower,
-            self._loc_name, self._loc_def, self._loc_adj,
-            self._loc_party, self._loc_party_long, self._loc_party_desc,
             *self._pop_vars.values(), *self._oob_vars.values(),
         ]
-        for var in form_vars:
-            var.trace_add("write", lambda *_: self._mark_dirty())
+        for var in politics_vars:
+            var.trace_add("write", lambda *_: self._mark_dirty("politics"))
+        for var in (self._loc_name, self._loc_def, self._loc_adj,
+                    self._loc_party, self._loc_party_long, self._loc_party_desc):
+            var.trace_add("write", lambda *_: self._mark_dirty("name"))
 
-    def _mark_dirty(self) -> None:
-        if not self._loading:
-            self._dirty = True
+    def _mark_dirty(self, kind: str) -> None:
+        if self._loading:
+            return
+        if kind == "politics":
+            self._dirty_politics = True
+        else:
+            self._dirty_name = True
 
     def on_leave(self) -> None:
         """Auto-save pending edits for the selected country when leaving the editor."""
@@ -95,30 +105,85 @@ class CountriesEditor(EditorModule):
     def _build_list(self, root) -> None:
         left = ttk.Frame(root, style="Card.TFrame", padding=10)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        left.rowconfigure(3, weight=1)
+        left.rowconfigure(4, weight=1)
         left.columnconfigure(0, weight=1)
 
         ttk.Label(left, text=self.t("countries.list"), style="Heading.TLabel").grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
 
+        # Countries vs. cosmetic tags — the latter only uses General/Flags/Names.
+        # Chip-style switch: the selected chip shows a thin white outline
+        # (no radio indicator dot).
+        mode_row = ttk.Frame(left, style="Card.TFrame")
+        mode_row.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 6))
+        self._list_mode = tk.StringVar(value="countries")
+        self._mode_chips: dict[str, tk.Label] = {}
+        for value, key in (("countries", "countries.mode.countries"),
+                           ("cosmetic", "countries.mode.cosmetic")):
+            chip = tk.Label(mode_row, text=self.t(key), bd=0, padx=10, pady=4,
+                            bg=self.palette.surface_alt, fg=self.palette.text,
+                            cursor="hand2", highlightthickness=1,
+                            highlightbackground=self.palette.surface_alt)
+            chip.pack(side="left", padx=(0, 8))
+            chip.bind("<Button-1>", lambda e, v=value: self._set_list_mode(v))
+            self._mode_chips[value] = chip
+        self._sync_mode_chips()
+
         self._search = tk.StringVar()
         entry = ttk.Entry(left, textvariable=self._search)
-        entry.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        entry.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         self._placeholder(entry, self.t("modlist.search"))
 
         self._vanilla = tk.BooleanVar(value=False)
         ttk.Checkbutton(left, text=self.t("countries.vanilla"), variable=self._vanilla,
-                        command=self._reload).grid(row=2, column=0, sticky="w", pady=(0, 6))
+                        command=self._reload).grid(row=3, column=0, sticky="w", pady=(0, 6))
 
         self._tree = ttk.Treeview(left, show="tree", selectmode="browse")
-        self._tree.grid(row=3, column=0, sticky="nsew")
+        self._tree.grid(row=4, column=0, sticky="nsew")
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
         sb = ttk.Scrollbar(left, orient="vertical", command=self._tree.yview)
-        sb.grid(row=3, column=1, sticky="ns")
+        sb.grid(row=4, column=1, sticky="ns")
         self._tree.configure(yscrollcommand=sb.set)
 
-        ttk.Button(left, text="➕  " + self.t("countries.add"), style="Accent.TButton",
-                   command=self._new_country).grid(row=4, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+        self._add_btn = ttk.Button(left, text="➕  " + self.t("countries.add"),
+                                   style="Accent.TButton", command=self._new_country)
+        self._add_btn.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+    @property
+    def _cosmetic_mode(self) -> bool:
+        return self._list_mode.get() == "cosmetic"
+
+    def _set_list_mode(self, value: str) -> None:
+        if value == self._list_mode.get():
+            return
+        self._list_mode.set(value)
+        self._sync_mode_chips()
+        self._list_mode_changed()
+
+    def _sync_mode_chips(self) -> None:
+        selected = self._list_mode.get()
+        for value, chip in self._mode_chips.items():
+            chip.configure(highlightbackground=(
+                "#ffffff" if value == selected else self.palette.surface_alt))
+
+    def _list_mode_changed(self) -> None:
+        self._save_all_pending()
+        self._selected = None
+        add_key = "countries.add_cosmetic" if self._cosmetic_mode else "countries.add"
+        self._add_btn.configure(text="➕  " + self.t(add_key))
+        self._update_tab_states()
+        self._reload()
+        self._g_title.configure(text=self.t("editor.select_module"))
+        self._color_btn.configure(state="disabled")
+        self._delete_btn.configure(state="disabled")
+
+    def _update_tab_states(self) -> None:
+        """In cosmetic mode only General / Flags / Names are meaningful."""
+        state = "disabled" if self._cosmetic_mode else "normal"
+        for idx in self._country_only_tabs:
+            self._nb.tab(idx, state=state)
+        if self._cosmetic_mode and self._nb.index("current") in self._country_only_tabs:
+            self._nb.select(0)
 
     def _build_details(self, root) -> None:
         self._nb = ttk.Notebook(root)
@@ -131,6 +196,9 @@ class CountriesEditor(EditorModule):
         self._build_tab_technology()
         self._build_tab_characters()
         self._build_tab_effects()
+        # Tab indices that make no sense for cosmetic tags (everything except
+        # General / Flags / Names).
+        self._country_only_tabs = tuple(range(3, len(self._nb.tabs())))
 
     # --- tab: general ----------------------------------------------------
     def _build_tab_general(self) -> None:
@@ -142,7 +210,15 @@ class CountriesEditor(EditorModule):
         self._g_title.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 14))
 
         self._row(tab, 1, self.t("countries.tag"), "_g_tag")
-        self._row(tab, 2, self.t("countries.graphical_culture"), "_g_culture")
+
+        ttk.Label(tab, text=self.t("countries.graphical_culture"),
+                  style="CardMuted.TLabel").grid(row=2, column=0, sticky="w", pady=4)
+        self._g_culture_var = tk.StringVar()
+        self._g_culture_combo = ttk.Combobox(
+            tab, textvariable=self._g_culture_var, state="disabled", width=26,
+            values=self.service.list_graphical_cultures())
+        self._g_culture_combo.grid(row=2, column=1, sticky="w", padx=8)
+        self._g_culture_combo.bind("<<ComboboxSelected>>", self._culture_changed)
 
         ttk.Label(tab, text=self.t("countries.color"), style="CardMuted.TLabel").grid(
             row=3, column=0, sticky="w", pady=4)
@@ -239,9 +315,8 @@ class CountriesEditor(EditorModule):
         self._loc_party_desc = tk.StringVar()
         self._loc_party_desc_entry = self._loc_row(tab, r, self.t("countries.party_desc"), self._loc_party_desc); r += 1
 
-        ttk.Button(tab, text=self.t("common.save"), style="Accent.TButton",
-                   command=self._save_name).grid(row=r, column=1, sticky="w", padx=8, pady=(12, 8)); r += 1
-
+        ttk.Label(tab, text=self.t("countries.autosave_hint"), style="CardMuted.TLabel").grid(
+            row=r, column=0, columnspan=2, sticky="w", pady=(12, 2)); r += 1
         ttk.Label(tab, text=self.t("countries.existing_names"), style="CardMuted.TLabel").grid(
             row=r, column=0, columnspan=2, sticky="w", pady=(8, 2)); r += 1
         self._loc_existing = ttk.Label(tab, text="", style="Card.TLabel", justify="left", wraplength=460)
@@ -249,8 +324,10 @@ class CountriesEditor(EditorModule):
         self._loc_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
         self._loc_status.grid(row=r, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
-        self._loc_lang.trace_add("write", lambda *_: self._load_localisation())
-        self._loc_ideology.trace_add("write", lambda *_: self._load_localisation())
+        # Switching language/ideology first flushes pending edits for the PREVIOUS
+        # combination, so nothing typed is ever lost (auto-save, no Save button).
+        self._loc_lang.trace_add("write", lambda *_: self._loc_context_changed())
+        self._loc_ideology.trace_add("write", lambda *_: self._loc_context_changed())
 
     def _loc_row(self, parent, row, label, var) -> ttk.Entry:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", pady=4)
@@ -274,7 +351,8 @@ class CountriesEditor(EditorModule):
         self._capital_options: dict[str, int] = {}
         self._capital_combo = ttk.Combobox(cap_row, textvariable=self._capital, state="readonly", width=24)
         self._capital_combo.pack(side="left")
-        ttk.Button(cap_row, text=self.t("common.save"), command=self._save_capital).pack(side="left", padx=6)
+        # Auto-save: picking a capital persists it immediately.
+        self._capital_combo.bind("<<ComboboxSelected>>", lambda e: self._save_capital())
 
         head = ttk.Frame(tab, style="Card.TFrame")
         head.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(12, 4))
@@ -367,8 +445,8 @@ class CountriesEditor(EditorModule):
                 tab, row, self.t(f"countries.oob_{kind}"), var, oob_values, width=28); row += 1
         self._pol_oob = self._oob_vars["land"]  # back-compat alias
 
-        ttk.Button(tab, text=self.t("common.save"), style="Accent.TButton",
-                   command=self._save_politics).grid(row=row, column=0, sticky="w", padx=16, pady=12); row += 1
+        ttk.Label(tab, text=self.t("countries.autosave_hint"), style="CardMuted.TLabel").grid(
+            row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 2)); row += 1
         self._pol_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
         self._pol_status.grid(row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
 
@@ -396,8 +474,6 @@ class CountriesEditor(EditorModule):
         actions = ttk.Frame(tab, style="Card.TFrame")
         actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         ttk.Button(actions, text="🗑 " + self.t("countries.tech.remove"), command=self._remove_tech).pack(side="left")
-        ttk.Button(actions, text=self.t("common.save"), style="Accent.TButton",
-                   command=self._save_tech).pack(side="left", padx=8)
         self._tech_status = ttk.Label(actions, text="", style="CardMuted.TLabel")
         self._tech_status.pack(side="left", padx=10)
 
@@ -476,14 +552,18 @@ class CountriesEditor(EditorModule):
                            current, submitted, ("effect", "trigger"), tag)
 
     def _save_all_pending(self) -> None:
-        """Flush unsaved edits from the auto-saved tabs to disk (used before the
-        effects editor reads the file, and shares logic with on_leave)."""
-        if not self._dirty or self._selected is None:
+        """Flush unsaved edits to disk — on country switch, on leaving the editor,
+        and before the effects editor reads the history file. Technology and
+        territory changes are saved immediately when made, so only the free-form
+        localisation / politics fields need flushing here."""
+        if self._selected is None:
             return
-        self._save_politics()
-        self._save_tech()
-        self._save_name()
-        self._dirty = False
+        if self._dirty_name:
+            self._save_name()
+            self._dirty_name = False
+        if self._dirty_politics and not self._selected.cosmetic:
+            self._save_politics()
+            self._dirty_politics = False
 
     # --- script-editor owner protocol (for the effects tab) -------------
     @property
@@ -582,7 +662,10 @@ class CountriesEditor(EditorModule):
 
     # --- data flow -------------------------------------------------------
     def _reload(self) -> None:
-        self._refs = self.service.list_tags(include_vanilla=self._vanilla.get())
+        if self._cosmetic_mode:
+            self._refs = self.service.list_cosmetic_tags(include_vanilla=self._vanilla.get())
+        else:
+            self._refs = self.service.list_tags(include_vanilla=self._vanilla.get())
         self._refresh_list()
 
     def _refresh_list(self) -> None:
@@ -601,16 +684,22 @@ class CountriesEditor(EditorModule):
         if not sel:
             return
         ref = next((r for r in self._refs if r.tag == sel[0]), None)
-        if ref is None:
+        if ref is None or ref is self._selected:
             return
+        # Auto-save: flush pending edits of the previously selected entry first.
+        self._save_all_pending()
         self._selected = ref
         self._populate(ref)
 
     def _populate(self, ref: CountryRef) -> None:
         self._loading = True
+        if ref.cosmetic:
+            self._populate_cosmetic(ref)
+            return
         self._g_title.configure(text=f"{ref.tag} — {ref.name}")
         self._g_tag.configure(text=ref.tag)
-        self._g_culture.configure(text=self.service.graphical_culture(ref) or "—")
+        self._g_culture_var.set(self.service.graphical_culture(ref) or "")
+        self._g_culture_combo.configure(state="readonly")
         self._set_color(self.service.get_color(ref).rgb)
         self._color_btn.configure(state="normal")
         self._g_status.configure(text="")
@@ -669,7 +758,32 @@ class CountriesEditor(EditorModule):
         self._delete_btn.configure(state=("disabled" if ref.is_vanilla else "normal"))
 
         self._loading = False
-        self._dirty = False
+        self._dirty_name = False
+        self._dirty_politics = False
+
+    def _populate_cosmetic(self, ref: CountryRef) -> None:
+        """Cosmetic tags only use General (tag + color), Flags and Names."""
+        self._g_title.configure(text=ref.tag)
+        self._g_tag.configure(text=ref.tag)
+        self._g_culture_var.set("")
+        self._g_culture_combo.configure(state="disabled")
+        self._set_color(self.service.get_cosmetic_color(ref.tag).rgb)
+        self._color_btn.configure(state="normal")
+        self._g_status.configure(text="")
+
+        for suffix, zone in self._flag_zones.items():
+            existing = self.service.flag_path(ref.tag, suffix)
+            zone.show_image(existing) if existing else zone.clear()
+        self._flag_status.configure(text="")
+
+        self._names = self.service.get_names(ref.tag)
+        self._load_localisation()
+        self._render_existing_names()
+
+        self._delete_btn.configure(state=("disabled" if ref.is_vanilla else "normal"))
+        self._loading = False
+        self._dirty_name = False
+        self._dirty_politics = False
 
     # --- general actions -------------------------------------------------
     def _pick_color(self) -> None:
@@ -682,11 +796,29 @@ class CountriesEditor(EditorModule):
         rgb_int = tuple(int(c) for c in rgb)
         self._set_color(rgb_int)
         try:
-            written = self.service.set_color(self._selected.tag, rgb_int, ref=self._selected)
+            if self._selected.cosmetic:
+                written = [self.service.set_cosmetic_color(self._selected.tag, rgb_int)]
+            else:
+                written = self.service.set_color(self._selected.tag, rgb_int, ref=self._selected)
             self._g_status.configure(text=f"{self.t('settings.saved')} ({len(written)})",
                                      foreground=self.palette.text_muted)
         except Exception as exc:
             self._g_status.configure(text=f"{self.t('common.error')}: {exc}", foreground=self.palette.danger)
+
+    def _culture_changed(self, _event=None) -> None:
+        """Auto-save: applying a graphical culture writes the definition file."""
+        if not self._selected or self._selected.cosmetic or self._loading:
+            return
+        culture = self._g_culture_var.get().strip()
+        if not culture or culture == self.service.graphical_culture(self._selected):
+            return
+        try:
+            self.service.set_graphical_culture(self._selected, culture)
+            self._g_status.configure(text=self.t("settings.saved"),
+                                     foreground=self.palette.text_muted)
+        except Exception as exc:
+            self._g_status.configure(text=f"{self.t('common.error')}: {exc}",
+                                     foreground=self.palette.danger)
 
     # --- flag actions ----------------------------------------------------
     def _on_flag(self, path: Path, suffix: str | None) -> None:
@@ -706,30 +838,51 @@ class CountriesEditor(EditorModule):
         value = self._loc_ideology.get()
         return None if value == self._loc_base_label else value
 
+    def _loc_context_changed(self) -> None:
+        """Language/ideology combo changed: flush pending edits for the previous
+        combination, then load the new one."""
+        if self._selected is not None and self._dirty_name:
+            lang, ideology = self._loc_ctx
+            self._save_name(language=lang, ideology=ideology)
+            self._dirty_name = False
+        self._load_localisation()
+
     def _load_localisation(self) -> None:
         if not self._selected:
             return
         ideology = self._current_ideology()
         loc = self.service.get_localisation(self._selected.tag, self._loc_lang.get(), ideology)
-        self._loc_name.set(loc.get("name", ""))
-        self._loc_def.set(loc.get("definite", ""))
-        self._loc_adj.set(loc.get("adjective", ""))
-        self._loc_party.set(loc.get("party", ""))
-        self._loc_party_long.set(loc.get("party_long", ""))
-        self._loc_party_desc.set(loc.get("party_desc", ""))
+        was_loading, self._loading = self._loading, True   # loading, not user edits
+        try:
+            self._loc_name.set(loc.get("name", ""))
+            self._loc_def.set(loc.get("definite", ""))
+            self._loc_adj.set(loc.get("adjective", ""))
+            self._loc_party.set(loc.get("party", ""))
+            self._loc_party_long.set(loc.get("party_long", ""))
+            self._loc_party_desc.set(loc.get("party_desc", ""))
+        finally:
+            self._loading = was_loading
+        self._loc_ctx = (self._loc_lang.get(), ideology)
 
     def _render_existing_names(self) -> None:
         names = getattr(self, "_names", {})
         text = "  ".join(f"{lang}: {value}" for lang, value in names.items()) or self.t("common.none")
         self._loc_existing.configure(text=text)
 
-    def _save_name(self) -> None:
+    def _save_name(self, language: str | None = None,
+                   ideology: str | None | bool = False) -> None:
+        """Persist the name/party fields (auto-saved: on country switch, on
+        language/ideology switch, and on leaving the editor). `language`/`ideology`
+        override the combo values when flushing edits for a previous combination."""
         if not self._selected:
             return
         name = self._loc_name.get().strip()
         if not name:
             return
-        ideology = self._current_ideology()
+        if ideology is False:
+            ideology = self._current_ideology()
+        if language is None:
+            language = self._loc_lang.get()
         party = (self._loc_party.get().strip(), self._loc_party_long.get().strip(),
                  self._loc_party_desc.get().strip())
         # Party names require an ideology; warn but still save the country name.
@@ -738,7 +891,7 @@ class CountriesEditor(EditorModule):
                                        foreground=self.palette.danger)
         try:
             self.service.set_localisation(
-                self._selected.tag, self._loc_lang.get(), ideology,
+                self._selected.tag, language, ideology,
                 name, self._loc_def.get().strip(), self._loc_adj.get().strip(),
                 party=party[0] if ideology else "",
                 party_long=party[1] if ideology else "",
@@ -854,7 +1007,7 @@ class CountriesEditor(EditorModule):
 
     # --- politics actions ------------------------------------------------
     def _save_politics(self) -> None:
-        if not self._selected:
+        if not self._selected or self._selected.cosmetic:
             return
         tag, name = self._selected.tag, self._selected.name
         try:
@@ -921,19 +1074,22 @@ class CountriesEditor(EditorModule):
         for tech in techs:
             if (tech, "") not in existing:
                 self._tech_selection.append((tech, ""))
-        self._dirty = True
         self._refresh_techs()
+        self._save_tech()
 
     def _remove_tech(self) -> None:
+        changed = False
         for iid in self._tech_tree.selection():
             tech, _, cond = iid.partition("|")
             if (tech, cond) in self._tech_selection:
                 self._tech_selection.remove((tech, cond))
-        self._dirty = True
+                changed = True
         self._refresh_techs()
+        if changed:
+            self._save_tech()
 
     def _save_tech(self) -> None:
-        if not self._selected:
+        if not self._selected or self._selected.cosmetic:
             return
         try:
             self.service.set_technology_entries(self._selected.tag, self._selected.name, self._tech_selection)
@@ -959,8 +1115,8 @@ class CountriesEditor(EditorModule):
         for entry in imported:
             if entry not in existing:
                 self._tech_selection.append(entry)
-        self._dirty = True
         self._refresh_techs()
+        self._save_tech()
         self._tech_status.configure(
             text=self.t("countries.tech.imported", tag=source_tag, count=len(imported)),
             foreground=self.palette.text_muted)
@@ -1068,24 +1224,33 @@ class CountriesEditor(EditorModule):
         if not self._selected or self._selected.is_vanilla:
             return
         ref = self._selected
-        if not messagebox.askyesno(self.t("countries.delete"),
+        title_key = "countries.delete_cosmetic" if ref.cosmetic else "countries.delete"
+        if not messagebox.askyesno(self.t(title_key),
                                    self.t("countries.delete.confirm", tag=ref.tag)):
             return
         try:
-            touched = self.service.delete_country(ref)
+            if ref.cosmetic:
+                touched = self.service.delete_cosmetic_tag(ref.tag)
+            else:
+                touched = self.service.delete_country(ref)
         except Exception as exc:
             self._g_status.configure(text=f"{self.t('common.error')}: {exc}", foreground=self.palette.danger)
             return
         self._selected = None
-        self.state_service.list_states(refresh=True)
+        if not ref.cosmetic:
+            self.state_service.list_states(refresh=True)
         self._reload()
         self._g_title.configure(text=self.t("editor.select_module"))
         self._g_status.configure(text=self.t("countries.deleted", tag=ref.tag, count=len(touched)),
                                  foreground=self.palette.text_muted)
         self._delete_btn.configure(state="disabled")
 
-    # --- new country -----------------------------------------------------
+    # --- new country / cosmetic tag --------------------------------------
     def _new_country(self) -> None:
+        if self._cosmetic_mode:
+            existing = {r.tag for r in self.service.list_cosmetic_tags(include_vanilla=True)}
+            NewCosmeticTagDialog(self._nb, self, existing)
+            return
         existing = {r.tag for r in self.service.list_tags(include_vanilla=True)}
         NewCountryDialog(self._nb, self, existing)
 

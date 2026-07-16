@@ -7,11 +7,9 @@ copy-to-mod; new entries go to the selected mod file (else
 """
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.gfx import SpriteResolver
 from ...services._locutil import LocCatalog
 from ...services.dynamic_modifier_service import DynamicModifierService
 from ..base import EditorModule, EditorRegistry
@@ -29,8 +27,7 @@ class DynamicModifiersEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = DynamicModifierService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self.resolver = context.sprites
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         # Vanilla names live in files like dynamic_modifiers_l_english.yml.
@@ -38,7 +35,7 @@ class DynamicModifiersEditor(EditorModule):
                               vanilla_filter="modifier",
                               default_pattern="anka_dynamic_modifiers_l_{lang}.yml",
                               dep_roots=context.dependency_paths)
-        self._resolver_ready = threading.Event()
+        self._resolver_ready = context.warm_sprites()
         self._mod_docs: list = []
         self._vanilla_refs: list = []
         self._dirty: set = set()
@@ -48,7 +45,6 @@ class DynamicModifiersEditor(EditorModule):
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
         root = ttk.Frame(parent, style="TFrame")
         root.columnconfigure(1, weight=1)
         root.rowconfigure(1, weight=1)
@@ -76,12 +72,6 @@ class DynamicModifiersEditor(EditorModule):
         self._build_problems(center)
         self.reload_tree()
         return root
-
-    def _warm_resolver(self) -> None:
-        try:
-            self.resolver.resolve("")
-        finally:
-            self._resolver_ready.set()
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()

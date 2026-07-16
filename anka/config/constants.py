@@ -6,19 +6,24 @@ works regardless of the current working directory. `GAME_DIRS` describes where,
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-# Project root = parent of the `anka` package directory.
-_ROOT = Path(__file__).resolve().parents[2]
+# Project root = parent of the `anka` package directory. In a PyInstaller
+# bundle read-only resources live in the extraction dir (_MEIPASS) while
+# user-writable files (settings, saved blocks) go next to the executable.
+_FROZEN = getattr(sys, "frozen", False)
+_ROOT = Path(getattr(sys, "_MEIPASS")) if _FROZEN else Path(__file__).resolve().parents[2]
+_WRITABLE_ROOT = Path(sys.executable).resolve().parent if _FROZEN else _ROOT
 
 # Basic constants
 VERSION = "0.8"
 
 class Paths:
-    ROOT: Path = _ROOT
+    ROOT: Path = _WRITABLE_ROOT
     IMAGES: Path = _ROOT / "images"
     LOCALES: Path = _ROOT / "locales"
-    SETTINGS_FILE: Path = _ROOT / "settings.json"
+    SETTINGS_FILE: Path = _WRITABLE_ROOT / "settings.json"
 
     # Standard app images (with graceful fallback handled by the loader).
     LOGO: Path = IMAGES / "New_logo.png"
@@ -33,6 +38,7 @@ class GAME_DIRS:
     COUNTRY_TAGS = "common/country_tags"
     COUNTRY_TAGS_FILE = "common/country_tags/00_countries.txt"
     COUNTRY_COLORS = "common/countries/colors.txt"
+    COUNTRY_COSMETIC = "common/countries/cosmetic.txt"
     COUNTRIES = "common/countries"
     IDEOLOGIES = "common/ideologies"
     NATIONAL_FOCUS = "common/national_focus"

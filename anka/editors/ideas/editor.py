@@ -12,11 +12,9 @@ also wires the politics-view GUI/GFX.
 """
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.gfx import SpriteResolver
 from ...services.idea_service import (
     CATEGORY_FILE_FLAGS,
     IdeaDef,
@@ -39,11 +37,10 @@ class IdeasEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = IdeaService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self.resolver = context.sprites
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
-        self._resolver_ready = threading.Event()
+        self._resolver_ready = context.warm_sprites()
         self._mod_docs: list = []
         self._mod_refs: list = []
         self._vanilla_refs: list = []
@@ -56,7 +53,6 @@ class IdeasEditor(EditorModule):
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
         root = ttk.Frame(parent, style="TFrame")
         root.columnconfigure(1, weight=1)
         root.rowconfigure(1, weight=1)
@@ -85,12 +81,6 @@ class IdeasEditor(EditorModule):
         self._build_problems(center)
         self.reload_tree()
         return root
-
-    def _warm_resolver(self) -> None:
-        try:
-            self.resolver.resolve("")
-        finally:
-            self._resolver_ready.set()
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()

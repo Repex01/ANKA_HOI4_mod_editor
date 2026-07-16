@@ -15,11 +15,9 @@ editing.
 """
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.gfx import SpriteResolver
 from ...services.trait_service import (
     COUNTRY_FAMILY,
     UNIT_FAMILY,
@@ -43,11 +41,10 @@ class TraitsEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = TraitService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self.resolver = context.sprites
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
-        self._resolver_ready = threading.Event()
+        self._resolver_ready = context.warm_sprites()
         self._mod_docs: dict[str, list] = {f: [] for f in _FAMILIES}
         self._vanilla_refs: dict[str, list] = {f: [] for f in _FAMILIES}
         self._dirty: set = set()
@@ -57,7 +54,6 @@ class TraitsEditor(EditorModule):
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
         root = ttk.Frame(parent, style="TFrame")
         root.columnconfigure(1, weight=1)
         root.rowconfigure(1, weight=1)
@@ -87,12 +83,6 @@ class TraitsEditor(EditorModule):
         self._build_problems(center)
         self.reload_tree()
         return root
-
-    def _warm_resolver(self) -> None:
-        try:
-            self.resolver.resolve("")
-        finally:
-            self._resolver_ready.set()
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()

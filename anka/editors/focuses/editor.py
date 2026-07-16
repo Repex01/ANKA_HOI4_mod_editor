@@ -11,11 +11,9 @@ are saved explicitly or automatically on leaving the editor.
 """
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from ...core.gfx import SpriteResolver
 from ...core.pdx import Block, Pair, dumps
 from ...core.pdx import parse as pdx_parse
 from ...services.focus_service import Focus, FocusService, FocusTreeRef
@@ -56,8 +54,7 @@ class FocusesEditor(EditorModule):
     def __init__(self, context, services):
         super().__init__(context, services)
         self.service = FocusService(context)
-        self.resolver = SpriteResolver.for_mod(context.mod.path, context.game_path,
-                                               context.dependency_paths)
+        self.resolver = context.sprites
         self.loc_language = {"ru": "russian"}.get(services.settings.current.language,
                                                   "english")
         self._refs: list[FocusTreeRef] = []
@@ -75,16 +72,10 @@ class FocusesEditor(EditorModule):
         self._history = CommandStack(limit=60)
         self._hist_baseline: str | None = None    # doc text at the last recorded state
         self._restoring = False                   # suppress recording during undo/redo
-        # The sprite map (game + all DLC .gfx files) takes seconds to build; warm it
-        # in the background so opening a tree never blocks on it.
-        self._resolver_ready = threading.Event()
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
-
-    def _warm_resolver(self) -> None:
-        try:
-            self.resolver.resolve("")
-        finally:
-            self._resolver_ready.set()
+        # The sprite map (game + all DLC .gfx files) takes seconds to build; the
+        # shared per-mod resolver is warmed once in the background so opening a
+        # tree never blocks on it.
+        self._resolver_ready = context.warm_sprites()
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()

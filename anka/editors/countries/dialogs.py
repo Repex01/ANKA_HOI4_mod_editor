@@ -33,7 +33,7 @@ class _Dialog(tk.Toplevel):
 
 class NewCountryDialog(_Dialog):
     def __init__(self, master, editor, existing_tags: set[str]):
-        super().__init__(master, editor, editor.t("countries.new.title"), (380, 320))
+        super().__init__(master, editor, editor.t("countries.new.title"), (380, 400))
         self._existing = existing_tags
         self._rgb = (128, 128, 128)
         self._build()
@@ -51,6 +51,15 @@ class NewCountryDialog(_Dialog):
         # assigning a StringVar to it makes destroy() raise (unhashable StringVar).
         self._name_var = tk.StringVar()
         ttk.Entry(body, textvariable=self._name_var, width=28).pack(anchor="w", pady=(2, 10))
+
+        ttk.Label(body, text=self.t("countries.graphical_culture"),
+                  style="CardMuted.TLabel").pack(anchor="w")
+        cultures = self.editor.service.list_graphical_cultures()
+        default = ("western_european_gfx" if "western_european_gfx" in cultures
+                   else cultures[0])
+        self._culture = tk.StringVar(value=default)
+        ttk.Combobox(body, textvariable=self._culture, values=cultures,
+                     state="readonly", width=26).pack(anchor="w", pady=(2, 10))
 
         ttk.Label(body, text=self.t("countries.color"), style="CardMuted.TLabel").pack(anchor="w")
         crow = ttk.Frame(body, style="Card.TFrame")
@@ -83,7 +92,75 @@ class NewCountryDialog(_Dialog):
             return self._fail("countries.new.exists")
         name = self._name_var.get().strip() or tag
         try:
-            self.editor.service.create_country(tag, name, self._rgb)
+            self.editor.service.create_country(
+                tag, name, self._rgb, graphical_culture=self._culture.get())
+        except Exception as exc:
+            self._error.configure(text=str(exc), foreground=self.palette.danger)
+            return
+        self.destroy()
+        self.editor.after_country_created(tag)
+
+    def _fail(self, key: str) -> None:
+        self._error.configure(text=self.t(key), foreground=self.palette.danger)
+
+
+class NewCosmeticTagDialog(_Dialog):
+    """Create a cosmetic tag: id + display name + map color (cosmetic.txt entry)."""
+
+    _COSMETIC_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+    def __init__(self, master, editor, existing_tags: set[str]):
+        super().__init__(master, editor, editor.t("countries.cosmetic.new_title"), (440, 430))
+        self._existing = existing_tags
+        self._rgb = (128, 128, 128)
+        self._build()
+
+    def _build(self) -> None:
+        body = ttk.Frame(self, style="Card.TFrame", padding=20)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+
+        ttk.Label(body, text=self.t("countries.cosmetic.tag"), style="CardMuted.TLabel").pack(anchor="w")
+        self._tag = tk.StringVar()
+        ttk.Entry(body, textvariable=self._tag, width=28).pack(anchor="w", pady=(2, 2))
+        ttk.Label(body, text=self.t("countries.cosmetic.tag_hint"),
+                  style="CardMuted.TLabel", wraplength=330, justify="left").pack(anchor="w", pady=(0, 10))
+
+        ttk.Label(body, text=self.t("countries.new.name"), style="CardMuted.TLabel").pack(anchor="w")
+        self._name_var = tk.StringVar()
+        ttk.Entry(body, textvariable=self._name_var, width=28).pack(anchor="w", pady=(2, 10))
+
+        ttk.Label(body, text=self.t("countries.color"), style="CardMuted.TLabel").pack(anchor="w")
+        crow = ttk.Frame(body, style="Card.TFrame")
+        crow.pack(anchor="w", pady=(2, 10))
+        self._swatch = tk.Canvas(crow, width=30, height=20, highlightthickness=1,
+                                 highlightbackground=self.palette.border, bg="#808080", bd=0)
+        self._swatch.pack(side="left")
+        ttk.Button(crow, text="…", width=4, command=self._pick_color).pack(side="left", padx=6)
+
+        self._error = ttk.Label(body, text="", style="CardMuted.TLabel")
+        self._error.pack(anchor="w", pady=(4, 8))
+
+        btns = ttk.Frame(body, style="Card.TFrame")
+        btns.pack(anchor="e", side="bottom")
+        ttk.Button(btns, text=self.t("common.cancel"), command=self.destroy).pack(side="left", padx=6)
+        ttk.Button(btns, text=self.t("common.create"), style="Accent.TButton",
+                   command=self._submit).pack(side="left")
+
+    def _pick_color(self) -> None:
+        rgb, _ = colorchooser.askcolor(color="#%02x%02x%02x" % self._rgb, parent=self)
+        if rgb:
+            self._rgb = tuple(int(c) for c in rgb)
+            self._swatch.configure(bg="#%02x%02x%02x" % self._rgb)
+
+    def _submit(self) -> None:
+        tag = self._tag.get().strip()
+        if not self._COSMETIC_RE.match(tag):
+            return self._fail("countries.cosmetic.invalid_tag")
+        if tag in self._existing:
+            return self._fail("countries.new.exists")
+        name = self._name_var.get().strip()
+        try:
+            self.editor.service.create_cosmetic_tag(tag, name, self._rgb)
         except Exception as exc:
             self._error.configure(text=str(exc), foreground=self.palette.danger)
             return

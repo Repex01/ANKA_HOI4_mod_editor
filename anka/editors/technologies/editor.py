@@ -13,7 +13,6 @@ every document a command touched.
 """
 from __future__ import annotations
 
-import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -89,14 +88,7 @@ class TechnologiesEditor(EditorModule):
         self._restoring = False
         self._equipment_tab = None
         self._tree_built = False
-        self._resolver_ready = threading.Event()
-        threading.Thread(target=self._warm_resolver, daemon=True).start()
-
-    def _warm_resolver(self) -> None:
-        try:
-            self.interface.resolver().resolve("")
-        finally:
-            self._resolver_ready.set()
+        self._resolver_ready = context.warm_sprites()
 
     def resolver_ready(self) -> bool:
         return self._resolver_ready.is_set()
@@ -635,11 +627,16 @@ class TechnologiesEditor(EditorModule):
 
     # ------------------------------------------------------------------ creation
     def _target_doc(self) -> TechDocument | None:
-        """The mod document new techs go to (created on demand)."""
+        """The mod document new techs go to (created on demand).
+
+        The current folder picks the file: prefer the mod file that already holds
+        techs of this folder, then a file named after the folder. Falling back to
+        "any first mod file" placed e.g. an infantry tech into ``air_tech.txt``
+        just because it sorted first."""
         refs = [r for r in self.service.list_docs(include_vanilla=False)
                 if not r.is_vanilla]
-        ref = None
-        if self._target_ref is not None:
+        ref = self._folder_target(refs)
+        if ref is None and self._target_ref is not None:
             ref = next((r for r in refs if r.path == self._target_ref.path), None)
         if ref is None and refs:
             ref = refs[0]
@@ -650,6 +647,29 @@ class TechnologiesEditor(EditorModule):
                 return None
         self._target_ref = ref
         return self._load_doc(ref)
+
+    def _folder_target(self, refs: list[TechDocRef]) -> TechDocRef | None:
+        """The mod tech file that best matches the currently open folder."""
+        if self._folder_id is None:
+            return None
+        folder = self._folder_id.lower()
+        best: TechDocRef | None = None
+        best_count = 0
+        for r in refs:
+            try:
+                doc = self._load_doc(r)
+            except Exception:
+                continue
+            count = sum(1 for t in doc.techs if t.folder_in(self._folder_id) is not None)
+            if count > best_count:
+                best, best_count = r, count
+        if best is not None:
+            return best
+        # No mod file holds this folder's techs yet: match by file name
+        # ("infantry_folder" -> "infantry.txt" / "infantry_folder.txt").
+        stem_targets = {folder, folder.removesuffix("_folder")}
+        return next((r for r in refs
+                     if Path(r.rel_file).stem.lower() in stem_targets), None)
 
     def _on_create(self, gridbox: str | None, cell: tuple[int, int],
                    px: tuple[float, float]) -> None:

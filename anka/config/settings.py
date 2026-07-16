@@ -18,7 +18,7 @@ class Settings:
     game_path: str = ""             # Hearts of Iron IV install root
     local_mods_path: str = ""       # Documents/.../mod
     workshop_mods_path: str = ""    # steamapps/workshop/content/394360
-    language: str = "ru"            # UI language code (matches locales/<code>.json)
+    language: str = "en"            # UI language code (matches locales/<code>.json)
     theme: str = "dark"             # "dark" | "light"
     recent_mods: list[str] = field(default_factory=list)
     # AI integrations (reserved for future features). Stored as plain text in

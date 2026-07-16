@@ -29,6 +29,7 @@ class CountryRef:
     is_vanilla: bool
     source_root: Path               # mod path or game path that owns the file
     edited: bool = False            # vanilla tag that the mod overrides/edits
+    cosmetic: bool = False          # a cosmetic tag (cosmetic.txt / set_cosmetic_tag)
 
     @property
     def country_file(self) -> Path:
@@ -44,6 +45,9 @@ class CountryColor:
 # Country tags: a leading letter then letters/digits (HOI4 dynamic tags like
 # D01). MUST stay in sync with the new-country dialog's validation.
 _TAG_RE = re.compile(r"^[A-Z][A-Z0-9]{1,2}$")
+
+# Cosmetic tags are free-form identifiers (``RAJ_UK``, ``INS_aslia``, ...).
+_COSMETIC_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
 def _invert_condition(cond: str) -> str:
@@ -199,23 +203,46 @@ class CountryService:
         return tuple(int(n) for n in nums)  # type: ignore[return-value]
 
     def set_color(self, tag: str, rgb: tuple[int, int, int], ref: CountryRef | None = None) -> list[Path]:
-        """Set a country's map color.
+        """Set a country's map color — in *every* place that declares one.
 
-        For a mod-owned country the color lives in its *own* definition file, which HOI4
-        reads as the country's default — this keeps the mod fully independent of vanilla
-        (no ``colors.txt`` is created, nothing is copied from the base game).
+        A color can live in the country's own definition file
+        (``common/countries/<Name>.txt``) and/or in ``colors.txt``; the engine prefers
+        ``colors.txt``, so updating only the definition file while an entry exists in any
+        layer's ``colors.txt`` silently loses the edit. We therefore:
 
-        Only a vanilla country whose color is overridden in the base game's ``colors.txt``
-        needs a mod ``colors.txt`` — and since that file *replaces* vanilla wholesale, we
-        seed it with all vanilla colors so other countries keep theirs.
+        * update the definition file when it is mod-owned and declares a ``color``;
+        * update the mod ``colors.txt`` whenever ANY content layer's ``colors.txt``
+          has an entry for the tag (the mod copy replaces vanilla wholesale, so it is
+          seeded with every vanilla color the first time);
+        * if neither declares the color yet, fall back to the definition file for a
+          mod-owned country (keeps new countries vanilla-independent) or ``colors.txt``
+          for everything else.
         """
-        rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
-        if ref is not None and self._is_in_mod(ref.country_file) and ref.country_file.exists():
+        written: list[Path] = []
+        mod_owned = (ref is not None and self._is_in_mod(ref.country_file)
+                     and ref.country_file.exists())
+        if mod_owned:
             block = parse_file(ref.country_file)
-            block.set("color", rgb_block)
-            dump_file(block, ref.country_file)
-            return [ref.country_file]
-        return [self._write_colors_txt(tag, rgb)]
+            if block.get_block("color") is not None:
+                block.set("color", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+                dump_file(block, ref.country_file)
+                written.append(ref.country_file)
+
+        in_colors_txt = any(
+            (b := self._colors_block(root)) is not None and b.get_block(tag) is not None
+            for root in self.ctx.search_roots(GAME_DIRS.COUNTRY_COLORS))
+        if in_colors_txt:
+            written.append(self._write_colors_txt(tag, rgb))
+
+        if not written:
+            if mod_owned:
+                block = parse_file(ref.country_file)
+                block.set("color", Block([Scalar(str(c)) for c in rgb], tag="rgb"))
+                dump_file(block, ref.country_file)
+                written.append(ref.country_file)
+            else:
+                written.append(self._write_colors_txt(tag, rgb))
+        return written
 
     def _write_colors_txt(self, tag: str, rgb: tuple[int, int, int]) -> Path:
         path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COLORS
@@ -242,6 +269,136 @@ class CountryService:
         dump_file(block, path)
         return path
 
+    # --- cosmetic tags ----------------------------------------------------
+    def _cosmetic_block(self, root: Path) -> Block | None:
+        path = root / GAME_DIRS.COUNTRY_COSMETIC
+        if not path.exists():
+            return None
+        try:
+            return parse_file(path)
+        except Exception:
+            return None
+
+    def list_cosmetic_tags(self, include_vanilla: bool = False) -> list[CountryRef]:
+        """Cosmetic tags declared in ``cosmetic.txt`` across the content layers.
+        Mod entries that vanilla lacks (or whose colors differ) count as mod-owned."""
+        vanilla_colors: dict[str, tuple] = {}
+        game_block = self._cosmetic_block(self.ctx.game_path)
+        if game_block is not None:
+            for p in game_block.pairs():
+                if isinstance(p.value, Block):
+                    vanilla_colors[p.key] = self._entry_colors(p.value)
+
+        refs: dict[str, CountryRef] = {}
+        for root, is_mod in self.ctx.override_layers(GAME_DIRS.COUNTRY_COSMETIC):
+            block = self._cosmetic_block(root)
+            if block is None:
+                continue
+            is_game = root == self.ctx.game_path
+            for p in block.pairs():
+                if not isinstance(p.value, Block) or not _COSMETIC_RE.match(p.key):
+                    continue
+                if is_game:
+                    refs[p.key] = CountryRef(p.key, "", "", True, root, cosmetic=True)
+                else:
+                    # The mod cosmetic.txt is seeded with every vanilla entry, so mere
+                    # presence means nothing — only new tags / changed colors are "ours".
+                    edited = (p.key in vanilla_colors
+                              and self._entry_colors(p.value) != vanilla_colors[p.key])
+                    if p.key not in vanilla_colors:
+                        refs[p.key] = CountryRef(p.key, "", "", False, root, cosmetic=True)
+                    elif edited:
+                        ref = refs.get(p.key) or CountryRef(p.key, "", "", True,
+                                                            self.ctx.game_path, cosmetic=True)
+                        ref.edited = True
+                        refs[p.key] = ref
+        if not include_vanilla:
+            return sorted((r for r in refs.values() if not r.is_vanilla or r.edited),
+                          key=lambda r: r.tag)
+        return sorted(refs.values(), key=lambda r: r.tag)
+
+    def get_cosmetic_color(self, tag: str) -> CountryColor:
+        for root in self.ctx.search_roots(GAME_DIRS.COUNTRY_COSMETIC):
+            block = self._cosmetic_block(root)
+            if block is None:
+                continue
+            entry = block.get_block(tag)
+            if entry is not None:
+                rgb = (self._color_from(entry.get_block("color"))
+                       or self._color_from(entry.get_block("color_ui")))
+                return CountryColor(rgb=rgb)
+        return CountryColor()
+
+    def set_cosmetic_color(self, tag: str, rgb: tuple[int, int, int]) -> Path:
+        """Set (or create) a cosmetic tag's entry in the mod ``cosmetic.txt``.
+        Like ``colors.txt``, the mod copy replaces vanilla wholesale, so it is
+        seeded with every vanilla entry on first write."""
+        path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COSMETIC
+        block = self._cosmetic_block(self.ctx.mod.path)
+        if block is None:
+            block = self._cosmetic_block(self.ctx.game_path) or Block()
+        entry = block.get_block(tag)
+        rgb_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
+        ui_block = Block([Scalar(str(c)) for c in rgb], tag="rgb")
+        if entry is None:
+            entry = Block()
+            entry.add("color", rgb_block)
+            entry.add("color_ui", ui_block)
+            block.add(tag, entry)
+        else:
+            entry.set("color", rgb_block)
+            entry.set("color_ui", ui_block)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        dump_file(block, path)
+        return path
+
+    def create_cosmetic_tag(self, tag: str, name: str,
+                            rgb: tuple[int, int, int] = (128, 128, 128)) -> dict[str, Path]:
+        """New cosmetic tag: a ``cosmetic.txt`` entry (color) + English name."""
+        if not _COSMETIC_RE.match(tag):
+            raise ValueError(f"Invalid cosmetic tag: {tag!r}")
+        existing = {r.tag for r in self.list_cosmetic_tags(include_vanilla=True)}
+        if tag in existing:
+            raise ValueError(f"Cosmetic tag already exists: {tag}")
+        written = {"cosmetic": self.set_cosmetic_color(tag, rgb)}
+        if name:
+            written["loc"] = self.set_name(tag, "english", name)
+        return written
+
+    def delete_cosmetic_tag(self, tag: str) -> list[Path]:
+        """Remove a mod cosmetic tag: cosmetic.txt entry, loc keys and flag assets."""
+        touched: list[Path] = []
+        path = self.ctx.mod.path / GAME_DIRS.COUNTRY_COSMETIC
+        block = self._cosmetic_block(self.ctx.mod.path)
+        if block is not None and block.has(tag):
+            block.remove(tag)
+            dump_file(block, path)
+            touched.append(path)
+
+        loc_dir = self.ctx.mod.path / GAME_DIRS.LOCALISATION
+        if loc_dir.is_dir():
+            for yml in loc_dir.glob("**/*.yml"):
+                try:
+                    loc = LocFile.load(yml)
+                except Exception:
+                    continue
+                keys = [k for k in (tag, f"{tag}_DEF", f"{tag}_ADJ") if k in loc]
+                if keys:
+                    for k in keys:
+                        loc.remove(k)
+                    loc.save(yml)
+                    touched.append(yml)
+
+        flags_dir = self.ctx.mod.path / GAME_DIRS.GFX_FLAGS
+        for sub in ("", "medium", "small"):
+            folder = flags_dir / sub if sub else flags_dir
+            if not folder.is_dir():
+                continue
+            for flag in list(folder.glob(f"{tag}.tga")) + list(folder.glob(f"{tag}_*.tga")):
+                flag.unlink(missing_ok=True)
+                touched.append(flag)
+        return touched
+
     # --- country definition file ----------------------------------------
     def load_country(self, ref: CountryRef) -> Block:
         return parse_file(ref.country_file)
@@ -251,6 +408,46 @@ class CountryService:
             return self.load_country(ref).get_scalar("graphical_culture", "") or ""
         except Exception:
             return ""
+
+    def list_graphical_cultures(self) -> list[str]:
+        """3D graphical culture ids (``*_gfx``) from ``graphicalculturetype.txt``,
+        highest layer first (mod additions before vanilla)."""
+        out: list[str] = []
+        seen: set[str] = set()
+        for root in self.ctx.override_roots("common/graphicalculturetype.txt"):
+            path = root / "common" / "graphicalculturetype.txt"
+            if not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            for token in re.findall(r"[A-Za-z0-9_]+", text):
+                if token.endswith("_gfx") and token not in seen:
+                    seen.add(token)
+                    out.append(token)
+        return out or ["western_european_gfx"]
+
+    def set_graphical_culture(self, ref: CountryRef, culture: str) -> Path:
+        """Write ``graphical_culture`` (+ matching ``_2d``) into the country's
+        definition file, copying a vanilla file into the mod first (engine
+        override by identical relative path)."""
+        target = self.ctx.mod.path / "common" / ref.rel_file
+        if not self._is_in_mod(ref.country_file) or not ref.country_file.exists():
+            source = ref.country_file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target = _ensure_filename_case(target)
+            if not target.exists() and source.exists():
+                target.write_bytes(source.read_bytes())
+        else:
+            target = ref.country_file
+        block = parse_file(target) if target.exists() else Block()
+        block.set("graphical_culture", Scalar(culture))
+        block.set("graphical_culture_2d", Scalar(culture.replace("_gfx", "_2d")))
+        dump_file(block, target)
+        # The ref now points at the mod copy for subsequent reads.
+        ref.source_root = self.ctx.mod.path
+        return target
 
     def flag_path(self, tag: str, suffix: str | None = None) -> Path | None:
         # Resolve across all content layers, highest priority first: the edited

@@ -231,8 +231,36 @@ class MapEditor(EditorModule):
             self.select_state(issue.target_id, zoom=True)
 
     def _build_toolbar(self, root) -> None:
-        bar = ttk.Frame(root, style="TFrame")
-        bar.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        # The bar lives inside a canvas so a horizontal scrollbar can appear
+        # when the window is too narrow to show every control.
+        outer = ttk.Frame(root, style="TFrame")
+        outer.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 8))
+        outer.columnconfigure(0, weight=1)
+        clip = tk.Canvas(outer, highlightthickness=0, bd=0, bg=self.palette.bg)
+        clip.grid(row=0, column=0, sticky="ew")
+        hbar = ttk.Scrollbar(outer, orient="horizontal", command=clip.xview)
+        hbar.grid(row=1, column=0, sticky="ew")
+        hbar.grid_remove()
+        clip.configure(xscrollcommand=hbar.set)
+        bar = ttk.Frame(clip, style="TFrame")
+        bar_win = clip.create_window(0, 0, window=bar, anchor="nw")
+
+        def _sync_toolbar(_event=None) -> None:
+            req_w, req_h = bar.winfo_reqwidth(), bar.winfo_reqheight()
+            if clip.winfo_height() != req_h:
+                clip.configure(height=req_h)
+            clip.configure(scrollregion=(0, 0, req_w, req_h))
+            clip_w = clip.winfo_width()
+            if req_w > clip_w:                      # overflow: scroll natural width
+                clip.itemconfigure(bar_win, width=req_w)
+                hbar.grid()
+            else:                                   # fits: stretch so side="right"
+                clip.itemconfigure(bar_win, width=clip_w)   # widgets stay pinned
+                hbar.grid_remove()
+                clip.xview_moveto(0)
+
+        bar.bind("<Configure>", _sync_toolbar)
+        clip.bind("<Configure>", _sync_toolbar)
         self._btn_list = ttk.Button(bar, text="☰ " + self.t("map.panel"),
                                     command=self._toggle_list)
         self._btn_list.pack(side="left")
@@ -248,6 +276,12 @@ class MapEditor(EditorModule):
         enable_form_wheel(combo)          # map-mode wheel is convenient here
         from ...ui.widgets.tooltip import attach_help
         attach_help(combo, self.t, "map.mode", self.palette)
+
+        self._rivers_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(bar, text=self.t("map.rivers"), style="Card.TCheckbutton",
+                        variable=self._rivers_var,
+                        command=lambda: self.canvas.set_rivers(self._rivers_var.get())
+                        ).pack(side="left", padx=(8, 0))
 
         ttk.Button(bar, text="⤢ " + self.t("map.fit"),
                    command=lambda: self.canvas.fit_map()).pack(side="left", padx=4)
@@ -432,9 +466,9 @@ class MapEditor(EditorModule):
     def _map_size(self):
         return self.map.size if self.map.loaded else None
 
-    def _render_view(self, mode, rect, scale, selected, highlight):
+    def _render_view(self, mode, rect, scale, selected, highlight, rivers=False):
         return self.map.render_view(mode, rect, scale, selected=selected,
-                                    highlight=highlight)
+                                    highlight=highlight, rivers=rivers)
 
     # -------------------------------------------------------------------- tree
     def reload_tree(self) -> None:

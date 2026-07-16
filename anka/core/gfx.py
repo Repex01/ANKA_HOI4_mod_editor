@@ -7,6 +7,7 @@ creating the file if needed. It is reused by every editor that introduces graphi
 """
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from .guitypes.views import SpriteView
@@ -106,6 +107,10 @@ class SpriteResolver:
     def __init__(self, content_roots: list[Path]):
         self._roots = [Path(r) for r in content_roots]
         self._map: dict[str, Path] | None = None
+        # One instance is shared by every editor module of a mod (see
+        # ModContext.sprites), so the lazy build must not run twice when the
+        # warm-up thread and a UI call race on a cold map.
+        self._build_lock = threading.Lock()
 
     @classmethod
     def for_mod(cls, mod_path: Path, game_path: Path,
@@ -147,24 +152,25 @@ class SpriteResolver:
                         mapping[name] = root / texture.replace("\\", "/")
         return mapping
 
-    def resolve(self, sprite_name: str) -> Path | None:
+    def _mapping(self) -> dict[str, Path]:
         if self._map is None:
-            self._map = self._build()
-        path = self._map.get(sprite_name)
+            with self._build_lock:
+                if self._map is None:
+                    self._map = self._build()
+        return self._map
+
+    def resolve(self, sprite_name: str) -> Path | None:
+        path = self._mapping().get(sprite_name)
         return path if (path and path.exists()) else None
 
     def add(self, name: str, texture: Path) -> None:
         """Record a sprite created at runtime without a full rescan."""
-        if self._map is None:
-            self._map = self._build()
-        self._map[name] = Path(texture)
+        self._mapping()[name] = Path(texture)
 
     def names(self, prefixes: tuple[str, ...] = ()) -> list[str]:
         """All known sprite names, optionally filtered by prefix (case-insensitive)."""
-        if self._map is None:
-            self._map = self._build()
         lows = tuple(p.lower() for p in prefixes)
-        return sorted(n for n in self._map
+        return sorted(n for n in self._mapping()
                       if not lows or n.lower().startswith(lows))
 
 

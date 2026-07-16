@@ -7,6 +7,7 @@ screens stay thin and decoupled.
 """
 from __future__ import annotations
 
+import gc
 import tkinter as tk
 from tkinter import ttk
 
@@ -88,6 +89,12 @@ class AnkaApp:
                 except Exception:
                     pass
             self._current.destroy()
+            # Variable traces registered on the Tcl interpreter would otherwise
+            # keep the destroyed screen (and its services/caches) alive forever;
+            # sweep them and free the old screen's memory right away.
+            from .ui.varcleanup import purge_orphan_variable_traces
+            purge_orphan_variable_traces()
+            gc.collect()
         self._current = screen
         screen.pack(fill="both", expand=True)
 
@@ -106,7 +113,21 @@ class AnkaApp:
     def show_mod_editor(self, mod: Mod) -> None:
         from .ui.windows.mod_editor import ModEditorScreen
         self.settings.add_recent_mod(mod.id)
-        self._swap(ModEditorScreen(self.root, self, mod))
+        # Opening a mod instantiates every editor module (file scans, caches) —
+        # show a loading screen with a progress bar while that happens.
+        loading = self._show_loading_screen(mod.name)
+        try:
+            screen = ModEditorScreen(self.root, self, mod, progress=loading.step)
+        except Exception:
+            self.show_mod_list()      # don't leave the user stuck on the loader
+            raise
+        self._swap(screen)
+
+    def _show_loading_screen(self, mod_name: str) -> "_LoadingScreen":
+        screen = _LoadingScreen(self.root, self, mod_name)
+        self._swap(screen)
+        self.root.update()            # paint it before the heavy work starts
+        return screen
 
     # --- helpers ---------------------------------------------------------
     @property
@@ -139,3 +160,25 @@ class AnkaApp:
                 self.root.iconphoto(True, self._icon_ref)
             except Exception:
                 pass
+
+
+class _LoadingScreen(ttk.Frame):
+    """Full-window 'opening mod' screen: mod name + progress bar + current step."""
+
+    def __init__(self, master, app, mod_name: str):
+        super().__init__(master, style="TFrame")
+        box = ttk.Frame(self, style="Card.TFrame", padding=32)
+        box.place(relx=0.5, rely=0.45, anchor="center")
+        ttk.Label(box, text=app.t("editor.loading", name=mod_name),
+                  style="Heading.TLabel").pack(pady=(0, 14))
+        self._bar = ttk.Progressbar(box, mode="determinate", maximum=100,
+                                    length=380)
+        self._bar.pack()
+        self._status = ttk.Label(box, text="", style="CardMuted.TLabel")
+        self._status.pack(pady=(10, 0))
+
+    def step(self, done: int, total: int, label: str) -> None:
+        """Progress callback for `ModEditorScreen` (runs on the Tk main thread)."""
+        self._bar.configure(value=round(done / max(total, 1) * 100))
+        self._status.configure(text=label)
+        self.update_idletasks()
