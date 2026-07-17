@@ -6,6 +6,9 @@ from tkinter import filedialog, ttk
 
 from ...config.settings import Settings
 
+# Native display names of the UI languages (locale code → name).
+_LANG_NAMES = {"en": "English", "ru": "Русский", "uk": "Українська"}
+
 
 class SettingsScreen(ttk.Frame):
     def __init__(self, master, app, first_run: bool = False):
@@ -46,10 +49,16 @@ class SettingsScreen(ttk.Frame):
         row.grid(row=3, column=0, sticky="w", pady=(16, 4))
 
         ttk.Label(row, text=t("settings.language"), style="CardMuted.TLabel").grid(row=0, column=0, sticky="w")
-        self._lang = tk.StringVar(value=s.language)
-        langs = self.app.translator.available_languages() or ["ru", "en"]
-        ttk.Combobox(row, textvariable=self._lang, values=langs, state="readonly",
-                     width=10).grid(row=1, column=0, padx=(0, 24), pady=4)
+        # Show native language names, not raw locale codes (unknown codes fall
+        # back to the code itself so extra locale files still work).
+        codes = self.app.translator.available_languages() or ["ru", "en"]
+        self._lang_label_map = {_LANG_NAMES.get(c, c): c for c in codes}
+        current = next((label for label, c in self._lang_label_map.items()
+                        if c == s.language), _LANG_NAMES.get("en", "en"))
+        self._lang = tk.StringVar(value=current)
+        ttk.Combobox(row, textvariable=self._lang,
+                     values=list(self._lang_label_map), state="readonly",
+                     width=12).grid(row=1, column=0, padx=(0, 24), pady=4)
 
         ttk.Label(row, text=t("settings.theme"), style="CardMuted.TLabel").grid(row=0, column=1, sticky="w")
         self._theme_label_map = {t("settings.theme.dark"): "dark", t("settings.theme.light"): "light"}
@@ -182,7 +191,7 @@ class SettingsScreen(ttk.Frame):
             game_path=self._value("game_path"),
             local_mods_path=self._value("local_mods_path"),
             workshop_mods_path=self._value("workshop_mods_path"),
-            language=self._lang.get(),
+            language=self._lang_label_map.get(self._lang.get(), "en"),
             theme=self._theme_label_map.get(self._theme.get(), "dark"),
             openai_api_key=self._vars["openai_api_key"].get().strip(),
             claude_api_key=self._vars["claude_api_key"].get().strip(),

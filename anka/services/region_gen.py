@@ -27,6 +27,27 @@ _NEIGHBORS = ((0, -1), (1, 0), (0, 1), (-1, 0))     # clockwise from "up"
 
 
 # ------------------------------------------------------------------ seeding
+def _seedable_mask(mask: np.ndarray, k: int) -> np.ndarray:
+    """Mask restricted to components big enough to host a cluster seed.
+
+    Greedy max-min seeding otherwise loves remote islands (they maximize
+    distance), turning every islet into its own tiny province. Components far
+    smaller than a fair cluster share are excluded — their pixels are later
+    attached to the nearest grown cluster by `_fill_leftovers`."""
+    comps = _components(mask)
+    if len(comps) <= 1:
+        return mask
+    total = int(mask.sum())
+    threshold = max(16, total // (k * 8))
+    big = [c for c in comps if int(c.sum()) >= threshold]
+    if not big:
+        return mask
+    out = np.zeros_like(mask)
+    for c in big:
+        out |= c
+    return out
+
+
 def spread_seeds(mask: np.ndarray, k: int,
                  rng: random.Random) -> list[tuple[int, int]]:
     """K points inside `mask`, spread by greedy max-min distance (first one
@@ -112,37 +133,72 @@ class _Grower:
         return n
 
 
+def _shift_labels(labels: np.ndarray, shift: int, axis: int) -> np.ndarray:
+    """`labels` moved one step along `axis` (vacated edge zeroed)."""
+    src = np.roll(labels, shift, axis=axis)
+    if shift == 1:
+        if axis == 0:
+            src[0, :] = 0
+        else:
+            src[:, 0] = 0
+    else:
+        if axis == 0:
+            src[-1, :] = 0
+        else:
+            src[:, -1] = 0
+    return src
+
+
 def _fill_leftovers(labels: np.ndarray, mask: np.ndarray) -> None:
     """Assign unreachable/unclaimed mask pixels to an adjacent cluster by
-    repeated one-step dilation (handles disconnected mask parts too — they
-    get the nearest label after the loop switches to unconditional spread)."""
-    for _ in range(labels.shape[0] + labels.shape[1]):
+    repeated one-step dilation. Mask parts cluster growth can never reach —
+    offshore islands separated by out-of-mask gaps — are then flooded with a
+    wavefront over the WHOLE grid (labels cross the gaps), so every island
+    joins its nearest generated cluster instead of being dumped into #1."""
+    h, w = labels.shape
+    for _ in range(h + w):
         empty = mask & (labels == 0)
         if not empty.any():
             return
         changed = False
         for shift in (1, -1):
             for axis in (0, 1):
-                src = np.roll(labels, shift, axis=axis)
-                if shift == 1:
-                    if axis == 0:
-                        src[0, :] = 0
-                    else:
-                        src[:, 0] = 0
-                else:
-                    if axis == 0:
-                        src[-1, :] = 0
-                    else:
-                        src[:, -1] = 0
+                src = _shift_labels(labels, shift, axis)
                 take = empty & (labels == 0) & (src > 0)
                 if take.any():
                     labels[take] = src[take]
                     changed = True
         if not changed:
-            # Isolated island with no labeled neighbor at all: drop it into
-            # cluster 1 so the region is fully covered.
-            labels[empty] = 1
-            return
+            break
+    empty = mask & (labels == 0)
+    if not empty.any():
+        return
+    # Nearest-cluster flood: spread labels across non-mask pixels too; the
+    # first label to reach an island pixel is the closest cluster. Sources
+    # are frozen per iteration (synchronous BFS), so the wavefront advances
+    # one pixel everywhere per step and distances stay honest.
+    field = labels.copy()
+    for _ in range(h + w):
+        if not (empty & (field == 0)).any():
+            break
+        zero = field == 0
+        base = field.copy()
+        grown = False
+        for shift in (1, -1):
+            for axis in (0, 1):
+                src = _shift_labels(base, shift, axis)
+                take = zero & (src > 0)
+                if take.any():
+                    field[take] = src[take]
+                    zero &= ~take
+                    grown = True
+        if not grown:
+            break
+    reached = empty & (field > 0)
+    labels[reached] = field[reached]
+    still = empty & (labels == 0)
+    if still.any():                       # no labels anywhere at all — cover
+        labels[still] = 1
 
 
 # ---------------------------------------------------------------- smoothing
@@ -233,7 +289,7 @@ def split_region(mask: np.ndarray, k: int, *, seed: int | None = None,
     if total == 0:
         return labels
     rng = random.Random(seed)
-    seeds = spread_seeds(mask, k, rng)
+    seeds = spread_seeds(_seedable_mask(mask, k), k, rng)
     growers = [_Grower(labels, mask, i + 1) for i in range(len(seeds))]
     for g, (sy, sx) in zip(growers, seeds):
         g.claim(sy, sx)
