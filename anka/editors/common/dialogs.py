@@ -39,6 +39,8 @@ class BaseDialog(tk.Toplevel):
         y = top.winfo_rooty() + (top.winfo_height() - h) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         self.grab_set()
+        from ...ui.widgets import guard_modal
+        guard_modal(self, top)      # keep taskbar restore working (Windows)
         self.bind("<Escape>", lambda e: self.destroy())
 
     def buttons_row(self, parent, submit_text: str | None = None) -> ttk.Frame:

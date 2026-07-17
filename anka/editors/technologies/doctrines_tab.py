@@ -111,6 +111,8 @@ class DoctrinesDialog(tk.Toplevel):
         self._reload_tree()
         self._refresh_issues()
         self.grab_set()
+        from ...ui.widgets import guard_modal
+        guard_modal(self, top)      # keep taskbar restore working (Windows)
 
     # ------------------------------------------------------------------- tree
     def _reload_tree(self, select: str | None = None) -> None:

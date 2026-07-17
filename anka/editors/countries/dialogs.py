@@ -29,6 +29,8 @@ class _Dialog(tk.Toplevel):
         y = master.winfo_rooty() + (master.winfo_height() - h) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         self.grab_set()
+        from ...ui.widgets import guard_modal
+        guard_modal(self)           # keep taskbar restore working (Windows)
 
 
 class NewCountryDialog(_Dialog):
