@@ -59,6 +59,11 @@ class MainMenuScreen(ttk.Frame):
                               width=26, command=self.app.show_settings)
         settings.pack(pady=6, ipadx=4)
         self._bind_hint(settings, "menu.hint.settings")
+        contact = ttk.Button(center, text=t("menu.contact"), style="Menu.TButton",
+                             width=26, command=lambda: webbrowser.open(
+                                 "https://forms.gle/QciUiKJmpSjsEKgY8"))
+        contact.pack(pady=6, ipadx=4)
+        self._bind_hint(contact, "menu.hint.contact")
         quit_btn = ttk.Button(center, text=t("menu.exit"), style="Menu.TButton",
                               width=26, command=self.app.root.destroy)
         quit_btn.pack(pady=6, ipadx=4)

@@ -55,6 +55,46 @@ class PixelsCommand(Command):
         editor.map.restore_pixels(self.ys, self.xs, self.new_codes)
 
 
+class LayerPixelsCommand(Command):
+    """A batch of repainted pixels on an auxiliary bitmap layer (heightmap /
+    visual terrain). `service_attr` names the editor attribute holding the
+    layer service. A stroke may touch the same pixel several times (numpy
+    fancy assignment gives no order guarantee for duplicates), so the pixels
+    are deduplicated up front: undo keeps each pixel's FIRST old value, redo
+    its LAST new value."""
+
+    touches = frozenset({TOUCH_PIXELS})
+
+    def __init__(self, service_attr: str, label_key: str, ys: np.ndarray,
+                 xs: np.ndarray, old: np.ndarray, new: np.ndarray):
+        self.service_attr = service_attr
+        self.label_key = label_key
+        ys = np.asarray(ys, dtype=np.int64)
+        xs = np.asarray(xs, dtype=np.int64)
+        old = np.asarray(old, dtype=np.uint8)
+        new = np.asarray(new, dtype=np.uint8)
+        key = (ys << 32) | xs
+        _, first = np.unique(key, return_index=True)
+        _, last_rev = np.unique(key[::-1], return_index=True)
+        last = len(key) - 1 - last_rev
+        self.ys = ys[first].astype(np.int32)
+        self.xs = xs[first].astype(np.int32)
+        self.old = old[first]
+        # `first` and `last` are both sorted by key, so the rows line up.
+        self.new = new[last]
+
+    def __len__(self) -> int:
+        return len(self.ys)
+
+    def undo(self, editor) -> None:
+        service = getattr(editor, self.service_attr)
+        service.restore_pixels(self.ys, self.xs, self.old)
+
+    def redo(self, editor) -> None:
+        service = getattr(editor, self.service_attr)
+        service.restore_pixels(self.ys, self.xs, self.new)
+
+
 class SetDefCommand(Command):
     """definition.csv field edit (type/terrain/coastal/continent)."""
 

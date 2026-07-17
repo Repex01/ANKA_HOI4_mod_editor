@@ -299,6 +299,11 @@ class StateInspector(InspectorBase):
         self._cores_frame.grid(row=row, column=0, columnspan=2, sticky="ew")
         row += 1
 
+        row = self._section(row, self.t("map.claims"))
+        self._claims_frame = ttk.Frame(b, style="Card.TFrame")
+        self._claims_frame.grid(row=row, column=0, columnspan=2, sticky="ew")
+        row += 1
+
         row = self._section(row, self.t("map.victory_points"))
         self._vp_frame = ttk.Frame(b, style="Card.TFrame")
         self._vp_frame.grid(row=row, column=0, columnspan=2, sticky="ew")
@@ -425,6 +430,7 @@ class StateInspector(InspectorBase):
         self._impassable_var.set(st.impassable)
         self._supply_lbl.configure(text=self.owner.supply_area_label(st.id))
         self._refresh_cores()
+        self._refresh_claims()
         self._refresh_vps()
         self._refresh_resources()
         self._refresh_provinces()
@@ -593,6 +599,50 @@ class StateInspector(InspectorBase):
                 self.state.set_cores(cores)
                 self._dirty()
                 self._refresh_cores()
+
+        SinglePickDialog(self, self.owner, self.t("map.pick_country"),
+                         self.owner.value_options("country"), picked)
+
+    # ------------------------------------------------------------------- claims
+    def _refresh_claims(self) -> None:
+        for w in self._claims_frame.winfo_children():
+            w.destroy()
+        st = self.state
+        if st is None:
+            return
+        for tag in st.claims:
+            chip = ttk.Frame(self._claims_frame, style="Card.TFrame")
+            chip.pack(side="left", padx=(0, 4), pady=2)
+            ttk.Label(chip, text=tag, style="Card.TLabel").pack(side="left")
+            if self._editable:
+                btn = tk.Label(chip, text="✕", cursor="hand2",
+                               bg=self.palette.surface, fg=self.palette.text_muted)
+                btn.pack(side="left", padx=(2, 0))
+                btn.bind("<Button-1>", lambda e, t=tag: self._remove_claim(t))
+        if self._editable:
+            ttk.Button(self._claims_frame, text="＋", width=3,
+                       command=self._add_claim).pack(side="left", pady=2)
+
+    def _remove_claim(self, tag: str) -> None:
+        if not self._editable or self.state is None:
+            return
+        claims = self.state.claims
+        claims.remove(tag)
+        self.state.set_claims(claims)
+        self._dirty()
+        self._refresh_claims()
+
+    def _add_claim(self) -> None:
+        if self.state is None:
+            return
+
+        def picked(tag: str) -> None:
+            claims = self.state.claims
+            if tag and tag not in claims:
+                claims.append(tag)
+                self.state.set_claims(claims)
+                self._dirty()
+                self._refresh_claims()
 
         SinglePickDialog(self, self.owner, self.t("map.pick_country"),
                          self.owner.value_options("country"), picked)

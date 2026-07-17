@@ -400,6 +400,20 @@ class FocusesEditor(EditorModule):
     def known_ids(self) -> list[str]:
         return [f.id for f, _e in self._display_focuses() if f.id]
 
+    def known_id_options(self, exclude: str = "") -> list[tuple[str, str]]:
+        """(display, id) picker options: localized focus name first, id after —
+        searchable by either. Used by the prerequisite / mutually-exclusive
+        pickers so they show translations, not bare ids."""
+        out: list[tuple[str, str]] = []
+        for f, _e in self._display_focuses():
+            if not f.id or f.id == exclude:
+                continue
+            name = self.service.focus_name(f.text or f.id, self.loc_language)
+            display = f.id if not name or name == f.id else f"{name}  ·  {f.id}"
+            out.append((display, f.id))
+        out.sort(key=lambda p: p[0].lower())
+        return out
+
     def positions(self) -> dict[str, tuple[int, int]]:
         return self.service.resolved_positions([f for f, _e in self._display_focuses()])
 

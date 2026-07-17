@@ -22,21 +22,45 @@ from ...services.building_service import BuildingService
 from ...services.map_refs import ResourceService, StateCategoryService
 from ...services.map_service import RENDER_MODES, MapService
 from ...services.map_zones import StrategicRegionService, SupplyAreaService
+from ...services.overlay_maps import HeightmapService, TerrainBmpService
 from ...services.state_service import StateService
 from ...services.terrain_service import TerrainService
 from ...services._locutil import LocCatalog
 from ..base import EditorModule, EditorRegistry
 from ...ui.widgets import enable_form_wheel
 from .canvas import MapCanvas
-from .commands import (TOUCH_DEFS, TOUCH_STATES, CommandStack, CompoundCommand,
-                       CreateDefCommand, PixelsCommand, SetDefCommand,
-                       StateDocsCommand, StateProvincesCommand, ZoneMembersCommand)
+from .commands import (TOUCH_DEFS, TOUCH_STATES, TOUCH_ZONES, CommandStack,
+                       CompoundCommand, CreateDefCommand, LayerPixelsCommand,
+                       PixelsCommand, SetDefCommand, StateDocsCommand,
+                       StateProvincesCommand, ZoneMembersCommand)
 from .inspector import BatchStateInspector, ProvinceInspector, StateInspector
 
-# Tools in toolbar / hotkey order (1–5). RENDER_MODES drives the F1–F4 hotkeys.
+# Tools in toolbar / hotkey order (1–5); every render mode has its own tool set.
 _TOOLS = ("select", "state", "brush", "fill", "picker")
 _TOOL_ICONS = {"select": "⭘", "state": "⭘⭘", "brush": "🖌",
                "fill": "🪣", "picker": "💉"}
+_HEIGHT_TOOLS = ("raise", "lower", "set", "smooth")
+_HEIGHT_ICONS = {"raise": "▲", "lower": "▼", "set": "▬", "smooth": "≈"}
+_VISUAL_TOOLS = ("vbrush", "vfill", "vpicker")
+_VISUAL_ICONS = {"vbrush": "🖌", "vfill": "🪣", "vpicker": "💉"}
+_REGION_TOOLS = ("rselect", "rassign")
+_REGION_ICONS = {"rselect": "⭘", "rassign": "🎯"}
+
+# Every mode in F-hotkey / combobox order: the province LUT modes rendered by
+# MapService, then the bitmap-layer editors (heightmap / visual terrain).
+ALL_MODES = (*RENDER_MODES, "height", "visual")
+# Modes that use the province tool set (select/state/brush/fill/picker).
+_PROVINCE_MODES = ("provinces", "terrain", "owner", "state")
+
+
+def _tool_group(mode: str) -> str:
+    if mode == "height":
+        return "height"
+    if mode == "visual":
+        return "visual"
+    if mode == "strat_region":
+        return "region"
+    return "prov"
 
 
 @EditorRegistry.register
@@ -53,11 +77,14 @@ class MapEditor(EditorModule):
         self.buildings = BuildingService(context)
         self.state_cats = StateCategoryService(context)
         self.resources = ResourceService(context)
+        self.strat_regions = StrategicRegionService(context)
         self.map = MapService(context, state_service=self.states,
-                              terrain_service=self.terrain)
+                              terrain_service=self.terrain,
+                              strat_service=self.strat_regions)
+        self.heightmap = HeightmapService(self.map)
+        self.terrain_bmp = TerrainBmpService(self.map)
         self.adjacencies = AdjacencyService(context, map_service=self.map)
         self.supply_areas = SupplyAreaService(context)
-        self.strat_regions = StrategicRegionService(context)
         self.loc = LocCatalog(context.mod.path, context.game_path,
                               vanilla_filter="state",
                               default_pattern="anka_states_l_{lang}.yml",
@@ -90,6 +117,14 @@ class MapEditor(EditorModule):
         self.commands = CommandStack(limit=40)
         self._stroke_delta: list[tuple] = []   # (ys, xs, old) chunks of a stroke
         self._multi_sel: set[int] = set()      # Shift-click / rubber-band picks
+        self._mode = "provinces"               # current render/editing mode
+        self._height_tool = "raise"            # raise | lower | set | smooth
+        self._visual_tool = "vbrush"           # vbrush | vfill | vpicker
+        self._region_tool = "rselect"          # rselect | rassign
+        self._visual_index: int | None = None  # selected terrain.bmp palette index
+        self._sel_region: int | None = None    # selected strategic region id
+        self._layer_stroke: list[tuple] = []   # (ys, xs, old, new) chunks
+        self._palette_built = False
 
     # ------------------------------------------------------------------- build
     def build(self, parent) -> ttk.Widget:
@@ -121,14 +156,15 @@ class MapEditor(EditorModule):
         for widget in (self.canvas.canvas, self._tree):
             bind_ctrl(widget, "z", lambda e: (self.undo(), "break")[1])
             bind_ctrl(widget, "y", lambda e: (self.redo(), "break")[1])
-            # F1–F4 switch render mode, 1–4 switch tool (only while the map/tree has
-            # focus, so typing digits in inspector fields is unaffected).
-            for i, mode in enumerate(RENDER_MODES):
+            # F1–F7 switch render mode, 1–5 switch the active mode's tool (only
+            # while the map/tree has focus, so typing digits in inspector
+            # fields is unaffected).
+            for i, mode in enumerate(ALL_MODES):
                 widget.bind(f"<F{i + 1}>",
                             lambda e, m=mode: (self._set_mode(m), "break")[1])
-            for i, tool in enumerate(_TOOLS):
+            for i in range(len(_TOOLS)):
                 widget.bind(f"<Key-{i + 1}>",
-                            lambda e, tl=tool: (self._set_tool(tl), "break")[1])
+                            lambda e, n=i: (self._tool_hotkey(n), "break")[1])
         self.canvas.canvas.bind("<Escape>",
                                 lambda e: self.clear_multi_selection())
         # Grab keyboard focus when the pointer enters the map so the mode/tool
@@ -267,10 +303,13 @@ class MapEditor(EditorModule):
 
         ttk.Label(bar, text=self.t("map.mode"), style="Muted.TLabel").pack(
             side="left", padx=(12, 4))
-        self._mode_var = tk.StringVar(value=self.t("map.mode.provinces"))
-        self._mode_by_label = {self.t(f"map.mode.{m}"): m for m in RENDER_MODES}
+        # Every mode label carries its F-hotkey, e.g. "Provinces (F1)".
+        self._mode_by_label = {f"{self.t(f'map.mode.{m}')} (F{i + 1})": m
+                               for i, m in enumerate(ALL_MODES)}
+        self._label_by_mode = {m: lbl for lbl, m in self._mode_by_label.items()}
+        self._mode_var = tk.StringVar(value=self._label_by_mode["provinces"])
         combo = ttk.Combobox(bar, textvariable=self._mode_var, state="readonly",
-                             width=16, values=list(self._mode_by_label))
+                             width=22, values=list(self._mode_by_label))
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._mode_changed)
         enable_form_wheel(combo)          # map-mode wheel is convenient here
@@ -296,45 +335,25 @@ class MapEditor(EditorModule):
 
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y",
                                                    padx=6, pady=2)
-        self._tool_btns: dict[str, ttk.Button] = {}
-        for i, name in enumerate(_TOOLS):
-            btn = ttk.Button(bar, text=f"{_TOOL_ICONS[name]} {i + 1}",
-                             command=lambda n=name: self._set_tool(n), width=5)
-            btn.pack(side="left", padx=1)
-            attach_help(btn, self.t, "map.tools", self.palette)
-            self._tool_btns[name] = btn
-        self._ground_only = tk.BooleanVar(value=False)
-        ttk.Checkbutton(bar, text=self.t("map.ground_only"), style="Card.TCheckbutton",
-                        variable=self._ground_only).pack(side="left", padx=(8, 0))
+        # Brush size — one variable shared by every paint tool; each tool group
+        # shows its own labelled spinbox for it.
         self._radius_var = tk.IntVar(value=6)
-        radius_spin = ttk.Spinbox(bar, from_=1, to=64, width=4,
-                                  textvariable=self._radius_var)
-        radius_spin.pack(side="left", padx=(6, 2))
-        enable_form_wheel(radius_spin)          # brush size wheel is convenient
-        self._target_swatch = tk.Label(bar, text="  ", bd=1, relief="solid")
-        self._target_swatch.pack(side="left", padx=(8, 2))
-        self._target_lbl = ttk.Label(bar, text=self.t("map.no_brush"),
-                                     style="Muted.TLabel")
-        self._target_lbl.pack(side="left")
-        # Stack the create / generate pairs into two-row columns to save toolbar width.
-        new_col = ttk.Frame(bar, style="TFrame")
-        new_col.pack(side="left", padx=(6, 2))
-        ttk.Button(new_col, text="➕ " + self.t("map.new_province"), width=13,
-                   command=self._new_province).pack(fill="x")
-        ttk.Button(new_col, text="🗺 " + self.t("map.new_state"), width=13,
-                   command=self._new_state).pack(fill="x", pady=(2, 0))
-        gen_col = ttk.Frame(bar, style="TFrame")
-        gen_col.pack(side="left", padx=2)
-        split_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.split_area"), width=14,
-                               command=self._split_selection)
-        split_btn.pack(fill="x")
-        attach_help(split_btn, self.t, "map.split", self.palette)
-        gen_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.gen_states"), width=14,
-                             command=self._generate_states)
-        gen_btn.pack(fill="x", pady=(2, 0))
-        attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
-        ttk.Button(bar, text="⇄ " + self.t("map.adjacencies"),
-                   command=self._open_adjacencies).pack(side="left", padx=2)
+        # Brush shape — used by the height / visual terrain brushes.
+        self._shape_by_label = {self.t("map.shape.round"): "round",
+                                self.t("map.shape.square"): "square"}
+        self._shape_var = tk.StringVar(value=self.t("map.shape.round"))
+
+        # Per-mode tool groups: only the active mode's frame is shown.
+        area = ttk.Frame(bar, style="TFrame")
+        area.pack(side="left", fill="y")
+        self._tool_frames = {
+            "prov": self._build_prov_tools(area, attach_help),
+            "height": self._build_height_tools(area),
+            "visual": self._build_visual_tools(area),
+            "region": self._build_region_tools(area),
+        }
+        self._tool_frames["prov"].pack(side="left")
+
         self._btn_problems = ttk.Button(bar, text="⚠", command=self._toggle_problems)
         self._btn_problems.pack(side="right", padx=(0, 4))
 
@@ -344,6 +363,213 @@ class MapEditor(EditorModule):
                                     fg=self.palette.accent_text)
         self._status = ttk.Label(bar, text="", style="Muted.TLabel")
         self._status.pack(side="right", padx=8)
+
+    # ------------------------------------------------------- per-mode tool bars
+    def _build_prov_tools(self, parent, attach_help) -> ttk.Frame:
+        frame = ttk.Frame(parent, style="TFrame")
+        self._tool_btns: dict[str, ttk.Button] = {}
+        for i, name in enumerate(_TOOLS):
+            btn = ttk.Button(frame, text=f"{_TOOL_ICONS[name]} {i + 1}",
+                             command=lambda n=name: self._set_tool(n), width=5)
+            btn.pack(side="left", padx=1)
+            attach_help(btn, self.t, "map.tools", self.palette)
+            self._tool_btns[name] = btn
+        self._size_spin(frame)
+        self._ground_only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(frame, text=self.t("map.ground_only"),
+                        style="Card.TCheckbutton",
+                        variable=self._ground_only).pack(side="left", padx=(8, 0))
+        self._target_swatch = tk.Label(frame, text="  ", bd=1, relief="solid")
+        self._target_swatch.pack(side="left", padx=(8, 2))
+        self._target_lbl = ttk.Label(frame, text=self.t("map.no_brush"),
+                                     style="Muted.TLabel")
+        self._target_lbl.pack(side="left")
+        # Stack the create / generate pairs into two-row columns to save width.
+        new_col = ttk.Frame(frame, style="TFrame")
+        new_col.pack(side="left", padx=(6, 2))
+        ttk.Button(new_col, text="➕ " + self.t("map.new_province"), width=13,
+                   command=self._new_province).pack(fill="x")
+        ttk.Button(new_col, text="🗺 " + self.t("map.new_state"), width=13,
+                   command=self._new_state).pack(fill="x", pady=(2, 0))
+        gen_col = ttk.Frame(frame, style="TFrame")
+        gen_col.pack(side="left", padx=2)
+        split_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.split_area"),
+                               width=14, command=self._split_selection)
+        split_btn.pack(fill="x")
+        attach_help(split_btn, self.t, "map.split", self.palette)
+        gen_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.gen_states"),
+                             width=14, command=self._generate_states)
+        gen_btn.pack(fill="x", pady=(2, 0))
+        attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
+        ttk.Button(frame, text="⇄ " + self.t("map.adjacencies"),
+                   command=self._open_adjacencies).pack(side="left", padx=2)
+        return frame
+
+    def _size_spin(self, parent) -> None:
+        """Labelled brush-size spinbox bound to the shared size variable."""
+        ttk.Label(parent, text=self.t("map.brush_size"),
+                  style="Muted.TLabel").pack(side="left", padx=(8, 2))
+        spin = ttk.Spinbox(parent, from_=1, to=64, width=4,
+                           textvariable=self._radius_var)
+        spin.pack(side="left")
+        enable_form_wheel(spin)                 # brush size wheel is convenient
+
+    def _shape_combo(self, parent) -> ttk.Combobox:
+        combo = ttk.Combobox(parent, textvariable=self._shape_var,
+                             state="readonly", width=9,
+                             values=list(self._shape_by_label))
+        enable_form_wheel(combo)
+        return combo
+
+    def _brush_shape(self) -> str:
+        return self._shape_by_label.get(self._shape_var.get(), "round")
+
+    def _build_height_tools(self, parent) -> ttk.Frame:
+        frame = ttk.Frame(parent, style="TFrame")
+        self._htool_btns: dict[str, ttk.Button] = {}
+        for i, name in enumerate(_HEIGHT_TOOLS):
+            btn = ttk.Button(frame, width=11,
+                             text=f"{_HEIGHT_ICONS[name]} "
+                                  f"{self.t(f'map.htool.{name}')} {i + 1}",
+                             command=lambda n=name: self._set_height_tool(n))
+            btn.pack(side="left", padx=1)
+            self._htool_btns[name] = btn
+        self._shape_combo(frame).pack(side="left", padx=(8, 0))
+        self._size_spin(frame)
+        ttk.Label(frame, text=self.t("map.strength"),
+                  style="Muted.TLabel").pack(side="left", padx=(8, 2))
+        self._strength_var = tk.IntVar(value=8)
+        strength = ttk.Spinbox(frame, from_=1, to=64, width=4,
+                               textvariable=self._strength_var)
+        strength.pack(side="left")
+        enable_form_wheel(strength)
+        ttk.Label(frame, text=self.t("map.level"),
+                  style="Muted.TLabel").pack(side="left", padx=(8, 2))
+        self._level_var = tk.IntVar(value=128)
+        level = ttk.Spinbox(frame, from_=0, to=255, width=5,
+                            textvariable=self._level_var)
+        level.pack(side="left")
+        enable_form_wheel(level)
+        self._height_lbl = ttk.Label(frame, text="", style="Muted.TLabel")
+        self._height_lbl.pack(side="left", padx=(10, 0))
+        return frame
+
+    def _build_visual_tools(self, parent) -> ttk.Frame:
+        frame = ttk.Frame(parent, style="TFrame")
+        self._vtool_btns: dict[str, ttk.Button] = {}
+        for i, name in enumerate(_VISUAL_TOOLS):
+            btn = ttk.Button(frame, text=f"{_VISUAL_ICONS[name]} {i + 1}",
+                             command=lambda n=name: self._set_visual_tool(n),
+                             width=5)
+            btn.pack(side="left", padx=1)
+            self._vtool_btns[name] = btn
+        self._shape_combo(frame).pack(side="left", padx=(8, 4))
+        self._size_spin(frame)
+        # Palette bar (two rows of index swatches), filled once terrain.bmp and
+        # the graphical-terrain declarations are loaded.
+        self._palette_frame = ttk.Frame(frame, style="TFrame")
+        self._palette_frame.pack(side="left", padx=(6, 4))
+        self._visual_lbl = ttk.Label(frame, text=self.t("map.no_terrain_index"),
+                                     style="Muted.TLabel")
+        self._visual_lbl.pack(side="left", padx=(4, 0))
+        return frame
+
+    def _build_region_tools(self, parent) -> ttk.Frame:
+        frame = ttk.Frame(parent, style="TFrame")
+        self._rtool_btns: dict[str, ttk.Button] = {}
+        for i, name in enumerate(_REGION_TOOLS):
+            btn = ttk.Button(frame, width=12,
+                             text=f"{_REGION_ICONS[name]} "
+                                  f"{self.t(f'map.rtool.{name}')} {i + 1}",
+                             command=lambda n=name: self._set_region_tool(n))
+            btn.pack(side="left", padx=1)
+            self._rtool_btns[name] = btn
+        ttk.Button(frame, text="➕ " + self.t("map.new_region"),
+                   command=self._new_region).pack(side="left", padx=(8, 0))
+        self._region_lbl = ttk.Label(frame, text=self.t("map.no_region_sel"),
+                                     style="Muted.TLabel")
+        self._region_lbl.pack(side="left", padx=(10, 0))
+        return frame
+
+    def _populate_palette(self) -> None:
+        """Fill the visual-terrain palette bar with labelled index swatches."""
+        if self._palette_built:
+            return
+        swatches = self.terrain_bmp.swatches()
+        if not swatches:
+            return
+        self._palette_built = True
+        self._swatch_widgets: dict[int, tk.Label] = {}
+        for i, (index, rgb, name) in enumerate(swatches):
+            luma = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+            sw = tk.Label(self._palette_frame, text=str(index), width=3,
+                          bg=f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}",
+                          fg="#000000" if luma > 128 else "#ffffff",
+                          bd=1, relief="solid", cursor="hand2",
+                          font=("Segoe UI", 7))
+            sw.grid(row=i % 2, column=i // 2, padx=1, pady=1)
+            sw.bind("<Button-1>",
+                    lambda e, idx=index: self._select_visual_index(idx))
+            self._swatch_widgets[index] = sw
+        first = swatches[0][0]
+        self._select_visual_index(first)
+
+    def _select_visual_index(self, index: int) -> None:
+        self._visual_index = index
+        for idx, sw in getattr(self, "_swatch_widgets", {}).items():
+            sw.configure(bd=3 if idx == index else 1,
+                         relief="ridge" if idx == index else "solid")
+        name = self.terrain_bmp.index_names().get(index, "?")
+        self._visual_lbl.configure(text=f"{index} · {name}")
+
+    # ------------------------------------------------------------ tool switching
+    def _tool_hotkey(self, n: int) -> None:
+        """Number key 1..5 → n-th tool of the active mode's tool set."""
+        group = _tool_group(self._mode)
+        tools = {"prov": _TOOLS, "height": _HEIGHT_TOOLS,
+                 "visual": _VISUAL_TOOLS, "region": _REGION_TOOLS}[group]
+        if n >= len(tools):
+            return
+        {"prov": self._set_tool, "height": self._set_height_tool,
+         "visual": self._set_visual_tool,
+         "region": self._set_region_tool}[group](tools[n])
+
+    def _set_height_tool(self, name: str) -> None:
+        self._height_tool = name
+        for tool, btn in self._htool_btns.items():
+            btn.configure(style="Accent.TButton" if tool == name else "TButton")
+        self._apply_paint_state()
+
+    def _set_visual_tool(self, name: str) -> None:
+        self._visual_tool = name
+        for tool, btn in self._vtool_btns.items():
+            btn.configure(style="Accent.TButton" if tool == name else "TButton")
+        self._apply_paint_state()
+
+    def _set_region_tool(self, name: str) -> None:
+        self._region_tool = name
+        for tool, btn in self._rtool_btns.items():
+            btn.configure(style="Accent.TButton" if tool == name else "TButton")
+        self._apply_paint_state()
+
+    def _apply_paint_state(self) -> None:
+        """Sync the canvas drag behaviour + cursor with the active mode/tool."""
+        mode = self._mode
+        if mode == "height":
+            self.canvas.paint_mode = True
+            cursor = "dotbox"
+        elif mode == "visual":
+            self.canvas.paint_mode = self._visual_tool == "vbrush"
+            cursor = {"vbrush": "pencil", "vfill": "spraycan",
+                      "vpicker": "target"}[self._visual_tool]
+        elif mode == "strat_region":
+            self.canvas.paint_mode = False
+            cursor = {"rselect": "hand2", "rassign": "crosshair"}[self._region_tool]
+        else:
+            self.canvas.paint_mode = self._tool == "brush"
+            cursor = {"brush": "pencil", "fill": "spraycan", "picker": "target",
+                      "state": "hand2"}.get(self._tool, "crosshair")
+        self.canvas.canvas.configure(cursor=cursor)
 
     def _build_states_panel(self, root) -> None:
         panel = ttk.Frame(root, style="Card.TFrame", padding=10)
@@ -432,6 +658,10 @@ class MapEditor(EditorModule):
                 self.map.ensure_bitmap()
                 self.map.defs
                 self.states.list_states()
+                # Auxiliary layers are optional — a missing heightmap/terrain
+                # bmp only disables its mode, never the whole editor.
+                self.heightmap.ensure()
+                self.terrain_bmp.ensure()
                 self._load_state = "ready"
             except Exception as exc:                      # noqa: BLE001
                 self._load_error = str(exc)
@@ -453,6 +683,8 @@ class MapEditor(EditorModule):
         self.reload_tree()
         self.canvas.canvas.focus_set()      # hotkeys work right after loading
         self._update_sel_count()            # show the total province count
+        if self.terrain_bmp.loaded:
+            self._populate_palette()
 
     def _focus_map(self, _event=None) -> None:
         """Give the map keyboard focus unless a text entry is currently being edited."""
@@ -467,8 +699,19 @@ class MapEditor(EditorModule):
         return self.map.size if self.map.loaded else None
 
     def _render_view(self, mode, rect, scale, selected, highlight, rivers=False):
+        if mode in ("height", "visual"):
+            layer = self.heightmap if mode == "height" else self.terrain_bmp
+            if layer.ensure():
+                return layer.render(rect, scale)
+            return self._missing_layer_image(rect, scale)
         return self.map.render_view(mode, rect, scale, selected=selected,
                                     highlight=highlight, rivers=rivers)
+
+    def _missing_layer_image(self, rect, scale):
+        from PIL import Image
+        w = max(1, round((rect[2] - rect[0]) * scale))
+        h = max(1, round((rect[3] - rect[1]) * scale))
+        return Image.new("RGB", (w, h), (45, 47, 56))
 
     # -------------------------------------------------------------------- tree
     def reload_tree(self) -> None:
@@ -729,6 +972,14 @@ class MapEditor(EditorModule):
     def _map_click(self, mx: int, my: int, event) -> None:
         if not self.map.loaded:
             return
+        if self._mode == "height":
+            return                       # height tools are drag-only
+        if self._mode == "visual":
+            self._visual_click(mx, my)
+            return
+        if self._mode == "strat_region":
+            self._region_click(mx, my)
+            return
         pid = self.map.province_at(mx, my)
         if self._assign_mode and pid is not None:
             self.assign_province_to_state(pid)
@@ -881,12 +1132,9 @@ class MapEditor(EditorModule):
     # ----------------------------------------------------------- paint tools
     def _set_tool(self, name: str) -> None:
         self._tool = name
-        self.canvas.paint_mode = name == "brush"
         for tool, btn in self._tool_btns.items():
             btn.configure(style="Accent.TButton" if tool == name else "TButton")
-        self.canvas.canvas.configure(
-            cursor={"brush": "pencil", "fill": "spraycan", "picker": "target",
-                    "state": "hand2"}.get(name, "crosshair"))
+        self._apply_paint_state()
 
     def set_brush_target(self, pid: int) -> None:
         d = self.map.by_id.get(pid)
@@ -902,7 +1150,169 @@ class MapEditor(EditorModule):
             return None
         return self._brush_target
 
+    # ----------------------------------------------- height / visual / regions
+    def _visual_click(self, mx: int, my: int) -> None:
+        if not self.terrain_bmp.ensure():
+            return
+        if self._visual_tool == "vpicker":
+            idx = self.terrain_bmp.index_at(mx, my)
+            if idx is not None:
+                if idx in getattr(self, "_swatch_widgets", {}):
+                    self._select_visual_index(idx)
+                else:
+                    self._visual_index = idx
+                    name = self.terrain_bmp.index_names().get(idx, "?")
+                    self._visual_lbl.configure(text=f"{idx} · {name}")
+        elif self._visual_tool == "vfill":
+            if self._visual_index is None:
+                return
+            ys, xs, old, new = self.terrain_bmp.flood_fill(mx, my,
+                                                           self._visual_index)
+            if len(ys):
+                self._record(LayerPixelsCommand("terrain_bmp", "map.cmd.visual",
+                                                ys, xs, old, new))
+                self.canvas.refresh()
+                self._status.configure(text=self.t("map.filled_px",
+                                                   count=len(ys)))
+
+    def _region_click(self, mx: int, my: int) -> None:
+        pid = self.map.province_at(mx, my)
+        if pid is None:
+            return
+        if self._region_tool == "rselect":
+            doc = self.strat_regions.doc_for_member(pid)
+            if doc is None:
+                self._sel_region = None
+                self._region_lbl.configure(text=self.t("map.no_region"))
+                self.canvas.set_selection(set())
+                return
+            self._select_region(doc)
+        else:                                   # rassign
+            if self._sel_region is None:
+                self._status.configure(text=self.t("map.no_region_sel"))
+                return
+            self._assign_to_region(pid, self._sel_region)
+
+    def _select_region(self, doc) -> None:
+        self._sel_region = doc.zone_id
+        members = list(doc.members)
+        self._region_lbl.configure(
+            text=self.t("map.region_info", id=doc.zone_id,
+                        name=doc.name or f"REGION_{doc.zone_id}",
+                        count=len(members)))
+        self.canvas.set_selection(set(), highlight=set(members))
+
+    def _assign_to_region(self, pid: int, region: int) -> None:
+        """Move the clicked province into the selected strategic region —
+        together with its whole state: HOI4 requires every province of a state
+        to share one strategic region, so a lone province must never switch
+        region on its own. Stateless (sea/lake) provinces move individually.
+        Undoable as one command."""
+        if self.strat_regions.doc_for_zone(region) is None:
+            return
+        prov_state, _ = self.map._political_maps()
+        sid = prov_state.get(pid)
+        pids = [pid]
+        if sid is not None:
+            st = self.states.get(sid)
+            if st is not None and st.provinces:
+                pids = list(st.provinces)
+        member_of = self.strat_regions.member_map()
+        pids = [p for p in pids if member_of.get(p) != region]
+        if not pids:
+            return
+        # Snapshot every affected zone's member list before the move.
+        affected = {region}
+        affected |= {member_of[p] for p in pids if p in member_of}
+        before = {}
+        for zid in affected:
+            doc = self.strat_regions.doc_for_zone(zid)
+            if doc is not None:
+                before[zid] = list(doc.members)
+        for p in pids:
+            self.strat_regions.move_member(p, region)
+        children = []
+        for zid, old in before.items():
+            doc = self.strat_regions.doc_for_zone(zid)
+            new = list(doc.members) if doc is not None else old
+            if new != old:
+                children.append(ZoneMembersCommand("strat_regions", zid,
+                                                   old, new))
+        if children:
+            self._record(children[0] if len(children) == 1
+                         else CompoundCommand(children, "map.cmd.region"))
+        self.map.invalidate_regions()
+        self.canvas.refresh()
+        target = self.strat_regions.doc_for_zone(region)
+        if target is not None:
+            self._select_region(target)
+        if sid is not None:
+            self._status.configure(text=self.t("map.region_assigned_state",
+                                               state=sid, count=len(pids),
+                                               region=region))
+        else:
+            self._status.configure(text=self.t("map.region_assigned",
+                                               id=pid, region=region))
+
+    def _new_region(self) -> None:
+        doc = self.strat_regions.create_region()
+        self.map.invalidate_regions()
+        self._select_region(doc)
+        self.canvas.refresh()
+        self._status.configure(text=self.t("map.region_created",
+                                           id=doc.zone_id))
+
+    def _paint_layer(self, mx: int, my: int) -> None:
+        """Drag-paint on the heightmap / visual terrain layer."""
+        layer = self.heightmap if self._mode == "height" else self.terrain_bmp
+        if not layer.ensure():
+            return
+        size = max(1, int(self._radius_var.get() or 1))
+        shape = self._brush_shape()
+        # Interpolate along the stroke so fast drags leave no gaps.
+        points = [(mx, my)]
+        if self._last_paint is not None:
+            lx, ly = self._last_paint
+            dist = max(abs(mx - lx), abs(my - ly))
+            step = max(1, size)
+            if dist > step:
+                n = dist // step
+                points = [(lx + (mx - lx) * (i + 1) // (n + 1),
+                           ly + (my - ly) * (i + 1) // (n + 1))
+                          for i in range(int(n))] + points
+        for x, y in points:
+            if self._mode == "height":
+                delta = self.heightmap.stamp(
+                    x, y, size, shape, self._height_tool,
+                    strength=max(1, int(self._strength_var.get() or 1)),
+                    level=max(0, min(255, int(self._level_var.get() or 0))))
+            else:
+                if self._visual_index is None:
+                    return
+                delta = self.terrain_bmp.stamp(x, y, size, shape,
+                                               self._visual_index)
+            if len(delta[0]):
+                self._layer_stroke.append(delta)
+        self._last_paint = (mx, my)
+        self.canvas.refresh()
+
+    def _end_layer_stroke(self) -> None:
+        self._last_paint = None
+        chunks, self._layer_stroke = self._layer_stroke, []
+        if not chunks:
+            return
+        ys = np.concatenate([c[0] for c in chunks])
+        xs = np.concatenate([c[1] for c in chunks])
+        old = np.concatenate([c[2] for c in chunks])
+        new = np.concatenate([c[3] for c in chunks])
+        attr, label = (("heightmap", "map.cmd.height") if self._mode == "height"
+                       else ("terrain_bmp", "map.cmd.visual"))
+        self._record(LayerPixelsCommand(attr, label, ys, xs, old, new))
+
     def _paint(self, mx: int, my: int, _event) -> None:
+        if self._mode in ("height", "visual"):
+            self._paint_layer(mx, my)
+            return
         if not self.map.loaded or self._tool != "brush":
             return
         pid = self._brush_target
@@ -932,6 +1342,9 @@ class MapEditor(EditorModule):
         self.canvas.refresh()
 
     def _paint_end(self) -> None:
+        if self._mode in ("height", "visual"):
+            self._end_layer_stroke()
+            return
         self._last_paint = None
         chunks, self._stroke_delta = self._stroke_delta, []
         pid = self._brush_target
@@ -1125,6 +1538,7 @@ class MapEditor(EditorModule):
         source_docs: dict[int, object] = {}
         src_category: dict[int, str] = {}
         src_cores: dict[int, list] = {}
+        src_owner: dict[int, str] = {}
         for sid in source_ids:
             ref = refs_by_id[sid]
             if ref.is_vanilla:
@@ -1134,6 +1548,7 @@ class MapEditor(EditorModule):
             if doc.state is not None:
                 src_category[sid] = doc.state.state_category
                 src_cores[sid] = list(doc.state.cores)
+                src_owner[sid] = doc.state.owner
 
         # Assign ids: a freed id goes to the cluster that inherits the most of that
         # state's original provinces (greedy by overlap), so the id — and thus the
@@ -1163,6 +1578,7 @@ class MapEditor(EditorModule):
                 next_new += 1
         match = fields.get("match_categories", False)
         keep_cores = fields.get("original_cores", True)
+        keep_owners = fields.get("keep_owners", True)
 
         # Phase 1 — build each new state and pull its share of assets from the sources.
         new_roots: list = []
@@ -1171,7 +1587,11 @@ class MapEditor(EditorModule):
             dom = self._dominant_source_id(group, prov_state)
             cat = (src_category.get(dom, fields["category"]) if match
                    else fields["category"])
-            root = build_state_root(fid, "", fields["owner"], cat, group)
+            # "Keep owners": inherit the dominant source state's owner tag so
+            # generated states stay with their current countries.
+            owner = (src_owner.get(dom) or fields["owner"]) if keep_owners \
+                else fields["owner"]
+            root = build_state_root(fid, "", owner, cat, group)
             new_state = StateDef(root.get_block("state"))
             if keep_cores and src_cores.get(dom):
                 new_state.set_cores(src_cores[dom])   # inherit original national cores
@@ -1256,32 +1676,26 @@ class MapEditor(EditorModule):
 
     def partition_provinces(self, provs: list[int], n: int, seed: int = 0,
                             within_borders: bool = False) -> list[list[int]]:
-        """Cluster `provs` into groups. Normally the whole selection is split into `n`
-        clusters; with `within_borders` each existing state is split into `n` pieces
-        separately (clusters never cross a state border — i.e. just split states).
+        """Cluster `provs` into `n` groups. With `within_borders` the clusters
+        are additionally refined along existing state borders, so no generated
+        state ever spans two current states.
 
         A generated state must never span two strategic regions (HOI4 requires a state's
         provinces to share one), so clusters are always refined along region borders."""
         region_of = self.strat_regions.member_map()
-        if not within_borders:
-            return self._cluster_pixels(provs, n, seed, region_of)
-        prov_state, _ = self.map._political_maps()
-        by_state: dict[int, list[int]] = {}
-        for p in provs:
-            by_state.setdefault(prov_state.get(p), []).append(p)
-        out: list[list[int]] = []
-        for i, (_sid, sprovs) in enumerate(
-                sorted(by_state.items(), key=lambda kv: (kv[0] is None, kv[0]))):
-            out.extend(self._cluster_pixels(sprovs, min(n, len(sprovs)),
-                                            seed + i, region_of))
-        return out
+        state_of: dict[int, int] | None = None
+        if within_borders:
+            prov_state, _ = self.map._political_maps()
+            state_of = prov_state
+        return self._cluster_pixels(provs, n, seed, region_of, state_of)
 
     def _cluster_pixels(self, provs: list[int], n: int, seed: int,
-                        region_of: dict[int, int]) -> list[list[int]]:
+                        region_of: dict[int, int],
+                        state_of: dict[int, int] | None = None) -> list[list[int]]:
         """Grow `n` regions over the provinces' pixels, then assign each province
         wholesale to the cluster owning most of its pixels. Groups are keyed by
-        (cluster, strategic region) so a cluster spanning two regions is split — every
-        resulting state stays within a single strategic region."""
+        (cluster, strategic region[, state]) so a cluster spanning two regions —
+        or, with `state_of`, two existing states — is split accordingly."""
         from ...services.region_gen import split_region
         bbox = self._state_bbox(set(provs))
         if bbox is not None and n > 1:
@@ -1299,9 +1713,13 @@ class MapEditor(EditorModule):
                 lab = int(np.bincount(labels[pm].ravel()).argmax()) if pm.any() else 1
             else:
                 lab = 1
-            groups.setdefault((lab, region_of.get(p)), []).append(p)
+            key = (lab, region_of.get(p),
+                   state_of.get(p) if state_of is not None else None)
+            groups.setdefault(key, []).append(p)
         return [g for _key, g in sorted(
-            groups.items(), key=lambda kv: (kv[0][0], kv[0][1] is None, kv[0][1] or 0))
+            groups.items(),
+            key=lambda kv: (kv[0][0], kv[0][1] is None, kv[0][1] or 0,
+                            kv[0][2] is None, kv[0][2] or 0))
             if g]
 
     def generate_states_preview(self, provs: list[int], groups: list[list[int]]):
@@ -1458,6 +1876,7 @@ class MapEditor(EditorModule):
         target = self.strat_regions.doc_for_zone(region)
         old_members = list(target.members) if target is not None else []
         self.strat_regions.move_member(pid, region)
+        self.map.invalidate_regions()
         self._status.configure(
             text=self.t("map.strat_assigned", id=pid, region=region))
         target = self.strat_regions.doc_for_zone(region)
@@ -1471,12 +1890,29 @@ class MapEditor(EditorModule):
             return
         # Top-left origin (image coordinates): (0,0) is the map's top-left corner.
         self._coord_lbl.configure(text=f"{mx}, {my}")
+        if self._mode == "height":
+            value = self.heightmap.value_at(mx, my)
+            self._status.configure(
+                text=f"{mx}, {my}" + (f" · h={value}" if value is not None else ""))
+            return
+        if self._mode == "visual":
+            idx = self.terrain_bmp.index_at(mx, my)
+            if idx is not None:
+                name = self.terrain_bmp.index_names().get(idx, "?")
+                self._status.configure(text=f"{mx}, {my} · {idx} · {name}")
+            else:
+                self._status.configure(text=f"{mx}, {my}")
+            return
         pid = self.map.province_at(mx, my)
         if pid is None:
             self._status.configure(text=f"{mx}, {my}")
             return
         d = self.map.by_id.get(pid)
         extra = f" · {d.type}/{d.terrain}" if d is not None else ""
+        if self._mode == "strat_region":
+            doc = self.strat_regions.doc_for_member(pid)
+            extra += (f" · {doc.name or doc.zone_id}" if doc is not None
+                      else f" · {self.t('map.no_region')}")
         self._status.configure(text=f"{mx}, {my} · #{pid}{extra}")
 
     def goto_province(self, pid: int) -> None:
@@ -1773,6 +2209,8 @@ class MapEditor(EditorModule):
             self.map.invalidate_political()
             self._value_options.pop("province_free", None)
             self._refresh_tree()
+        if TOUCH_ZONES in touches:
+            self.map.invalidate_regions()
         self.canvas.refresh()
         self._sync_inspectors()
         self.state_inspector.refresh_provinces_view()
@@ -1911,11 +2349,25 @@ class MapEditor(EditorModule):
 
     def _mode_changed(self, _event=None) -> None:
         mode = self._mode_by_label.get(self._mode_var.get(), "provinces")
-        self.canvas.set_mode(mode)
+        self._set_mode(mode)
 
     def _set_mode(self, mode: str) -> None:
-        """Switch render mode (F1–F4 hotkeys / programmatic), syncing the combobox."""
-        self._mode_var.set(self.t(f"map.mode.{mode}"))
+        """Switch render/editing mode (F1–F7 hotkeys / combobox), swapping the
+        toolbar's tool set along with the rendering."""
+        self._mode_var.set(self._label_by_mode.get(mode, mode))
+        prev_group = _tool_group(self._mode)
+        self._mode = mode
+        group = _tool_group(mode)
+        if group != prev_group:
+            self._tool_frames[prev_group].pack_forget()
+            self._tool_frames[group].pack(side="left")
+        if mode == "visual":
+            # Load lazily on first use (background loading may have skipped it).
+            if self.terrain_bmp.ensure():
+                self._populate_palette()
+        elif mode == "height":
+            self.heightmap.ensure()
+        self._apply_paint_state()
         self.canvas.set_mode(mode)
 
     # ------------------------------------------------------------------ saving
@@ -1935,6 +2387,10 @@ class MapEditor(EditorModule):
                                                     error=str(exc)))
         try:
             written = self.map.save()
+            for layer in (self.heightmap, self.terrain_bmp):
+                path = layer.save()
+                if path is not None:
+                    written.append(path)
             if self.adjacencies.dirty:
                 self.adjacencies.save()
         except Exception as exc:                          # noqa: BLE001
@@ -1959,5 +2415,11 @@ class MapEditor(EditorModule):
             self._dirty_docs.pop(path, None)
         if self.map.dirty_bmp or self.map.dirty_csv:
             self.map.save()
+        for layer in (self.heightmap, self.terrain_bmp):
+            if layer.dirty:
+                try:
+                    layer.save()
+                except Exception:                          # noqa: BLE001
+                    pass
         if self.adjacencies.dirty:
             self.adjacencies.save()

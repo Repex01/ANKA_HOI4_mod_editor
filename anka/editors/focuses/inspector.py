@@ -611,9 +611,9 @@ class FocusInspector(ttk.Frame):
             self._refresh_prereqs()
             self.owner.refresh_canvas()
 
-        ids = sorted(fid for fid in self.owner.known_ids() if fid != focus.id)
+        options = self.owner.known_id_options(exclude=focus.id)
         MultiPickDialog(self, self.owner, self.t("focuses.inspector.prerequisites"),
-                        ids, picked, preselected=preselected)
+                        options, picked, preselected=preselected)
 
     def _remove_prereq_group(self, index: int) -> None:
         focus = self.focus_obj
@@ -633,9 +633,9 @@ class FocusInspector(ttk.Frame):
             self.owner.set_mutex(focus, values)
             self._refresh_mutex()
 
-        ids = sorted(fid for fid in self.owner.known_ids() if fid != focus.id)
+        options = self.owner.known_id_options(exclude=focus.id)
         MultiPickDialog(self, self.owner, self.t("focuses.inspector.mutex"),
-                        ids, picked, preselected=set(focus.mutually_exclusive))
+                        options, picked, preselected=set(focus.mutually_exclusive))
 
     def _edit_script(self, name: str) -> None:
         focus = self.focus_obj

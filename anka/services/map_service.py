@@ -36,7 +36,7 @@ _NEUTRAL_RGB = (150, 150, 150)     # land without owner
 _NO_STATE_RGB = (90, 90, 90)       # land not in any state (state mode)
 _RIVER_RGB = (64, 140, 255)        # rivers overlay on top of any render mode
 
-RENDER_MODES = ("provinces", "terrain", "owner", "state")
+RENDER_MODES = ("provinces", "terrain", "owner", "state", "strat_region")
 
 
 def encode_rgb(r: int, g: int, b: int) -> int:
@@ -128,10 +128,12 @@ class MapService:
     """Read/render/mutate the province map of `context`'s mod (vanilla fallback)."""
 
     def __init__(self, context: ModContext, *, state_service=None,
-                 terrain_service=None):
+                 terrain_service=None, strat_service=None):
         self.ctx = context
         self._state_service = state_service
         self._terrain_service = terrain_service
+        self._strat_service = strat_service
+        self._region_map: dict[int, int] | None = None   # province → strat region
 
         self._filenames: dict[str, str] | None = None
         self._defs: list[ProvinceDef] | None = None
@@ -441,6 +443,19 @@ class MapService:
         self._luts.pop("owner", None)
         self._luts.pop("state", None)
 
+    def invalidate_regions(self) -> None:
+        """Strategic-region membership changed → region LUT stale."""
+        self._region_map = None
+        self._luts.pop("strat_region", None)
+
+    def _region_of(self) -> dict[int, int]:
+        if self._region_map is None:
+            if self._strat_service is None:
+                from .map_zones import StrategicRegionService
+                self._strat_service = StrategicRegionService(self.ctx)
+            self._region_map = self._strat_service.member_map()
+        return self._region_map
+
     # ------------------------------------------------------------------ render
     def _terrain_colors(self) -> dict[str, tuple[int, int, int]]:
         if self._terrain_service is None:
@@ -489,6 +504,17 @@ class MapService:
                 else:
                     sid = prov_state.get(d.id)
                     lut[i] = state_color(sid) if sid is not None else _NO_STATE_RGB
+        elif mode == "strat_region":
+            region_of = self._region_of()
+            for i, code in enumerate(self._ucodes):
+                d = self.by_code.get(code)
+                if d is None:
+                    lut[i] = _ORPHAN_RGB
+                else:
+                    rid = region_of.get(d.id)
+                    # offset the hash so regions don't mirror the state colors
+                    lut[i] = (state_color(rid * 7 + 3) if rid is not None
+                              else _NO_STATE_RGB)
         else:
             raise ValueError(f"Unknown render mode {mode!r}")
         self._luts[mode] = lut
@@ -768,13 +794,19 @@ class MapService:
     # ------------------------------------------------------- province splitting
     def preview_split_area(self, pids: list[int], k: int, *,
                            seed: int | None = None, strategy: str = "organic",
-                           smooth_passes: int = 2, on_progress=None):
+                           smooth_passes: int = 2, within_states: bool = False,
+                           on_progress=None):
         """Compute split labels for the union of several provinces without
-        touching the map. Returns (labels int32 on the bbox slice, bbox)."""
+        touching the map. Returns (labels int32 on the bbox slice, bbox).
+
+        With `within_states` the clusters never cross an existing state
+        border: each state's pixels are partitioned separately, with `k`
+        shared out proportionally to pixel area (at least 1 per state)."""
         from .region_gen import split_region
         self.ensure_bitmap()
         codes = []
         boxes = []
+        kept: list[int] = []
         for pid in pids:
             d = self.by_id.get(pid)
             box = self.bbox_of(pid) if d is not None else None
@@ -782,16 +814,51 @@ class MapService:
                 continue
             codes.append(d.code)
             boxes.append(box)
+            kept.append(pid)
         if not boxes:
             raise ValueError("No pixels in the selected provinces")
         bbox = (min(b[0] for b in boxes), min(b[1] for b in boxes),
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
         x0, y0, x1, y1 = bbox
         crop = self._codes[y0:y1 + 1, x0:x1 + 1]
-        mask = np.isin(crop, np.array(codes, dtype=np.uint32))
-        labels = split_region(mask, k, seed=seed, strategy=strategy,
-                              smooth_passes=smooth_passes,
-                              on_progress=on_progress)
+        if not within_states:
+            mask = np.isin(crop, np.array(codes, dtype=np.uint32))
+            labels = split_region(mask, k, seed=seed, strategy=strategy,
+                                  smooth_passes=smooth_passes,
+                                  on_progress=on_progress)
+            return labels, bbox
+        # Group the selection by owning state (stateless provinces together),
+        # split each group's pixel mask separately and merge the label maps.
+        prov_state, _ = self._political_maps()
+        by_state: dict[object, list[int]] = {}
+        for pid in kept:
+            by_state.setdefault(prov_state.get(pid), []).append(pid)
+        groups = sorted(by_state.items(), key=lambda kv: (kv[0] is None, kv[0] or 0))
+        masks = []
+        areas = []
+        for _sid, gpids in groups:
+            gcodes = np.array([self.by_id[p].code for p in gpids], dtype=np.uint32)
+            m = np.isin(crop, gcodes)
+            masks.append(m)
+            areas.append(int(np.count_nonzero(m)))
+        total = sum(areas) or 1
+        # Largest-remainder allocation of k, at least one cluster per state.
+        raw = [k * a / total for a in areas]
+        ks = [max(1, int(r)) for r in raw]
+        order = sorted(range(len(ks)), key=lambda i: raw[i] - int(raw[i]),
+                       reverse=True)
+        for i in order:
+            if sum(ks) >= k:
+                break
+            ks[i] += 1
+        labels = np.zeros(crop.shape, dtype=np.int32)
+        offset = 0
+        for i, mask in enumerate(masks):
+            sub = split_region(mask, min(ks[i], areas[i]), seed=seed,
+                               strategy=strategy, smooth_passes=smooth_passes,
+                               on_progress=on_progress)
+            labels[sub > 0] = sub[sub > 0] + offset
+            offset = int(labels.max())
         return labels, bbox
 
     def preview_split(self, pid: int, k: int, **kwargs):

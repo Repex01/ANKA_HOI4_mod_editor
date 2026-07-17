@@ -168,7 +168,7 @@ class GenerateStatesDialog(BaseDialog):
                  on_apply: Callable[[list[int], list, dict], None],
                  split_resources: bool = True, total_states: int = 0,
                  selected_states: int = 0):
-        super().__init__(master, editor, editor.t("map.gen_states"), (520, 660))
+        super().__init__(master, editor, editor.t("map.gen_states"), (520, 690))
         self.resizable(True, True)
         self._provs = list(provs)
         self._on_apply = on_apply
@@ -179,7 +179,7 @@ class GenerateStatesDialog(BaseDialog):
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         body.columnconfigure(1, weight=1)
-        body.rowconfigure(7, weight=1)
+        body.rowconfigure(8, weight=1)
 
         ttk.Label(body, text=self.t("map.gen_states_stats", total=total_states,
                                     selected=selected_states),
@@ -215,30 +215,34 @@ class GenerateStatesDialog(BaseDialog):
         ttk.Checkbutton(body, text=self.t("map.split_resources"),
                         style="Card.TCheckbutton", variable=self._split_var).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
-        self._borders_var = tk.BooleanVar(value=False)
+        self._borders_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(body, text=self.t("map.gen_within_borders"),
                         style="Card.TCheckbutton", variable=self._borders_var).grid(
             row=4, column=0, columnspan=2, sticky="w")
+        self._owners_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(body, text=self.t("map.gen_keep_owners"),
+                        style="Card.TCheckbutton", variable=self._owners_var).grid(
+            row=5, column=0, columnspan=2, sticky="w")
         self._match_cat_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(body, text=self.t("map.gen_match_categories"),
                         style="Card.TCheckbutton", variable=self._match_cat_var).grid(
-            row=5, column=0, columnspan=2, sticky="w")
+            row=6, column=0, columnspan=2, sticky="w")
         self._cores_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(body, text=self.t("map.gen_original_cores"),
                         style="Card.TCheckbutton", variable=self._cores_var).grid(
-            row=6, column=0, columnspan=2, sticky="w")
+            row=7, column=0, columnspan=2, sticky="w")
 
         self._canvas = tk.Canvas(body, width=self.PREVIEW[0], height=self.PREVIEW[1],
                                  bg=self.palette.surface_alt, highlightthickness=0,
                                  bd=0)
-        self._canvas.grid(row=7, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+        self._canvas.grid(row=8, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
         self._progress = ttk.Label(body, text=self.t("map.gen_states_hint",
                                                      count=len(provs)),
                                    style="CardMuted.TLabel", wraplength=460)
-        self._progress.grid(row=8, column=0, columnspan=2, sticky="w", pady=(4, 2))
+        self._progress.grid(row=9, column=0, columnspan=2, sticky="w", pady=(4, 2))
 
         bar = ttk.Frame(body, style="Card.TFrame")
-        bar.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        bar.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ttk.Button(bar, text=self.t("common.cancel"),
                    command=self.destroy).pack(side="right", padx=(6, 0))
         self._apply_btn = ttk.Button(bar, text=self.t("common.apply"),
@@ -330,6 +334,7 @@ class GenerateStatesDialog(BaseDialog):
             "split_resources": self._split_var.get(),
             "match_categories": self._match_cat_var.get(),
             "original_cores": self._cores_var.get(),
+            "keep_owners": self._owners_var.get(),
         }
         groups = self._groups
         self.destroy()
@@ -495,7 +500,7 @@ class SplitProvinceDialog(BaseDialog):
                  on_apply: Callable[[list[int], np.ndarray, tuple, list], None]):
         title = (editor.t("map.split_title", id=pids[0]) if len(pids) == 1
                  else editor.t("map.split_area_title", count=len(pids)))
-        super().__init__(master, editor, title, (520, 520))
+        super().__init__(master, editor, title, (520, 550))
         self.resizable(True, True)
         self._pids = list(pids)
         self._on_apply = on_apply
@@ -508,7 +513,7 @@ class SplitProvinceDialog(BaseDialog):
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         body.columnconfigure(1, weight=1)
-        body.rowconfigure(3, weight=1)
+        body.rowconfigure(4, weight=1)
 
         row0 = ttk.Frame(body, style="Card.TFrame")
         row0.grid(row=0, column=0, columnspan=2, sticky="ew")
@@ -537,18 +542,24 @@ class SplitProvinceDialog(BaseDialog):
         ttk.Spinbox(row1, from_=0, to=6, width=4,
                     textvariable=self._smooth_var).pack(side="left", padx=4)
 
+        self._borders_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(body, text=self.t("map.split_within_borders"),
+                        style="Card.TCheckbutton",
+                        variable=self._borders_var).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
         self._progress = ttk.Label(body, text="", style="CardMuted.TLabel")
-        self._progress.grid(row=2, column=0, columnspan=2, sticky="w",
+        self._progress.grid(row=3, column=0, columnspan=2, sticky="w",
                             pady=(6, 2))
 
         self._canvas = tk.Canvas(body, width=self.PREVIEW[0],
                                  height=self.PREVIEW[1],
                                  bg=self.palette.surface_alt,
                                  highlightthickness=0, bd=0)
-        self._canvas.grid(row=3, column=0, columnspan=2, sticky="nsew")
+        self._canvas.grid(row=4, column=0, columnspan=2, sticky="nsew")
 
         bar = ttk.Frame(body, style="Card.TFrame")
-        bar.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        bar.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ttk.Button(bar, text=self.t("common.cancel"),
                    command=self.destroy).pack(side="right", padx=(6, 0))
         self._apply_btn = ttk.Button(bar, text=self.t("common.apply"),
@@ -583,6 +594,7 @@ class SplitProvinceDialog(BaseDialog):
         k = max(2, int(self._k_var.get() or 2))
         strategy = self._strategies.get(self._strategy_var.get(), "organic")
         smooth = max(0, int(self._smooth_var.get() or 0))
+        within = self._borders_var.get()
         self._state = "working"
         self._apply_btn.configure(state="disabled")
         self._gen_btn.configure(state="disabled")
@@ -596,7 +608,8 @@ class SplitProvinceDialog(BaseDialog):
             try:
                 labels, bbox = editor.map.preview_split_area(
                     self._pids, k, seed=seed, strategy=strategy,
-                    smooth_passes=smooth, on_progress=on_progress)
+                    smooth_passes=smooth, within_states=within,
+                    on_progress=on_progress)
                 # Up to `k` new colors may be needed (a donor id is reused per
                 # cluster at most once); unused ones are simply not taken.
                 colors = editor.map.free_colors(int(labels.max()))

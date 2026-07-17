@@ -306,6 +306,16 @@ class BlockTreeEditor(ttk.Frame):
         self._shared_opts: dict[str, list[tuple[str, str]]] = {}
 
         self._hovered_stack = deque()
+        # Rendering large scripts used to rebuild EVERY widget on any change and
+        # could exceed Tk's ~32767px canvas-window height (rows past it silently
+        # stopped rendering). Two mitigations: per-block partial re-render (the
+        # registry maps a block to the frame holding its rows) and collapsible
+        # containers (big subtrees start collapsed).
+        self._registry: dict[int, tuple[ttk.Frame, int, str, tuple[str, ...]]] = {}
+        self._expanded: set[int] = set()      # id(block) the user expanded
+        self._collapsed: set[int] = set()     # id(block) the user collapsed
+        self._row_budget = self._ROW_BUDGET   # rows left before force-collapsing
+        self._render_epoch = 0                # cancels stale streamed renders
 
         self._canvas = tk.Canvas(self, bg=self.palette.surface, highlightthickness=0, bd=0)
         self._sb = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
@@ -329,21 +339,69 @@ class BlockTreeEditor(ttk.Frame):
 
     # ------------------------------------------------------------------ render
     def render(self) -> None:
+        """Streamed full render: the first ~30ms of rows paint synchronously so
+        the editor appears instantly; the rest is appended in 30ms slices via
+        ``after`` so a huge script never freezes the UI. A bumped epoch cancels
+        an in-flight stream when a newer render starts."""
         y = self._canvas.yview()
         # Every box is about to be destroyed; drop the hover stack so a rebuild under
         # a stationary cursor can't re-highlight (or dim) an already-dead widget.
         self._hovered_stack.clear()
+        self._registry.clear()
+        self._row_budget = self._ROW_BUDGET
+        self._render_epoch += 1
+        epoch = self._render_epoch
         for w in self._body.winfo_children():
             w.destroy()
-        self._render_block(self.root_block, self._body, depth=0,
-                           parent_key=self.root_key, kinds=self.kinds)
-        self._body.update_idletasks()
-        self._canvas.yview_moveto(y[0])
+        self._registry[id(self.root_block)] = (self._body, 0, self.root_key,
+                                               self.kinds)
+        items = list(self.root_block.items)
+        state = {"idx": 0}
+
+        def pump() -> None:
+            if epoch != self._render_epoch or not self._body.winfo_exists():
+                return
+            import time
+            t0 = time.perf_counter()
+            while (state["idx"] < len(items)
+                   and time.perf_counter() - t0 < 0.03):
+                self._render_item(self.root_block, items[state["idx"]],
+                                  self._body, 0, self.root_key, self.kinds)
+                state["idx"] += 1
+            if state["idx"] < len(items):
+                self.after(1, pump)
+                return
+            self._add_button(self.root_block, self._body, self.root_key, self.kinds)
+            self._body.update_idletasks()
+            self._canvas.yview_moveto(y[0])
+
+        pump()
+
+    def _rerender(self, block: Block) -> None:
+        """Re-render only the frame holding `block`'s rows (structural edits used
+        to rebuild the whole tree — seconds on large scripts). Falls back to a
+        full render when the block isn't currently on screen."""
+        if block is self.root_block:
+            self.render()
+            return
+        entry = self._registry.get(id(block))
+        if entry is None or not entry[0].winfo_exists():
+            self.render()
+            return
+        frame, depth, parent_key, kinds = entry
+        self._hovered_stack.clear()
+        # Top up (never fully reset) the shared row budget: a root render may
+        # still be streaming in the background and must keep its height cap.
+        self._row_budget = max(self._row_budget, 150)
+        for w in frame.winfo_children():
+            w.destroy()
+        self._render_block(block, frame, depth, parent_key, kinds)
 
     def _render_block(self, block: Block, parent: ttk.Frame, depth: int,
                       parent_key: str = "",
                       kinds: tuple[str, ...] | None = None) -> None:
         kinds = self.kinds if kinds is None else kinds
+        self._registry[id(block)] = (parent, depth, parent_key, kinds)
         for item in list(block.items):
             self._render_item(block, item, parent, depth, parent_key, kinds)
         self._add_button(block, parent, parent_key, kinds)
@@ -362,6 +420,7 @@ class BlockTreeEditor(ttk.Frame):
             self._render_container(owner_block, item, parent, depth, kinds)
 
     def _row(self, parent) -> ttk.Frame:
+        self._row_budget -= 1
         row = ttk.Frame(parent, style="Card.TFrame")
         row.pack(fill="x", pady=1, anchor="w")
         return row
@@ -419,7 +478,7 @@ class BlockTreeEditor(ttk.Frame):
     def _remove(self, owner_block: Block, item) -> None:
         if item in owner_block.items:
             owner_block.items.remove(item)
-        self.render()
+        self._rerender(owner_block)
         self._on_change()
 
     def _key_widget(self, row, pair: Pair) -> None:
@@ -594,11 +653,57 @@ class BlockTreeEditor(ttk.Frame):
             self._picker_button(row, vtype, var)
         self._del_btn(row, owner_block, scalar)
 
+    # Auto-collapse thresholds: a nested container whose subtree holds this many
+    # items (or any top-level one above the larger bound) starts collapsed. The
+    # row budget caps a single render pass regardless of structure — beyond it
+    # every further container renders collapsed, keeping the widget count AND
+    # the total pixel height below Tk's ~32767px canvas-window limit.
+    _COLLAPSE_NESTED = 25
+    _COLLAPSE_TOP = 80
+    _ROW_BUDGET = 300
+
+    def _subtree_size(self, block: Block, cap: int = 200) -> int:
+        """Number of items in a block, recursive, early-exited at `cap`."""
+        total = 0
+        stack = [block]
+        while stack and total < cap:
+            for it in stack.pop().items:
+                total += 1
+                value = it.value if isinstance(it, Pair) else it
+                if isinstance(value, Block):
+                    stack.append(value)
+        return total
+
+    def _is_collapsed(self, block: Block, depth: int) -> bool:
+        bid = id(block)
+        if bid in self._expanded:
+            return False
+        if bid in self._collapsed:
+            return True
+        if not block.items:
+            return False
+        if self._row_budget <= 0:
+            return True
+        size = self._subtree_size(block)
+        return size >= (self._COLLAPSE_NESTED if depth >= 1 else self._COLLAPSE_TOP)
+
+    def _toggle_collapse(self, block: Block, owner_block: Block, depth: int) -> None:
+        bid = id(block)
+        if self._is_collapsed(block, depth):
+            self._collapsed.discard(bid)
+            self._expanded.add(bid)
+        else:
+            self._expanded.discard(bid)
+            self._collapsed.add(bid)
+        self._rerender(owner_block)
+
     def _render_container(self, owner_block: Block, item, parent, depth: int,
                           kinds: tuple[str, ...] | None = None) -> None:
         kinds = self.kinds if kinds is None else kinds
         pair = item if isinstance(item, Pair) else None
         block = item.value if pair is not None else item
+        collapsed = self._is_collapsed(block, depth)
+        self._row_budget -= 1                 # the container head counts as a row
         box = tk.Frame(parent, bg=self.palette.surface,
                        highlightbackground=self.palette.border,
                        highlightcolor=self.palette.border, highlightthickness=1)
@@ -608,11 +713,21 @@ class BlockTreeEditor(ttk.Frame):
         head = ttk.Frame(box, style="Card.TFrame")
         head.pack(fill="x", padx=4, pady=(3, 0))
         self._bind_save_menu(head, item)
+        if block.items:
+            ttk.Button(head, text="▸" if collapsed else "▾", width=2,
+                       command=lambda: self._toggle_collapse(block, owner_block, depth)
+                       ).pack(side="left", padx=(0, 3))
         if pair is not None:
             self._key_widget(head, pair)
             ttk.Label(head, text="= {", style="CardMuted.TLabel").pack(side="left", padx=4)
+        if collapsed:
+            ttk.Label(head, text="…  " + self.t("focuses.script.hidden_items",
+                                                count=self._subtree_size(block)) + "  }",
+                      style="CardMuted.TLabel").pack(side="left", padx=4)
         ttk.Button(head, text="✕", width=2,
                    command=lambda: self._remove(owner_block, item)).pack(side="right", padx=2)
+        if collapsed:
+            return
         body = ttk.Frame(box, style="Card.TFrame")
         body.pack(fill="x", padx=(18, 4), pady=(0, 4))
         self._render_block(block, body, depth + 1,
@@ -694,12 +809,12 @@ class BlockTreeEditor(ttk.Frame):
 
     def _add_suggested(self, block: Block, key: str, default: str) -> None:
         block.items.append(Pair(key, Scalar(default)))
-        self.render()
+        self._rerender(block)
         self._on_change()
 
     def _add_bare(self, block: Block) -> None:
         block.items.append(Scalar(""))
-        self.render()
+        self._rerender(block)
         self._on_change()
 
     # ------------------------------------------------------------------ picker
@@ -713,7 +828,7 @@ class BlockTreeEditor(ttk.Frame):
     def _insert(self, block: Block, node) -> None:
         # a saved [BLOCK] snippet may carry several top-level items
         block.items.extend(node if isinstance(node, list) else [node])
-        self.render()
+        self._rerender(block)
         self._on_change()
 
 

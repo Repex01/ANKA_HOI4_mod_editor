@@ -602,6 +602,26 @@ class StateDef(BlockView):
         else:
             h.items[index:index] = pairs
 
+    @property
+    def claims(self) -> list[str]:
+        h = self._history()
+        if h is None:
+            return []
+        return [v.raw for v in h.get_all("add_claim_by") if isinstance(v, Scalar)]
+
+    def set_claims(self, tags: list[str]) -> None:
+        """Replace ``add_claim_by`` pairs keeping the first one's position."""
+        h = self._history(create=True)
+        index = next((i for i, it in enumerate(h.items)
+                      if isinstance(it, Pair) and it.key == "add_claim_by"), None)
+        h.items = [it for it in h.items
+                   if not (isinstance(it, Pair) and it.key == "add_claim_by")]
+        pairs = [Pair("add_claim_by", Scalar(t)) for t in tags]
+        if index is None:
+            h.items.extend(pairs)
+        else:
+            h.items[index:index] = pairs
+
     # --- victory points ---------------------------------------------------------
     @property
     def victory_points(self) -> list[tuple[int, int]]:

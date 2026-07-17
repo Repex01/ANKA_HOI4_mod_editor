@@ -258,6 +258,26 @@ class StrategicRegionService(_ZoneService):
     TOP_KEY = "strategic_region"
     MEMBERS_KEY = "provinces"
 
+    def free_id(self) -> int:
+        ids = [ref.zone_id for ref in self.list_docs() if ref.zone_id]
+        return max(ids, default=0) + 1
+
+    def create_region(self, region_id: int | None = None) -> ZoneDocument:
+        """New empty strategic region in the mod (name key REGION_<id>)."""
+        if region_id is None:
+            region_id = self.free_id()
+        root = Block()
+        body = Block()
+        body.set("id", Scalar(str(region_id)))
+        body.set("name", Scalar(f"REGION_{region_id}", quoted=True))
+        body.set("provinces", Block())
+        root.set(self.TOP_KEY, body)
+        rel = f"{self.DIR}/{region_id}-anka_Region.txt"
+        ref = ZoneDocRef(rel, self.ctx.mod.path, False, region_id)
+        doc = ZoneDocument(ref, root, self.TOP_KEY, self.MEMBERS_KEY)
+        self.save_doc(doc)
+        return doc
+
     def sync_provinces(self, added: dict[int, int],
                        removed: list[int]) -> list[ZoneDocument]:
         """Keep regions consistent with province changes.

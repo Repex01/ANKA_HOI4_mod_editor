@@ -501,6 +501,24 @@ class TechGuiService:
                              tab_sprite)
         self._add_item_containers(doc, root, tpl_doc or doc, tpl_root or root,
                                   template_folder, folder_id)
+
+        # The skeleton is cloned with every gridbox stripped, but `has_gui`
+        # (rightly) treats a container without gridboxes as missing GUI — so a
+        # freshly generated folder would still show as broken until the first
+        # tech was placed. Seed one default tree gridbox to make the folder
+        # immediately usable.
+        container = self._find_child(root, folder_id)
+        if container is not None and not self._has_gridboxes(container):
+            block = Block()
+            block.add("name", Scalar(f"{folder_id}_tree", quoted=True))
+            block.add("position", Block([Pair("x", Scalar("60")),
+                                         Pair("y", Scalar("120"))]))
+            block.add("slotsize",
+                      Block([Pair("width", Scalar(str(int(DEFAULT_SLOT[0])))),
+                             Pair("height", Scalar(str(int(DEFAULT_SLOT[1]))))]))
+            block.add("format", Scalar("LEFT", quoted=True))
+            container.block.items.append(Pair("gridboxtype", block))
+
         self.interface.save(doc)
         self.invalidate()
 

@@ -82,6 +82,7 @@ class TechnologiesEditor(EditorModule):
         self._issues_by_tech: dict[str, str] = {}
         self._menu: tk.Menu | None = None
         self._target_ref: TechDocRef | None = None      # where new techs go
+        self._gui_autogen_failed: set[str] = set()      # folders whose GUI autogen failed
         # Undo/redo — multi-document snapshot history.
         self._history = CommandStack(limit=60)
         self._baselines: dict[Path, str] = {}
@@ -274,6 +275,7 @@ class TechnologiesEditor(EditorModule):
         self._folders_list.tag_configure("nogui", foreground=self.palette.danger)
         self._folders_list.tag_configure("doctrine", foreground="#b08a3e")
         self._folders_list.bind("<<TreeviewSelect>>", self._on_pick_folder)
+        self._folders_list.bind("<ButtonRelease-1>", self._on_folder_click)
         self._folders_list.bind("<Button-3>", self._folder_context)
 
         btns = ttk.Frame(panel, style="Card.TFrame")
@@ -442,9 +444,19 @@ class TechnologiesEditor(EditorModule):
         if sel[0] != self._folder_id:
             self.open_folder(sel[0])
 
+    def _on_folder_click(self, event) -> None:
+        """Clicking the already-open folder re-shows its properties. Needed
+        because <<TreeviewSelect>> does not fire when the selection is
+        unchanged — after inspecting a tech, re-clicking the folder row looked
+        like 'the folder properties editor does not open'."""
+        row = self._folders_list.identify_row(event.y)
+        if row and row == self._folder_id:
+            self.inspector.show_folder(self._folder_view)
+
     def open_folder(self, folder_id: str) -> None:
         self._folder_id = folder_id
         self._folder_view = self._views.get(folder_id)
+        self._ensure_folder_gui(folder_id)
         label = folder_id
         if self._folder_view is not None and not self._folder_view.has_gui:
             label += "  ⚠ " + self.t("technologies.no_gui")
@@ -452,6 +464,27 @@ class TechnologiesEditor(EditorModule):
         self.inspector.show_folder(self._folder_view)
         self.refresh_canvas(keep_view=False)
         self._validate()
+
+    def _ensure_folder_gui(self, folder_id: str) -> None:
+        """A folder without a .gui container can't lay out its techs — generate
+        the skeleton automatically on first open (the context-menu command
+        remains for regenerating). Failures are remembered so a broken template
+        doesn't retrigger on every click."""
+        view = self._folder_view
+        if view is None or view.has_gui or folder_id in self._gui_autogen_failed:
+            return
+        try:
+            self.gui.create_folder_gui(folder_id,
+                                       doctrine=view.definition.doctrine,
+                                       template_folder="infantry_folder")
+        except Exception:
+            self._gui_autogen_failed.add(folder_id)
+            return
+        self._views = self.gui.folder_views(refresh=True)
+        self._folder_view = self._views.get(folder_id)
+        self._refresh_folders()               # drop the red "no gui" mark
+        if self._folders_list.exists(folder_id):
+            self._folders_list.selection_set(folder_id)
 
     # ---------------------------------------------------------------- model → view
     def _load_doc(self, ref: TechDocRef) -> TechDocument:
@@ -502,8 +535,12 @@ class TechnologiesEditor(EditorModule):
             else:
                 px = (cell[0] * 70.0, cell[1] * 70.0)     # unresolved fallback
             # Squares are the default look: only techs that unlock equipment
-            # (or force the flag off) use the wide item box.
+            # (or force the flag off) use the wide item box. Civilian-ledger
+            # folders (industry/electronics style) are square across the board,
+            # matching the game's rendering.
+            civilian = (view.definition.ledger or "").lower() == "civilian"
             small = (tech.get_flag("force_use_small_tech_layout")
+                     or civilian
                      or (not tech.enable_equipments
                          and not tech.enable_equipment_modules))
             nodes.append(CanvasNode(
@@ -602,13 +639,16 @@ class TechnologiesEditor(EditorModule):
         self._save_gui()
         self.refresh_canvas()
 
-    def _offer_gui_override(self) -> bool:
-        """The folder's .gui is vanilla: offer copying it into the mod."""
+    def _offer_gui_override(self, ask: bool = True) -> bool:
+        """The folder's .gui is vanilla: copy it into the mod. With ``ask`` the
+        user confirms first (layout edits of vanilla folders); tech creation
+        passes ask=False — a new tech ALWAYS needs its root gridbox, so the
+        override must happen automatically, never be silently skipped."""
         view = self._folder_view
         if view is None or view.gui_ref is None:
             return False
-        if not messagebox.askyesno("ANKA", self.t("technologies.confirm_gui_copy",
-                                                  file=view.gui_ref.rel_file)):
+        if ask and not messagebox.askyesno("ANKA", self.t("technologies.confirm_gui_copy",
+                                                          file=view.gui_ref.rel_file)):
             return False
         self.interface.copy_to_mod(view.gui_ref)
         self._reload_folders()
@@ -688,13 +728,16 @@ class TechnologiesEditor(EditorModule):
             doctrine = bool(self._folder_view is not None
                             and self._folder_view.definition.doctrine)
             try:
-                self.service.add_tech(doc, tid, folder=self._folder_id,
-                                      cell=cell, doctrine=doctrine)
+                tech = self.service.add_tech(doc, tid, folder=self._folder_id,
+                                             cell=cell, doctrine=doctrine)
             except ValueError as exc:
                 messagebox.showerror("ANKA", str(exc))
                 return
-            if gridbox is None:
-                self._ensure_root_gridbox(tid, px)
+            # A standalone new tech is a branch ROOT: the game maps techs to
+            # gridboxes strictly by name ("<root>_tree"), never by the box it
+            # was visually dropped into — without its own gridbox the game logs
+            # "Found no grid box for tech ..." and ANKA can't drag it.
+            self._ensure_created_root_gridbox(tech, tid, gridbox, cell, px, doc)
             self.mark_dirty([doc])
             self.refresh_canvas()
             self._validate()
@@ -704,14 +747,56 @@ class TechnologiesEditor(EditorModule):
                          self.t("technologies.tech_id"), submit,
                          initial=f"{base}_{n}", taken=taken)
 
+    def _ensure_created_root_gridbox(self, tech, tid: str, gridbox: str | None,
+                                     cell: tuple[int, int],
+                                     px: tuple[float, float], doc) -> None:
+        """Give a freshly created (path-less) tech its own ``<tid>_tree`` box.
+
+        Dropped outside every gridbox: create the box at the drop point.
+        Dropped into an EMPTY box (the generated placeholder): rename that box.
+        Dropped into a populated box: create a new box at the same visual spot
+        and rebase the tech's cell to (0, 0) so nothing shifts on screen."""
+        if self._folder_id is None:
+            return
+        if gridbox is None:
+            self._ensure_root_gridbox(tid, px)
+            return
+        box_used = any(n.gridbox == gridbox for n in self.canvas.model.nodes)
+        if not box_used and self._claim_empty_gridbox(gridbox, tid):
+            return
+        info = self.canvas.model.gridboxes.get(gridbox)
+        spot = info.cell_to_px(cell) if info is not None else px
+        fa = tech.folder_in(self._folder_id)
+        if fa is not None:
+            fa.set_cell(0, 0, doc)
+        self._ensure_root_gridbox(tid, spot)
+
+    def _claim_empty_gridbox(self, name: str, tid: str) -> bool:
+        """Rename an empty (tech-less) gridbox to ``<tid>_tree`` in the mod-side
+        .gui, making the new tech its root. Vanilla .gui files are never touched."""
+        view = self._folder_view
+        if (view is None or view.gui_ref is None or view.gui_ref.is_vanilla
+                or name == f"{tid}_tree"):
+            return name == f"{tid}_tree"
+        info = view.gridboxes.pop(name, None)
+        if info is None:
+            return False
+        info.node.set_attr("name", f"{tid}_tree")
+        info.name = f"{tid}_tree"
+        view.gridboxes[info.name] = info
+        self._save_gui()
+        return True
+
     def _ensure_root_gridbox(self, tid: str, px: tuple[float, float]) -> None:
         """A tech dropped outside every gridbox starts a new branch: it needs its
-        own ``<tid>_tree`` gridbox at that pixel position (mod-side .gui only)."""
+        own ``<tid>_tree`` gridbox at that pixel position (mod-side .gui only).
+        A vanilla .gui is copied into the mod automatically — without the box the
+        game logs "Found no grid box for tech" and the node can't be dragged."""
         view = self._folder_view
         if view is None or self._folder_id is None or view.container is None:
             return
         if view.gui_ref is not None and view.gui_ref.is_vanilla:
-            if not self._offer_gui_override():
+            if not self._offer_gui_override(ask=False):
                 return
             view = self._folder_view
             if view is None or view.container is None:
