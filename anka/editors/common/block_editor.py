@@ -20,6 +20,7 @@ from typing import Callable
 
 from ...core.pdx import Block, Pair, Scalar
 from ...core.pdx import parse as pdx_parse
+from ...ui.widgets.mousewheel import bind_wheel, unbind_wheel_all, wheel_steps
 from ..effects import ScriptCatalog
 from .dialogs import BaseDialog, SinglePickDialog
 
@@ -344,14 +345,16 @@ class BlockTreeEditor(ttk.Frame):
             scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfigure(
             self._win, width=e.width))
-        self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all(
-            "<MouseWheel>", self._wheel))
-        self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
+        self._canvas.bind("<Enter>", lambda e: bind_wheel(
+            self._canvas, self._wheel, bind_all=True))
+        self._canvas.bind("<Leave>", lambda e: unbind_wheel_all(self._canvas))
         self._canvas.bind("<Button-3>", lambda e: self._save_menu(e, None))
         self.render()
 
     def _wheel(self, event) -> None:
-        self._canvas.yview_scroll(-int(event.delta / 120), "units")
+        steps = wheel_steps(event)
+        if steps:
+            self._canvas.yview_scroll(-steps, "units")
 
     # ------------------------------------------------------------------ render
     def render(self) -> None:

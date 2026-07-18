@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from ..core.fspath import resolve_ci
 from ..domain.mod import ModContext
 from ._fsutil import ensure_filename_case
 from .mapgen_colors import iter_colors, load_pool
@@ -180,10 +181,11 @@ class MapService:
         return self._filenames
 
     def map_file(self, name: str) -> Path | None:
-        """Resolve ``map/<name>`` mod-first, then the base game."""
+        """Resolve ``map/<name>`` mod-first, then the base game. Case-insensitive:
+        ``default.map`` entries may not match on-disk case, which breaks on Linux."""
         for root in self.ctx.search_roots(MAP_DIR):
-            candidate = root / MAP_DIR / name
-            if candidate.is_file():
+            candidate = resolve_ci(root / MAP_DIR / name)
+            if candidate is not None and candidate.is_file():
                 return candidate
         return None
 

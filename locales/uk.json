@@ -134,6 +134,8 @@
   "characters.portrait.civilian": "Цивільний",
   "characters.portrait.army": "Армія",
   "characters.portrait.navy": "Флот",
+  "characters.portrait.civilian_small": "Радник (малий цивільний)",
+  "characters.portrait.army_small": "Малий армійський",
   "characters.roles": "Ролі",
   "characters.role.leader": "Лідер країни",
   "characters.role.advisor": "Радник",

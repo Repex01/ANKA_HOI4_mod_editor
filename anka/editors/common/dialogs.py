@@ -16,6 +16,7 @@ from PIL import Image, ImageTk
 
 from ...core.pdx import dumps
 from ...ui.widgets import ImageDropZone
+from ...ui.widgets.mousewheel import bind_wheel, wheel_steps
 
 _ID_RE = re.compile(r"^\w+$")
 
@@ -351,8 +352,8 @@ class IconPickerDialog(BaseDialog):
             scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>", lambda e: self._canvas.itemconfigure(
             self._win, width=e.width))
-        self._canvas.bind("<MouseWheel>", lambda e: self._canvas.yview_scroll(
-            -int(e.delta / 120), "units"))
+        bind_wheel(self._canvas, lambda e: (s := wheel_steps(e)) and
+                   self._canvas.yview_scroll(-s, "units"))
 
         bottom = ttk.Frame(body, style="Card.TFrame")
         bottom.grid(row=2, column=0, sticky="ew", pady=(8, 0))

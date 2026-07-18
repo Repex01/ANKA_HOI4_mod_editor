@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
+from .fspath import resolve_ci
 from .guitypes.views import SpriteView
 from .pdx import Block, Pair, Scalar, dump_file, parse_file
 
@@ -161,7 +162,11 @@ class SpriteResolver:
 
     def resolve(self, sprite_name: str) -> Path | None:
         path = self._mapping().get(sprite_name)
-        return path if (path and path.exists()) else None
+        if not path:
+            return None
+        # Case-insensitive: vanilla .gfx texture paths regularly mismatch the
+        # on-disk case, which only case-sensitive filesystems (Linux) notice.
+        return resolve_ci(path)
 
     def add(self, name: str, texture: Path) -> None:
         """Record a sprite created at runtime without a full rescan."""
@@ -196,7 +201,8 @@ class SpriteDef:
         raw = self.view.get_attr(key) if key else self.view.texture
         if not raw:
             return None
-        return self.root / raw.replace("\\", "/").replace("//", "/")
+        path = self.root / raw.replace("\\", "/").replace("//", "/")
+        return resolve_ci(path) or path
 
 
 class SpriteCatalog:

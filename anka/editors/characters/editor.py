@@ -15,7 +15,7 @@ from tkinter import messagebox, ttk
 from ...services.character_service import (
     ADVISOR_SLOTS,
     GENERAL_ROLES,
-    PORTRAIT_CATEGORIES,
+    PORTRAIT_SLOTS,
 )
 from ...services.ideology_service import IdeologyService
 from ...services.trait_service import TraitService
@@ -41,7 +41,7 @@ class CharactersEditor(EditorModule):
         self._models = []
         self._selected = None
         self._editing_existing = False
-        self._portrait_paths: dict[str, Path] = {}
+        self._portrait_paths: dict[tuple[str, str], Path] = {}   # (category, size)
         self._loading = False
         self._dirty = False
 
@@ -156,15 +156,17 @@ class CharactersEditor(EditorModule):
             row=r, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 4)); r += 1
         pf = ttk.Frame(f, style="Card.TFrame")
         pf.grid(row=r, column=0, columnspan=2, sticky="w", padx=16); r += 1
-        self._zones: dict[str, ImageDropZone] = {}
-        for i, cat in enumerate(PORTRAIT_CATEGORIES):
+        self._zones: dict[tuple[str, str], ImageDropZone] = {}
+        for i, (cat, size) in enumerate(PORTRAIT_SLOTS):
             col = ttk.Frame(pf, style="Card.TFrame")
-            col.grid(row=0, column=i, padx=(0, 12))
-            ttk.Label(col, text=self.t(f"characters.portrait.{cat}"), style="CardMuted.TLabel").pack(anchor="w")
-            zone = ImageDropZone(col, on_image=lambda p, c=cat: self._on_portrait(c, p),
-                                 prompt="+", preview_size=(94, 126), palette=self.palette)
+            col.grid(row=0, column=i, padx=(0, 12), sticky="s")
+            loc_key = f"characters.portrait.{cat}" + ("_small" if size == "small" else "")
+            ttk.Label(col, text=self.t(loc_key), style="CardMuted.TLabel").pack(anchor="w")
+            preview = (65, 67) if size == "small" else (94, 126)
+            zone = ImageDropZone(col, on_image=lambda p, k=(cat, size): self._on_portrait(k, p),
+                                 prompt="+", preview_size=preview, palette=self.palette)
             zone.pack()
-            self._zones[cat] = zone
+            self._zones[(cat, size)] = zone
 
         # Roles
         ttk.Label(f, text=self.t("characters.roles"), style="Heading.TLabel").grid(
@@ -329,13 +331,15 @@ class CharactersEditor(EditorModule):
         self._v_tag.set(model.tag)
         self._loc_key = model.name_key
         self._load_loc_name()
-        # portraits preview
-        for cat, sizes in model.portraits.items():
-            if cat in self._zones:
-                sprite = sizes.get("large") or next(iter(sizes.values()), None)
-                path = self.service.resolve_sprite(sprite) if sprite else None
-                if path:
-                    self._zones[cat].show_image(path)
+        # portraits preview — one zone per (category, size) slot
+        for (cat, size), zone in self._zones.items():
+            sizes = model.portraits.get(cat, {})
+            sprite = sizes.get(size)
+            if sprite is None and size == "large":
+                sprite = next((s for k, s in sizes.items() if k != "small"), None)
+            path = self.service.resolve_sprite(sprite) if sprite else None
+            if path:
+                zone.show_image(path)
         raw = model.raw
         if raw is None:
             return
@@ -434,8 +438,8 @@ class CharactersEditor(EditorModule):
         self._status.configure(text=self.t("characters.deleted"), foreground=self.palette.text_muted)
 
     # --- helpers ---------------------------------------------------------
-    def _on_portrait(self, category: str, path: Path) -> None:
-        self._portrait_paths[category] = path
+    def _on_portrait(self, slot: tuple[str, str], path: Path) -> None:
+        self._portrait_paths[slot] = path
         self._dirty = True
 
     @staticmethod

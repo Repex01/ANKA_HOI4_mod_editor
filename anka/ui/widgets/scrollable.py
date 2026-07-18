@@ -4,6 +4,8 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+from .mousewheel import bind_wheel, unbind_wheel_all, wheel_steps
+
 
 class ScrollableFrame(ttk.Frame):
     def __init__(self, master, bg: str = "#282a36", autohide: bool = False,
@@ -52,10 +54,12 @@ class ScrollableFrame(ttk.Frame):
             self._scroll.pack_forget()
 
     def _bind_wheel(self) -> None:
-        self._canvas.bind_all("<MouseWheel>", self._on_wheel)
+        bind_wheel(self._canvas, self._on_wheel, bind_all=True)
 
     def _unbind_wheel(self) -> None:
-        self._canvas.unbind_all("<MouseWheel>")
+        unbind_wheel_all(self._canvas)
 
     def _on_wheel(self, event) -> None:
-        self._canvas.yview_scroll(int(-event.delta / 120), "units")
+        steps = wheel_steps(event)
+        if steps:
+            self._canvas.yview_scroll(-steps, "units")

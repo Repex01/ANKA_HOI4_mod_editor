@@ -134,6 +134,8 @@
   "characters.portrait.civilian": "Civilian",
   "characters.portrait.army": "Army",
   "characters.portrait.navy": "Navy",
+  "characters.portrait.civilian_small": "Advisor (small civilian)",
+  "characters.portrait.army_small": "Small army",
   "characters.roles": "Roles",
   "characters.role.leader": "Country leader",
   "characters.role.advisor": "Advisor",

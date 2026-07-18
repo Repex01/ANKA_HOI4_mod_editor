@@ -20,6 +20,8 @@ from typing import Callable
 
 from PIL import Image, ImageTk
 
+from ...ui.widgets.mousewheel import bind_wheel, wheel_steps
+
 ZOOM_STEPS = (0.125, 0.18, 0.25, 0.35, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0)
 
 
@@ -77,9 +79,9 @@ class MapCanvas(ttk.Frame):
             c.bind(f"<ButtonPress-{btn}>", self._pan_start)
             c.bind(f"<B{btn}-Motion>", self._pan_move)
             c.bind(f"<ButtonRelease-{btn}>", self._pan_end)
-        c.bind("<MouseWheel>", self._wheel)
-        c.bind("<Shift-MouseWheel>", self._wheel_h)
-        c.bind("<Control-MouseWheel>", self._wheel_zoom)
+        bind_wheel(c, self._wheel)
+        bind_wheel(c, self._wheel_h, "Shift")
+        bind_wheel(c, self._wheel_zoom, "Control")
         c.bind("<Motion>", self._hover)
         c.bind("<Leave>", lambda e: self._on_hover and self._on_hover(None, None))
         self.bind("<Destroy>", self._on_destroy)
@@ -308,17 +310,17 @@ class MapCanvas(ttk.Frame):
 
     def _wheel(self, event) -> None:
         self.offset = (self.offset[0],
-                       self.offset[1] - int(event.delta / 120) * 60 / self.zoom)
+                       self.offset[1] - wheel_steps(event) * 60 / self.zoom)
         self.refresh()
 
     def _wheel_h(self, event) -> None:
-        self.offset = (self.offset[0] - int(event.delta / 120) * 60 / self.zoom,
+        self.offset = (self.offset[0] - wheel_steps(event) * 60 / self.zoom,
                        self.offset[1])
         self.refresh()
 
     def _wheel_zoom(self, event) -> None:
         idx = min(range(len(ZOOM_STEPS)), key=lambda i: abs(ZOOM_STEPS[i] - self.zoom))
-        idx += 1 if event.delta > 0 else -1
+        idx += 1 if wheel_steps(event) > 0 else -1
         new_zoom = ZOOM_STEPS[max(0, min(idx, len(ZOOM_STEPS) - 1))]
         if new_zoom == self.zoom:
             return

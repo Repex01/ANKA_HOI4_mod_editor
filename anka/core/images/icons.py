@@ -16,6 +16,7 @@ from ...config.constants import (
     GAME_DIRS,
     IDEA_ICON_SIZE,
     LEADER_PORTRAIT_SIZE,
+    SMALL_PORTRAIT_SIZE,
 )
 from ..gfx import SpriteRegistry
 from ..pdx import Block, Pair, Scalar
@@ -289,15 +290,22 @@ class IconService:
         category: str = "civilian",
         gfx_file: str = "anka_portraits.gfx",
         compressed: bool = False,
+        size: str = "large",
     ) -> tuple[Path, Path, str]:
-        """Generate a 156x210 portrait for a character/category and register its sprite.
+        """Generate a portrait for a character/category and register its sprite.
 
         Civilian uses ``GFX_portrait_<id>``; army/navy append the category so a character
-        can carry distinct civilian/military art. Returns (dds, gfx, sprite_name)."""
+        can carry distinct civilian/military art. ``size="large"`` is the 156x210 leader
+        portrait; ``size="small"`` is the 65x67 advisor portrait (vanilla standard),
+        registered as ``GFX_portrait_<id>[_<category>]_small``.
+        Returns (dds, gfx, sprite_name)."""
         suffix = "" if category == "civilian" else f"_{category}"
+        if size == "small":
+            suffix += "_small"
         sprite = f"GFX_portrait_{char_id}{suffix}"
         rel_texture = f"{GAME_DIRS.GFX_LEADERS}/{tag}/portrait_{char_id}{suffix}.dds"
-        dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, LEADER_PORTRAIT_SIZE, compressed)
+        dims = SMALL_PORTRAIT_SIZE if size == "small" else LEADER_PORTRAIT_SIZE
+        dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims, compressed)
         return dds, gfx, sprite
 
     # --- shared ----------------------------------------------------------

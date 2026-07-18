@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config.constants import GAME_DIRS, HOI4_LANGUAGES
+from ..core.fspath import resolve_ci
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, dumps, parse_file
 from ..core.pdx import parse as _pdx_parse
@@ -456,8 +457,8 @@ class CountryService:
         # invisible.)
         name = f"{tag}_{suffix}" if suffix else tag
         for root in self.ctx.search_roots(GAME_DIRS.GFX_FLAGS):
-            candidate = root / GAME_DIRS.GFX_FLAGS / f"{name}.tga"
-            if candidate.exists():
+            candidate = resolve_ci(root / GAME_DIRS.GFX_FLAGS / f"{name}.tga")
+            if candidate is not None:
                 return candidate
         return None
 

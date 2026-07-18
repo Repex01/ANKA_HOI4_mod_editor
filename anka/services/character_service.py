@@ -15,10 +15,12 @@ Recruiting into history is delegated to `CountryService` so each service owns on
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config.constants import GAME_DIRS
+from ..core.fspath import resolve_ci
 from ..core.localisation import LocFile
 from ..core.pdx import Block, Pair, Scalar, dump_file, parse_file
 from ..domain.mod import ModContext
@@ -29,6 +31,13 @@ ROLE_KEYS = ("country_leader", "advisor", "field_marshal", "corps_commander", "n
 ADVISOR_SLOTS = ("political_advisor", "army_chief", "navy_chief", "air_chief",
                  "high_command", "theorist")
 PORTRAIT_CATEGORIES = ("civilian", "army", "navy")
+# Editable portrait slots: (category, size). ``small`` civilian is the advisor
+# portrait shown in the political-advisor list; ``small`` army feeds the
+# military-staff (army_chief/high_command/...) list.
+PORTRAIT_SLOTS = (
+    ("civilian", "large"), ("army", "large"), ("navy", "large"),
+    ("civilian", "small"), ("army", "small"),
+)
 
 
 @dataclass
@@ -209,7 +218,8 @@ class CharacterService:
         char_id: str,
         name: str,
         *,
-        portraits: dict[str, str | Path] | None = None,   # category -> source image
+        # (category, size) -> source image; a bare category string means "large".
+        portraits: dict[tuple[str, str] | str, str | Path] | None = None,
         country_leader: dict | None = None,
         advisor: dict | None = None,
         general: dict | None = None,                       # includes "role": field_marshal|corps_commander
@@ -218,6 +228,8 @@ class CharacterService:
         """Create or update a character with the given roles. Returns the char id."""
         tag = tag.upper()
         file = self.characters_file(tag)
+        if not file.exists():
+            self._seed_from_lower_layer(file)
         root = parse_file(file) if file.exists() else Block([Pair("characters", Block())])
         chars = root.get_block("characters") or Block()
         if root.get_block("characters") is None:
@@ -229,10 +241,12 @@ class CharacterService:
 
         if portraits:
             pblock = character.get_block("portraits") or Block()
-            for category, source in portraits.items():
-                _dds, _gfx, sprite = self.ctx.icons.add_character_portrait(source, char_id, tag, category)
+            for key, source in portraits.items():
+                category, size = key if isinstance(key, tuple) else (key, "large")
+                _dds, _gfx, sprite = self.ctx.icons.add_character_portrait(
+                    source, char_id, tag, category, size=size)
                 cat_block = pblock.get_block(category) or Block()
-                cat_block.set("large", Scalar(sprite))
+                cat_block.set(size, Scalar(sprite))
                 if pblock.get_block(category) is None:
                     pblock.add(category, cat_block)
             character.set("portraits", pblock)
@@ -264,6 +278,25 @@ class CharacterService:
             model.recruited_by = (self._recruited or {}).get(char_id, [])
             self._chars[char_id] = model
         return char_id
+
+    def _seed_from_lower_layer(self, file: Path) -> None:
+        """Seed a to-be-created mod characters file from the same-named game /
+        dependency file, if one exists.
+
+        HOI4 loads ``common/characters`` per file: a mod file *replaces* the
+        lower-layer file of the same name wholesale. Creating ``<TAG>.txt`` with
+        just the new character would therefore silently delete every vanilla (or
+        parent-mod) character of that country — so the mod copy starts as a full
+        copy of the highest-priority lower-layer file and the new character is
+        added on top of it."""
+        for root, is_mod in reversed(self.ctx.override_layers(GAME_DIRS.CHARACTERS)):
+            if is_mod:
+                continue
+            source = resolve_ci(root / GAME_DIRS.CHARACTERS / file.name)
+            if source is not None and source.is_file():
+                file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, file)
+                return
 
     @staticmethod
     def _apply_role(character: Block, key: str, data: dict | None, builder) -> None:

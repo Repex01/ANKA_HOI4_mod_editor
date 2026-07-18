@@ -20,6 +20,8 @@ from typing import Callable
 
 from PIL import Image, ImageDraw, ImageTk
 
+from ...ui.widgets.mousewheel import bind_wheel, wheel_steps
+
 # Base (zoom = 1.0) cell metrics; the HOI4 grid is wider than tall.
 CELL_W = 108
 CELL_H = 126
@@ -120,9 +122,9 @@ class FocusCanvas(ttk.Frame):
         c.bind("<B2-Motion>", lambda e: (c.scan_dragto(e.x, e.y, gain=1),
                                          self.minimap.refresh_viewport()))
         c.bind("<Button-3>", self._context)
-        c.bind("<MouseWheel>", self._wheel)
-        c.bind("<Shift-MouseWheel>", self._wheel_h)
-        c.bind("<Control-MouseWheel>", self._wheel_zoom)
+        bind_wheel(c, self._wheel)
+        bind_wheel(c, self._wheel_h, "Shift")
+        bind_wheel(c, self._wheel_zoom, "Control")
         c.bind("<Escape>", lambda e: self.cancel_link_mode())
         c.bind("<Delete>", self._delete_key)
         for key in ("Shift_L", "Shift_R"):
@@ -548,16 +550,16 @@ class FocusCanvas(ttk.Frame):
         self._on_context(event, fid, self._event_cell(event))
 
     def _wheel(self, event) -> None:
-        self.canvas.yview_scroll(-int(event.delta / 120) * 2, "units")
+        self.canvas.yview_scroll(-wheel_steps(event) * 2, "units")
         self.minimap.refresh_viewport()
 
     def _wheel_h(self, event) -> None:
-        self.canvas.xview_scroll(-int(event.delta / 120) * 2, "units")
+        self.canvas.xview_scroll(-wheel_steps(event) * 2, "units")
         self.minimap.refresh_viewport()
 
     def _wheel_zoom(self, event) -> None:
         idx = min(range(len(ZOOM_STEPS)), key=lambda i: abs(ZOOM_STEPS[i] - self.zoom))
-        idx += 1 if event.delta > 0 else -1
+        idx += 1 if wheel_steps(event) > 0 else -1
         self.set_zoom(ZOOM_STEPS[max(0, min(idx, len(ZOOM_STEPS) - 1))], event)
 
     def set_zoom(self, zoom: float, event=None) -> None:

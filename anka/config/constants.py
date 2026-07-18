@@ -81,6 +81,7 @@ FOCUS_ICON_SIZE = (100, 88)
 IDEA_ICON_SIZE = (63, 50)
 DECISION_ICON_SIZE = (33, 32)   # matches vanilla gfx/interface/decisions/*.dds
 LEADER_PORTRAIT_SIZE = (156, 210)   # large country-leader portrait
+SMALL_PORTRAIT_SIZE = (65, 67)      # small (advisor) portrait — vanilla standard
 EVENT_PICTURE_SIZE = (355, 140)     # typical event picture size (reference only:
                                     # imports keep the original dimensions —
                                     # vanilla event pictures vary in size)

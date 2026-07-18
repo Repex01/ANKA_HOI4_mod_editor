@@ -1,4 +1,10 @@
-"""Guard against accidental mouse-wheel edits of form fields.
+"""Cross-platform mouse-wheel plumbing + guard against accidental form edits.
+
+Windows/macOS deliver wheel input as ``<MouseWheel>`` with an ``event.delta``;
+X11 (Linux) instead sends ``<Button-4>``/``<Button-5>`` presses with delta 0.
+Every wheel binding in the app must cover both, or scrolling/zooming is simply
+dead on Linux — use `bind_wheel`/`unbind_wheel_all` and read the direction via
+`wheel_steps`.
 
 `ttk.Combobox` and `ttk.Spinbox` change their value when the wheel is rolled over
 them (a class-level binding). In a long scrollable inspector that's a hazard: the
@@ -13,6 +19,44 @@ import tkinter as tk
 from tkinter import ttk
 
 _WHEEL_SEQS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
+
+
+def _seqs(modifier: str = "") -> tuple[str, ...]:
+    mod = f"{modifier}-" if modifier else ""
+    return (f"<{mod}MouseWheel>", f"<{mod}Button-4>", f"<{mod}Button-5>")
+
+
+def bind_wheel(widget, handler, modifier: str = "", bind_all: bool = False) -> None:
+    """Bind a wheel handler on every platform's wheel events at once.
+
+    `modifier` is a Tk prefix like "Shift" or "Control"; `bind_all` uses the
+    application-wide binding (pair it with `unbind_wheel_all`)."""
+    bind = widget.bind_all if bind_all else widget.bind
+    for seq in _seqs(modifier):
+        bind(seq, handler)
+
+
+def unbind_wheel_all(widget, modifier: str = "") -> None:
+    """Remove application-wide wheel bindings installed via ``bind_all``."""
+    for seq in _seqs(modifier):
+        widget.unbind_all(seq)
+
+
+def wheel_steps(event) -> int:
+    """Signed wheel notches: +N = up/away, -N = down/toward.
+
+    Windows reports ``delta`` in ±120 multiples, macOS in small raw values,
+    X11 as Button-4/5 presses with ``delta = 0``."""
+    num = getattr(event, "num", 0)
+    if num == 4:
+        return 1
+    if num == 5:
+        return -1
+    delta = getattr(event, "delta", 0)
+    if delta == 0:
+        return 0
+    steps = int(delta / 120)
+    return steps if steps else (1 if delta > 0 else -1)
 
 
 def disable_form_wheel(root) -> None:

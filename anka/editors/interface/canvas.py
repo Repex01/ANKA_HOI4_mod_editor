@@ -21,6 +21,7 @@ from typing import Callable
 from PIL import Image, ImageTk
 
 from ...core.guirender import Rect
+from ...ui.widgets.mousewheel import bind_wheel, wheel_steps
 
 ZOOM_STEPS = (0.25, 0.33, 0.5, 0.67, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0)
 _MARGIN = 48
@@ -83,9 +84,9 @@ class GuiDesignCanvas(ttk.Frame):
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
         c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
         c.bind("<Button-3>", self._context)
-        c.bind("<MouseWheel>", self._wheel)
-        c.bind("<Shift-MouseWheel>", self._wheel_h)
-        c.bind("<Control-MouseWheel>", self._wheel_zoom)
+        bind_wheel(c, self._wheel)
+        bind_wheel(c, self._wheel_h, "Shift")
+        bind_wheel(c, self._wheel_zoom, "Control")
         c.bind("<Delete>", lambda e: self.on_delete(list(self._selection)))
         c.bind("<Escape>", self._escape)
         for key, d in (("Left", (-1, 0)), ("Right", (1, 0)),
@@ -444,15 +445,15 @@ class GuiDesignCanvas(ttk.Frame):
 
     # ------------------------------------------------------------------ wheel
     def _wheel(self, event) -> None:
-        self.canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+        self.canvas.yview_scroll(-1 if wheel_steps(event) > 0 else 1, "units")
 
     def _wheel_h(self, event) -> None:
-        self.canvas.xview_scroll(-1 if event.delta > 0 else 1, "units")
+        self.canvas.xview_scroll(-1 if wheel_steps(event) > 0 else 1, "units")
 
     def _wheel_zoom(self, event) -> None:
         index = min(range(len(ZOOM_STEPS)),
                     key=lambda i: abs(ZOOM_STEPS[i] - self.zoom))
-        index += 1 if event.delta > 0 else -1
+        index += 1 if wheel_steps(event) > 0 else -1
         index = max(0, min(len(ZOOM_STEPS) - 1, index))
         self.set_zoom(ZOOM_STEPS[index], event)
 
