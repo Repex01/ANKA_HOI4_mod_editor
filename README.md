@@ -39,7 +39,7 @@ into the mod.
 
 ## Download
 
-Grab the latest Windows build (`ANKA.exe`, single file, no install) from the
+Grab the latest Windows or Linux build from the
 [Releases](https://github.com/Veselator/ANKA_HOI4_mod_editor/releases) page, or run
 from source (below). On first start, point ANKA at your HOI4 install folder and your
 `Documents/Paradox Interactive/Hearts of Iron IV/mod` folder.
