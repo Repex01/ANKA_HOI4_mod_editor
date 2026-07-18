@@ -28,9 +28,8 @@ class IdeologyService:
 
     def list_groups(self) -> list[Ideology]:
         groups: dict[str, Ideology] = {}
-        # Game first as the baseline, then mod (mod overrides / extends).
-        for root in self.ctx.override_roots(GAME_DIRS.IDEOLOGIES):
-            for ideo in self._read_dir(root):
+        for file in self._effective_files():
+            for ideo in self._read_file(file):
                 groups[ideo.name] = ideo
         # Stable, vanilla-ish ordering with extras appended.
         preferred = ["democratic", "communism", "fascism", "neutrality"]
@@ -38,25 +37,35 @@ class IdeologyService:
         ordered += [g for n, g in groups.items() if n not in preferred]
         return ordered
 
-    def _read_dir(self, root: Path) -> list[Ideology]:
-        folder = root / GAME_DIRS.IDEOLOGIES
-        if not folder.is_dir():
+    def _effective_files(self) -> list[Path]:
+        """The winning ``*.txt`` per FILENAME across layers (mod > dependencies
+        > game). HOI4 file-override semantics: a mod file with the same name
+        fully REPLACES the lower-layer file — an ideology deleted from the
+        mod's copy of ``00_ideologies.txt`` must not leak back from vanilla."""
+        winner: dict[str, Path] = {}
+        for root in self.ctx.search_roots(GAME_DIRS.IDEOLOGIES):  # high → low
+            folder = root / GAME_DIRS.IDEOLOGIES
+            if not folder.is_dir():
+                continue
+            for file in folder.glob("*.txt"):
+                winner.setdefault(file.name.lower(), file)
+        return [winner[name] for name in sorted(winner)]
+
+    def _read_file(self, file: Path) -> list[Ideology]:
+        try:
+            block = parse_file(file)
+        except Exception:
+            return []
+        ideologies = block.get_block("ideologies")
+        if ideologies is None:
             return []
         out: list[Ideology] = []
-        for file in sorted(folder.glob("*.txt")):
-            try:
-                block = parse_file(file)
-            except Exception:
-                continue
-            ideologies = block.get_block("ideologies")
-            if ideologies is None:
-                continue
-            for pair in ideologies.pairs():
-                if isinstance(pair.value, Block):
-                    rgb = self._rgb(pair.value.get_block("color"))
-                    types_block = pair.value.get_block("types")
-                    types = [t.key for t in types_block.pairs()] if types_block else []
-                    out.append(Ideology(pair.key, rgb, types))
+        for pair in ideologies.pairs():
+            if isinstance(pair.value, Block):
+                rgb = self._rgb(pair.value.get_block("color"))
+                types_block = pair.value.get_block("types")
+                types = [t.key for t in types_block.pairs()] if types_block else []
+                out.append(Ideology(pair.key, rgb, types))
         return out
 
     def list_types(self) -> list[tuple[str, str]]:

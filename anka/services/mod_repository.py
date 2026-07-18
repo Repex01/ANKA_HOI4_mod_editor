@@ -190,6 +190,59 @@ class ModRepository:
         desc.write_text(new_text, encoding="utf-8")
         mod.dependencies = list(names)
 
+    # --- replace_path -----------------------------------------------------
+    def descriptor_candidates(self, mod: Mod) -> list[Path]:
+        """Every descriptor file describing `mod` (existing ones only): the
+        launcher-side ``.mod`` and the in-folder ``descriptor.mod``. A local
+        mod keeps both under the local mods dir; a workshop mod has its
+        ``descriptor.mod`` in the workshop folder plus the launcher's
+        ``ugc_<id>.mod`` pointer in the local mods dir."""
+        candidates: list[Path] = []
+        if mod.descriptor_path is not None:
+            candidates.append(mod.descriptor_path)
+        candidates.append(mod.path / "descriptor.mod")
+        if self._settings.local_mods_path:
+            rid = mod.remote_file_id or mod.id
+            candidates.append(Path(self._settings.local_mods_path) / f"ugc_{rid}.mod")
+        out: list[Path] = []
+        seen: set[str] = set()
+        for desc in candidates:
+            key = str(desc).lower()
+            if key in seen or not desc.exists():
+                continue
+            seen.add(key)
+            out.append(desc)
+        return out
+
+    def add_replace_paths(self, mod: Mod, paths: list[str]) -> list[Path]:
+        """Append ``replace_path="…"`` directives to EVERY descriptor of `mod`
+        (HOI4 reads whichever it has, so both must agree) and update the
+        in-memory `mod`. Idempotent per path. Returns the files written."""
+        descs = self.descriptor_candidates(mod)
+        if not descs:
+            raise FileNotFoundError("mod has no writable descriptor")
+        for desc in descs:
+            text = desc.read_text(encoding="utf-8-sig")
+            existing = set(re.findall(r'replace_path\s*=\s*"([^"]+)"', text))
+            add = [p for p in paths if p not in existing]
+            if not add:
+                continue
+            lines = "".join(f'replace_path="{p}"\n' for p in add)
+            # Keep the launcher happy: slot the lines in before
+            # supported_version when present, else append.
+            m = re.search(r"^[ \t]*supported_version\s*=", text, re.M)
+            if m:
+                text = text[:m.start()] + lines + text[m.start():]
+            else:
+                if text and not text.endswith("\n"):
+                    text += "\n"
+                text += lines
+            desc.write_text(text, encoding="utf-8")
+        for p in paths:
+            if p not in mod.replace_paths:
+                mod.replace_paths.append(p)
+        return descs
+
 
 def _resolve_path(raw: str, base: Path) -> Path | None:
     """Resolve a descriptor path/archive string to an existing directory, if any.

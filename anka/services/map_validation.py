@@ -45,7 +45,8 @@ def validate(map_service, state_service, building_service,
         seen_colors[color] = d.id
 
     # --- bmp ↔ csv orphans -----------------------------------------------------
-    present_codes = set(map_service._uidx)
+    # NOT `map_service._uidx`: the dense index keeps stale entries after undo.
+    present_codes = map_service.present_codes()
     def_codes = {d.code for d in defs if d.id != 0}
     for code in sorted(present_codes - def_codes - {0}):
         r, g, b = (code >> 16) & 255, (code >> 8) & 255, code & 255
@@ -59,6 +60,19 @@ def validate(map_service, state_service, building_service,
 
     # --- state membership -------------------------------------------------------
     states = state_service.list_states()
+    # Contiguous state numbering: HOI4 indexes states by id and crashes on holes.
+    used_ids = {st.id for st in states}
+    if used_ids:
+        gaps = sorted(set(range(1, max(used_ids) + 1)) - used_ids)
+        if gaps:
+            shown = ", ".join(map(str, gaps[:15])) + ("…" if len(gaps) > 15 else "")
+            issues.append(MapIssue("error", "id_gap", f"{len(gaps)}",
+                                   {"count": len(gaps), "ids": shown}))
+    # A state without provinces is invalid in HOI4 — usually a merge leftover.
+    for st in states:
+        if not st.provinces:
+            issues.append(MapIssue("error", "empty_state", f"{st.id}",
+                                   {"state": st.id}, "state", st.id))
     prov_owner: dict[int, int] = {}
     for st in states:
         for p in st.provinces:

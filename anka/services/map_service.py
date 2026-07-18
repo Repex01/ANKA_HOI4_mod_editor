@@ -342,6 +342,15 @@ class MapService:
             return 0
         return int(np.count_nonzero(self._inv == idx))
 
+    def present_codes(self) -> set[int]:
+        """Colors that actually occur in the bitmap RIGHT NOW. The dense index
+        (`_ucodes`/`_uidx`) only ever grows — undoing a paint/split leaves
+        stale zero-pixel entries in it — so count pixels instead of trusting
+        the index (otherwise validation reports phantom orphan colors)."""
+        self.ensure_bitmap()
+        counts = np.bincount(self._inv.ravel(), minlength=len(self._ucodes))
+        return {code for idx, code in enumerate(self._ucodes) if counts[idx] > 0}
+
     def small_provinces(self, min_area: int = MIN_PROVINCE_AREA) -> list[int]:
         """Defined provinces painted with 1..min_area-1 pixels — too small to be valid
         (a HOI4 province needs a meaningful footprint). One bincount pass over the dense

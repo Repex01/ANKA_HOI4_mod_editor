@@ -403,6 +403,12 @@ class MapEditor(EditorModule):
         attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
         ttk.Button(frame, text="⇄ " + self.t("map.adjacencies"),
                    command=self._open_adjacencies).pack(side="left", padx=2)
+        # One-shot: turn the mod into a full history/states replacement.
+        self._replace_btn = ttk.Button(frame, text="🔒 " + self.t("map.make_replace"),
+                                       command=self._make_replace_path)
+        if not self._states_replaced():
+            self._replace_btn.pack(side="left", padx=2)
+        attach_help(self._replace_btn, self.t, "map.make_replace", self.palette)
         return frame
 
     def _size_spin(self, parent) -> None:
@@ -590,6 +596,8 @@ class MapEditor(EditorModule):
         sb.grid(row=1, column=1, sticky="ns")
         self._tree.configure(yscrollcommand=sb.set)
         self._tree.tag_configure("vanilla", foreground=self.palette.text_muted)
+        # Empty states are free indices waiting to be reused — flag them red.
+        self._tree.tag_configure("empty", foreground=self.palette.danger)
         self._tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
     def _build_inspector_panel(self, root) -> None:
@@ -731,11 +739,17 @@ class MapEditor(EditorModule):
             label = f"{st.id} · {self._state_display_name(st)}"
             if st.owner:
                 label += f" · {st.owner}"
+            if not st.provinces:
+                label += " · " + self.t("map.free_index")
             if query and query not in label.lower():
                 continue
             iid = f"s::{st.id}"
-            self._tree.insert("", "end", iid=iid, text=label,
-                              tags=() if st.in_mod else ("vanilla",))
+            tags: tuple = ()
+            if not st.provinces:
+                tags = ("empty",)          # red — free index, reused first
+            elif not st.in_mod:
+                tags = ("vanilla",)
+            self._tree.insert("", "end", iid=iid, text=label, tags=tags)
             self._items[iid] = ("state", st.id)
         keep = [i for i in selected if self._tree.exists(i)]
         if keep:
@@ -1410,16 +1424,19 @@ class MapEditor(EditorModule):
 
         def submit(fields: dict) -> None:
             self.split_resources_pref = fields["split_resources"]
-            ref = self.states.create_state(name=fields["name"], owner=fields["owner"],
-                                           category=fields["category"], provinces=seed)
+            ref = self._create_state_reusing(name=fields["name"],
+                                             owner=fields["owner"],
+                                             category=fields["category"],
+                                             provinces=seed)
             sid = ref.state_id
             doc = self.states.load(ref)
             self.mark_dirty(doc)
             if fields["name"]:
                 self.state_loc_set(f"STATE_{sid}", fields["name"])
+            emptied: list[int] = []
             if seed:
-                self._absorb_provinces(doc, seed,
-                                       split_resources=fields["split_resources"])
+                emptied = self._absorb_provinces(
+                    doc, seed, split_resources=fields["split_resources"])
             self.map.invalidate_political()
             self._value_options.pop("province_free", None)
             self._refresh_tree()
@@ -1427,12 +1444,39 @@ class MapEditor(EditorModule):
             if not seed:                      # no provinces yet — let the user paint them
                 self._set_assign_mode(True)
             self._status.configure(text=self.t("map.state_created", id=sid))
+            if emptied:
+                self.handle_emptied_states(emptied)
 
         NewStateDialog(self._insp_host, self, submit, seed_count=len(seed),
                        split_resources=getattr(self, "split_resources_pref", True))
 
+    def _create_state_reusing(self, *, name: str, owner: str, category: str,
+                              provinces: list[int]):
+        """Create a state, taking the smallest FREE INDEX (empty state) first —
+        its file is overwritten in place, so the id sequence never grows a
+        hole. Falls back to a brand-new id when no state is empty."""
+        free = self.free_state_ids()
+        if not free:
+            return self.states.create_state(name=name, owner=owner,
+                                            category=category,
+                                            provinces=provinces)
+        from ...services.state_service import build_state_root
+        fid = free[0]
+        ref0 = self.states.doc_ref_for(fid)
+        mod_path = str(self.context.mod.path / ref0.rel_file)
+        before = self._snapshot_paths([mod_path])
+        root = build_state_root(fid, "", owner, category, provinces)
+        ref = self.states.write_state_root(fid, root, rel_file=ref0.rel_file)
+        after = self._snapshot_paths([mod_path])
+        self._record(StateDocsCommand(before, after))
+        self.states.invalidate()
+        cache = getattr(self.states, "_doc_cache", None)
+        if cache is not None:
+            cache.clear()
+        return ref
+
     def _absorb_provinces(self, new_doc, pids: list[int], *,
-                          split_resources: bool) -> None:
+                          split_resources: bool) -> list[int]:
         """Move `pids` into `new_doc`'s state, removing them from their previous
         states (a land province belongs to exactly one state). Optionally split each
         source's manpower / industry / resources proportionally, and always carry over
@@ -1442,7 +1486,7 @@ class MapEditor(EditorModule):
                                                transfer_victory_points)
         new_state = new_doc.state
         if new_state is None:
-            return
+            return []
         pid_set = set(pids)
         by_state: dict[int, list[int]] = {}
         for st in self.states.list_states():
@@ -1470,6 +1514,9 @@ class MapEditor(EditorModule):
             self.states.refresh_info(src_doc)
         self.mark_dirty(new_doc)
         self.states.refresh_info(new_doc)
+        # Donors the seeding emptied completely — the caller offers to delete them.
+        return [sid for sid in by_state
+                if (st := self.states.get(sid)) is not None and not st.provinces]
 
     def _generate_states(self) -> None:
         """Auto-partition the selected land provinces into N new states (the state-
@@ -1530,6 +1577,19 @@ class MapEditor(EditorModule):
             if set(st.provinces) <= prov_set:
                 freed_ids.append(st.id)
         freed_ids.sort()
+        # Pre-existing empty states (free indices) join the reuse pool too —
+        # their files are overwritten in place, keeping the id range compact.
+        already_empty: list[int] = []
+        for st in all_states:
+            if st.provinces or st.id in src_rel:
+                continue
+            ref = refs_by_id.get(st.id)
+            if ref is None:
+                continue
+            already_empty.append(st.id)
+            src_rel[st.id] = ref.rel_file
+            affected.add(str(self.context.mod.path / ref.rel_file))
+        already_empty.sort()
         # Snapshot BEFORE copying vanilla sources into the mod, so undo of a vanilla
         # source removes its mod override entirely rather than leaving a copy.
         before = self._snapshot_paths(affected)
@@ -1568,11 +1628,16 @@ class MapEditor(EditorModule):
                 continue
             gi_to_id[gi] = sid
             used_freed.add(sid)
+        # Remaining clusters: freed-but-unmatched ids and pre-existing free
+        # indices first (smallest first), only then brand-new contiguous ids.
+        free_pool = sorted((set(freed_ids) - used_freed) | set(already_empty))
         final_ids: list[int] = []
         next_new = old_max + 1
         for gi in range(n):
             if gi in gi_to_id:
                 final_ids.append(gi_to_id[gi])
+            elif free_pool:
+                final_ids.append(free_pool.pop(0))
             else:
                 final_ids.append(next_new)
                 next_new += 1
@@ -1618,7 +1683,15 @@ class MapEditor(EditorModule):
             if sdoc.state is not None and sdoc.state.provinces:
                 self.states.save_doc(sdoc)        # partially emptied → keep reduced
             elif sid not in reused:
-                sdoc.ref.path.unlink(missing_ok=True)  # emptied & id not reused → delete
+                # Emptied & id not reused → keep as an empty placeholder (free
+                # index): deleting the file would punch a hole in the id range.
+                name_key = (sdoc.state.name_key if sdoc.state else "") \
+                    or f"STATE_{sid}"
+                category = (sdoc.state.state_category if sdoc.state else "") \
+                    or "rural"
+                self.states.write_state_root(
+                    sid, build_state_root(sid, name_key, "", category, []),
+                    rel_file=sdoc.ref.rel_file)
             # emptied & id reused → left as-is; the new write below overwrites it
             self._dirty.discard(path)
             self._dirty_docs.pop(path, None)
@@ -1737,18 +1810,174 @@ class MapEditor(EditorModule):
             rgb[np.isin(codes, codeset)] = colors[gi % len(colors)]
         return Image.fromarray(rgb, "RGB")
 
-    def _delete_empty_states(self, sids: set[int]) -> None:
-        """Delete in-mod states from `sids` that no longer hold any province."""
-        for sid in sids:
-            st = self.states.get(sid)
-            if st is not None and st.provinces:
-                continue
+    # ------------------------------------------------------------ replace_path
+    def _states_replaced(self) -> bool:
+        """True once the mod declares ``replace_path="history/states"`` — the
+        vanilla state files no longer load, so deletion can be physical."""
+        from ...domain.mod import _replaces
+        return _replaces(self.context.mod.replace_paths, "history/states")
+
+    def _make_replace_path(self) -> None:
+        """One-shot, irreversible: copy every remaining vanilla state into the
+        mod, then declare ``replace_path="history/states"`` in BOTH descriptors
+        (in-folder descriptor.mod + the launcher-side .mod)."""
+        if self._states_replaced():
+            return
+        vanilla = [r for r in self.states.list_docs(include_vanilla=True)
+                   if r.is_vanilla]
+        if not messagebox.askyesno(
+                "ANKA", self.t("map.confirm_make_replace", count=len(vanilla))):
+            return
+        try:
+            for ref in vanilla:
+                self.states.copy_to_mod(ref)
+            from ...services.mod_repository import ModRepository
+            repo = ModRepository(self.services.settings.current)
+            written = repo.add_replace_paths(self.context.mod,
+                                             ["history/states"])
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", str(exc))
+            return
+        # The undo history predates the switch — replaying it could resurrect
+        # pre-replace file layouts.
+        self.commands.clear()
+        self._update_undo_buttons()
+        self.states.invalidate()
+        cache = getattr(self.states, "_doc_cache", None)
+        if cache is not None:
+            cache.clear()
+        self.map.invalidate_political()
+        self._value_options.pop("province_free", None)
+        self._refresh_tree()
+        self.canvas.refresh()
+        self._replace_btn.pack_forget()
+        messagebox.showinfo(
+            "ANKA", self.t("map.replace_done", count=len(vanilla),
+                           files="\n".join(str(w) for w in written)))
+
+    # ------------------------------------------------- state emptying (delete)
+    # HOI4 crashes when state ids are not contiguous, so states are never
+    # physically deleted: "deleting" strips one down to an empty placeholder
+    # that keeps its id — a FREE INDEX (red in the tree) that new states and
+    # the generators reuse first. Works for vanilla states too (the empty
+    # placeholder becomes a mod override with the same filename).
+    def free_state_ids(self) -> list[int]:
+        """Ids of empty states — free indices for new states, smallest first."""
+        return sorted(st.id for st in self.states.list_states()
+                      if not st.provinces)
+
+    def _empty_state_files(self, sids) -> list[int]:
+        """"Delete" states, one undoable command. With ``replace_path`` active
+        the files are removed for real (vanilla can't leak back); otherwise
+        they are rewritten as empty placeholders (id + name key + category
+        kept) so the id numbering never gets a hole."""
+        if self._states_replaced():
+            return self._hard_delete_states(sids)
+        from ...services.state_service import build_state_root
+        refs: dict[int, object] = {}
+        for sid in sorted(set(sids)):
             ref = self.states.doc_ref_for(sid)
-            if ref is None or ref.is_vanilla:
-                continue
+            if ref is not None:
+                refs[sid] = ref
+        if not refs:
+            return []
+        mod_paths = {sid: str(self.context.mod.path / ref.rel_file)
+                     for sid, ref in refs.items()}
+        before = self._snapshot_paths(mod_paths.values())
+        for sid, ref in refs.items():
+            try:
+                doc = self._dirty_docs.get(str(ref.path)) or self.states.load(ref)
+                st = doc.state
+            except Exception:                              # noqa: BLE001
+                st = None
+            name_key = (st.name_key if st is not None else "") or f"STATE_{sid}"
+            category = (st.state_category if st is not None else "") or "rural"
+            root = build_state_root(sid, name_key, "", category, [])
+            self.states.write_state_root(sid, root, rel_file=ref.rel_file)
+            for p in (str(ref.path), mod_paths[sid]):
+                self._dirty.discard(p)
+                self._dirty_docs.pop(p, None)
+        after = self._snapshot_paths(mod_paths.values())
+        self._record(StateDocsCommand(before, after))
+        self.states.invalidate()
+        cache = getattr(self.states, "_doc_cache", None)
+        if cache is not None:
+            cache.clear()
+        self.map.invalidate_political()
+        self._value_options.pop("province_free", None)
+        self._refresh_tree()
+        self.canvas.refresh()
+        return sorted(refs)
+
+    def _hard_delete_states(self, sids) -> list[int]:
+        """replace_path mode: physically delete the states' files (undoable)."""
+        refs: dict[int, object] = {}
+        for sid in sorted(set(sids)):
+            ref = self.states.doc_ref_for(sid)
+            if ref is not None and not ref.is_vanilla:
+                refs[sid] = ref
+        if not refs:
+            return []
+        paths = [str(ref.path) for ref in refs.values()]
+        before = self._snapshot_paths(paths)
+        for sid, ref in refs.items():
             self.states.delete_doc(ref)
             self._dirty.discard(str(ref.path))
             self._dirty_docs.pop(str(ref.path), None)
+            if self._selected_state == sid:
+                self._selected_state = None
+                self._state_doc = None
+        self._record(StateDocsCommand(before, {p: None for p in paths}))
+        self.states.invalidate()
+        self.map.invalidate_political()
+        self._value_options.pop("province_free", None)
+        self._refresh_tree()
+        self.canvas.refresh()
+        if self._state_doc is None:
+            self.canvas.set_selection(set())
+            self._show_inspector(None)
+        return sorted(refs)
+
+    def handle_emptied_states(self, sids) -> None:
+        """After provinces moved away: normalize states left empty into clean
+        placeholders (drops leftover VPs/buildings) and point out the freed
+        indices in the status bar — they show red in the tree. With
+        replace_path active, offer real deletion instead."""
+        empty = sorted({sid for sid in sids
+                        if (st := self.states.get(sid)) is not None
+                        and not st.provinces})
+        if not empty:
+            return
+        if self._states_replaced():
+            if not messagebox.askyesno(
+                    "ANKA", self.t("map.confirm_delete_empty",
+                                   ids=", ".join(map(str, empty)))):
+                return
+            done = self._empty_state_files(empty)
+            self._status.configure(
+                text=self.t("map.states_deleted_hard", count=len(done)))
+            return
+        self._empty_state_files(empty)
+        self._status.configure(
+            text=self.t("map.states_now_free",
+                        ids=", ".join(map(str, empty))))
+
+    def batch_delete_states(self, state_ids: list[int]) -> None:
+        """Batch inspector's delete button: empty/delete every selected state."""
+        done = self._empty_state_files(state_ids)
+        self._multi_sel.clear()
+        self.canvas.set_selection(set())
+        self._show_inspector(None)
+        self._update_sel_count()
+        if not done:
+            return
+        if self._states_replaced():
+            self._status.configure(
+                text=self.t("map.states_deleted_hard", count=len(done)))
+        else:
+            self._status.configure(
+                text=self.t("map.states_now_free",
+                            ids=", ".join(map(str, done))))
 
     # ------------------------------------------------------- province splitting
     def split_province_dialog(self, pid: int) -> None:
@@ -2043,6 +2272,10 @@ class MapEditor(EditorModule):
         self.states.refresh_info(doc)
         self.provinces_changed()
         self.state_inspector.refresh_provinces_view()
+        # Merging states province by province may leave the donor empty —
+        # offer to delete it right away (and warn about the id gap).
+        if prev is not None:
+            self.handle_emptied_states([prev.id])
 
     def provinces_changed(self) -> None:
         """State membership changed: refresh political layers, highlight, tree."""
@@ -2166,18 +2399,32 @@ class MapEditor(EditorModule):
             self._sync_inspectors(focus="state")
 
     def delete_state(self, doc) -> None:
-        if doc.ref.is_vanilla:
+        """"Delete" a state: physical removal with replace_path active,
+        otherwise emptying into a free index (see above)."""
+        sid = doc.ref.state_id or (doc.state.id if doc.state else None)
+        if sid is None:
             return
-        sid = doc.ref.state_id
-        self.states.delete_doc(doc.ref)
-        self._dirty.discard(str(doc.ref.path))
-        self._dirty_docs.pop(str(doc.ref.path), None)
-        self._state_doc = None
-        self._selected_state = None
-        self._show_inspector(None)
-        self.map.invalidate_political()
+        done = self._empty_state_files([sid])
+        if not done:
+            return
+        if self._states_replaced():
+            self._status.configure(
+                text=self.t("map.states_deleted_hard", count=len(done)))
+            return
+        self._status.configure(
+            text=self.t("map.states_now_free", ids=str(sid)))
         self.canvas.set_selection(set())
-        self._refresh_tree()
+        self._open_state_doc(sid)
+        self._sync_inspectors(focus="state")
+
+    def delete_confirm_key(self) -> str:
+        """Which confirmation text fits the current deletion semantics."""
+        return ("map.confirm_delete_state_replace" if self._states_replaced()
+                else "map.confirm_delete_state")
+
+    def batch_delete_confirm_key(self) -> str:
+        return ("map.confirm_batch_delete_replace" if self._states_replaced()
+                else "map.confirm_batch_delete")
 
     # ------------------------------------------------------------- undo / redo
     def _record(self, command) -> None:

@@ -175,8 +175,9 @@ class CharactersEditor(EditorModule):
         self._check(f, r, self.t("characters.role.leader"), self._role_leader); r += 1
         self._v_leader_ideo = tk.StringVar()
         self._ideo_map = {f"{g} · {s}": s for g, s in self.ideology_service.list_types()}
-        self._row_combo(f, r, self.t("characters.leader.ideology"), self._v_leader_ideo,
-                        list(self._ideo_map)); r += 1
+        self._leader_ideo_combo = self._row_combo(
+            f, r, self.t("characters.leader.ideology"), self._v_leader_ideo,
+            list(self._ideo_map)); r += 1
         self._v_leader_traits = tk.StringVar()
         self._trait_row(f, r, self._v_leader_traits, "leader"); r += 1
 
@@ -318,6 +319,7 @@ class CharactersEditor(EditorModule):
 
     def _prefill(self, model) -> None:
         self._loading = True
+        self._refresh_ideology_types()
         self._clear_form()
         self._id_entry.configure(state="disabled")
         self._hint.configure(text=f"{model.char_id}")
@@ -495,8 +497,17 @@ class CharactersEditor(EditorModule):
 
     def _row_combo(self, parent, row, label, var, values):
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", padx=16, pady=3)
-        ttk.Combobox(parent, textvariable=var, values=values, state="readonly", width=22).grid(
-            row=row, column=1, sticky="w", padx=8, pady=3)
+        combo = ttk.Combobox(parent, textvariable=var, values=values, state="readonly", width=22)
+        combo.grid(row=row, column=1, sticky="w", padx=8, pady=3)
+        return combo
+
+    def _refresh_ideology_types(self) -> None:
+        """Sub-ideologies change when the user edits common/ideologies —
+        re-read them so deleted ideologies drop out of the leader picker."""
+        m = {f"{g} · {s}": s for g, s in self.ideology_service.list_types()}
+        if list(m) != list(self._ideo_map):
+            self._ideo_map = m
+            self._leader_ideo_combo.configure(values=list(m))
 
     def _check(self, parent, row, label, var):
         ttk.Checkbutton(parent, text=label, variable=var, style="Card.TCheckbutton").grid(

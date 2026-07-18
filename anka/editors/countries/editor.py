@@ -395,7 +395,9 @@ class CountriesEditor(EditorModule):
 
         self._pol_ruling = tk.StringVar()
         self._groups = [g.name for g in self.ideology_service.list_groups()]
-        self._combo_field(tab, row, self.t("countries.ruling_party"), self._pol_ruling, self._groups); row += 1
+        self._ruling_combo = self._combo_field(
+            tab, row, self.t("countries.ruling_party"), self._pol_ruling,
+            self._groups); row += 1
         self._pol_last_election = tk.StringVar()
         self._entry_field(tab, row, self.t("countries.last_election"), self._pol_last_election); row += 1
         self._pol_freq = tk.StringVar()
@@ -409,17 +411,9 @@ class CountriesEditor(EditorModule):
         ttk.Label(tab, text=self.t("countries.section.popularities"), style="Heading.TLabel").grid(
             row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(14, 4)); row += 1
         self._pop_vars: dict[str, tk.StringVar] = {}
-        pop_frame = ttk.Frame(tab, style="Card.TFrame")
-        pop_frame.grid(row=row, column=0, columnspan=2, sticky="w", padx=16); row += 1
-        for i, group in enumerate(self._groups):
-            var = tk.StringVar()
-            self._pop_vars[group] = var
-            ttk.Label(pop_frame, text=group, style="CardMuted.TLabel").grid(row=i, column=0, sticky="w", pady=2)
-            e = ttk.Entry(pop_frame, textvariable=var, width=6)
-            e.grid(row=i, column=1, sticky="w", padx=8)
-            var.trace_add("write", lambda *_: self._update_pop_sum())
-        self._pop_sum = ttk.Label(pop_frame, text="", style="CardMuted.TLabel")
-        self._pop_sum.grid(row=len(self._groups), column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self._pop_frame = ttk.Frame(tab, style="Card.TFrame")
+        self._pop_frame.grid(row=row, column=0, columnspan=2, sticky="w", padx=16); row += 1
+        self._build_pop_rows(wire_dirty=False)
 
         # Misc: stability / war support / manpower / OOB
         ttk.Label(tab, text=self.t("countries.section.misc"), style="Heading.TLabel").grid(
@@ -758,7 +752,9 @@ class CountriesEditor(EditorModule):
         self._pol_freq.set(politics.get("election_frequency", ""))
         self._pol_elections.set((politics.get("elections_allowed", "no") == "yes"))
 
-        # popularities (dynamic)
+        # popularities (dynamic) — re-read the ideology list first: the user
+        # may have added/deleted ideologies in the Ideologies editor.
+        self._refresh_ideology_lists()
         pops = self.service.get_popularities(ref.tag)
         for group, var in self._pop_vars.items():
             var.set(str(pops.get(group, "")))
@@ -1299,6 +1295,38 @@ class CountriesEditor(EditorModule):
     def _field(self, parent, row: int, label: str, var: tk.StringVar) -> None:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", pady=6)
         ttk.Entry(parent, textvariable=var, width=16).grid(row=row, column=1, sticky="w", padx=8)
+
+    def _build_pop_rows(self, wire_dirty: bool = True) -> None:
+        """(Re)build the ideology-popularity rows from `self._groups`. At
+        build time `_wire_dirty` adds the dirty traces afterwards; rebuilt
+        rows wire their own."""
+        for w in self._pop_frame.winfo_children():
+            w.destroy()
+        self._pop_vars = {}
+        for i, group in enumerate(self._groups):
+            var = tk.StringVar()
+            self._pop_vars[group] = var
+            ttk.Label(self._pop_frame, text=group, style="CardMuted.TLabel").grid(
+                row=i, column=0, sticky="w", pady=2)
+            ttk.Entry(self._pop_frame, textvariable=var, width=6).grid(
+                row=i, column=1, sticky="w", padx=8)
+            var.trace_add("write", lambda *_: self._update_pop_sum())
+            if wire_dirty:
+                var.trace_add("write", lambda *_: self._mark_dirty("politics"))
+        self._pop_sum = ttk.Label(self._pop_frame, text="", style="CardMuted.TLabel")
+        self._pop_sum.grid(row=len(self._groups), column=0, columnspan=2,
+                           sticky="w", pady=(4, 0))
+
+    def _refresh_ideology_lists(self) -> None:
+        """Ideologies are editable in the Ideologies editor — re-read them on
+        every country show, so deleted/added groups appear without reopening
+        the mod (HOI4 file-override semantics are handled by the service)."""
+        groups = [g.name for g in self.ideology_service.list_groups()]
+        if groups == self._groups:
+            return
+        self._groups = groups
+        self._ruling_combo.configure(values=groups)
+        self._build_pop_rows()
 
     def _entry_field(self, parent, row: int, label: str, var: tk.StringVar, width: int = 16) -> None:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", padx=16, pady=4)

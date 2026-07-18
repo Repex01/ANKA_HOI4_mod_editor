@@ -332,12 +332,40 @@ class CharacterService:
             loc = LocFile.load(loc_path)
             if char_id in loc:
                 loc.remove(char_id).save(loc_path)
+        # A deleted character must not stay recruited anywhere — dangling
+        # ``recruit_character`` lines are a game error.
+        self.remove_recruit_references(char_id)
         # Incremental cache update.
         if self._chars is not None:
             self._chars.pop(char_id, None)
         if self._names is not None:
             self._names.pop(char_id, None)
         return True
+
+    def remove_recruit_references(self, char_id: str) -> list[str]:
+        """Strip ``recruit_character = <char_id>`` lines from every editable
+        (mod-side) country history file. Line-level text edit so untouched
+        formatting/comments survive. Returns the relative files changed."""
+        folder = self.ctx.mod.path / GAME_DIRS.HISTORY_COUNTRIES
+        if not folder.is_dir():
+            return []
+        pattern = re.compile(
+            rf"^[ \t]*recruit_character[ \t]*=[ \t]*{re.escape(char_id)}"
+            rf"[ \t]*(#[^\r\n]*)?\r?\n",
+            re.M)
+        changed: list[str] = []
+        for file in folder.glob("*.txt"):
+            try:
+                text = file.read_text(encoding="utf-8-sig", errors="ignore")
+            except OSError:
+                continue
+            new_text = pattern.sub("", text)
+            if new_text != text:
+                file.write_text(new_text, encoding="utf-8")
+                changed.append(f"{GAME_DIRS.HISTORY_COUNTRIES}/{file.name}")
+        if changed and self._recruited is not None:
+            self._recruited.pop(char_id, None)
+        return changed
 
     # --- recruitment cache updates (called after CountryService writes) --
     def mark_recruited(self, char_id: str, tag: str) -> None:

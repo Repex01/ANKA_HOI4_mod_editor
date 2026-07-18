@@ -230,8 +230,15 @@ class StateInspector(InspectorBase):
         self._title_lbl.grid(row=0, column=0, sticky="w")
         self._copy_btn = ttk.Button(head, text="⧉ " + self.t("focuses.copy_to_mod"),
                                     style="Accent.TButton", command=self._copy_to_mod)
+        # Always-visible delete (no scrolling needed): empties the state into
+        # a reusable free index.
+        self._del_head_btn = ttk.Button(head, text="🗑", width=3,
+                                        command=self._delete)
+        self._del_head_btn.grid(row=0, column=2, sticky="e", padx=(6, 0))
+        from ...ui.widgets.tooltip import attach_help
+        attach_help(self._del_head_btn, self.t, "map.delete_state", self.palette)
         self._file_lbl = ttk.Label(head, text="", style="CardMuted.TLabel")
-        self._file_lbl.grid(row=1, column=0, columnspan=2, sticky="w")
+        self._file_lbl.grid(row=1, column=0, columnspan=3, sticky="w")
         row += 1
 
         self._name_var = self._entry_row_wide(row, self.t("map.state_name"),
@@ -440,12 +447,14 @@ class StateInspector(InspectorBase):
         self._pb_prov_var.set(provinces[0] if provinces else "")
         self._refresh_province_buildings()
         self._set_state_all(editable)
-        self._delete_btn.configure(state="normal" if editable else "disabled")
         # _set_state_all disables EVERY button on a vanilla state — but these
-        # two must stay clickable: copying to mod is exactly the read-only
-        # escape hatch, and the supply area lives in zone files, not this one.
+        # must stay clickable: copying to mod is exactly the read-only escape
+        # hatch, the supply area lives in zone files, and "delete" (emptying
+        # into a free index) writes a mod override, so it works on vanilla too.
         self._copy_btn.configure(state="normal")
         self._supply_btn.configure(state="normal")
+        self._delete_btn.configure(state="normal")
+        self._del_head_btn.configure(state="normal")
         # viewing the name in another language is read-only-safe
         self._name_lang_combo.configure(state="readonly")
         self._loading = False
@@ -1004,9 +1013,9 @@ class StateInspector(InspectorBase):
         self.owner.copy_state_to_mod()
 
     def _delete(self) -> None:
-        if self.doc is None or self.doc.ref.is_vanilla:
+        if self.doc is None:
             return
-        if not messagebox.askyesno("ANKA", self.t("map.confirm_delete_state",
+        if not messagebox.askyesno("ANKA", self.t(self.owner.delete_confirm_key(),
                                                   id=self.state.id if self.state else "?")):
             return
         self.owner.delete_state(self.doc)
@@ -1088,6 +1097,12 @@ class BatchStateInspector(InspectorBase):
                    command=self._rename).grid(row=r, column=0, columnspan=3,
                                               sticky="ew", pady=(4, 0)); r += 1
 
+        # Delete every selected state at once (merging leftovers cleanup).
+        ttk.Separator(b).grid(row=r, column=0, columnspan=3, sticky="ew", pady=8); r += 1
+        ttk.Button(b, text="🗑 " + self.t("map.batch_delete"),
+                   command=self._delete_states).grid(
+            row=r, column=0, columnspan=3, sticky="ew"); r += 1
+
     def _pick_row(self, row: int, label: str) -> tk.StringVar:
         b = self.body
         ttk.Label(b, text=label, style="CardMuted.TLabel").grid(
@@ -1139,3 +1154,13 @@ class BatchStateInspector(InspectorBase):
             return
         self.owner.batch_rename_states(self.state_ids, base,
                                        self._rename_lang.get())
+
+    def _delete_states(self) -> None:
+        if not self.state_ids:
+            return
+        ids = ", ".join(map(str, sorted(self.state_ids)))
+        if not messagebox.askyesno(
+                "ANKA", self.t(self.owner.batch_delete_confirm_key(),
+                               count=len(self.state_ids), ids=ids)):
+            return
+        self.owner.batch_delete_states(self.state_ids)
