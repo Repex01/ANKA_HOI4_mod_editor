@@ -275,12 +275,18 @@ def split_region(mask: np.ndarray, k: int, *, seed: int | None = None,
                  strategy: str = "organic", smooth_passes: int = 2,
                  step_min: int = 1, step_max: int = 5,
                  max_iterations: int = 200_000,
+                 barrier: np.ndarray | None = None,
                  on_progress: Callable[[int, int], None] | None = None) -> np.ndarray:
     """Split the True area of `mask` into `k` connected clusters.
 
     Returns int32 `labels` (same shape): 0 outside, 1..k inside. `strategy`:
     "organic" (random border growth) or "smooth" (weighted → even borders).
     Deterministic for a given `seed`.
+
+    `barrier` (bool, same shape) marks pixels growth may not enter or cross —
+    e.g. river pixels, so every cluster stays on one bank. Barrier pixels
+    inside `mask` are attached to the nearest grown cluster at the end (a thin
+    river gets split down its middle between the two banks).
     """
     if k < 1:
         raise ValueError("k must be >= 1")
@@ -288,9 +294,14 @@ def split_region(mask: np.ndarray, k: int, *, seed: int | None = None,
     total = int(mask.sum())
     if total == 0:
         return labels
+    grow_mask = mask
+    if barrier is not None:
+        grow_mask = mask & ~barrier
+        if not grow_mask.any():          # selection is ALL barrier — ignore it
+            grow_mask = mask
     rng = random.Random(seed)
-    seeds = spread_seeds(_seedable_mask(mask, k), k, rng)
-    growers = [_Grower(labels, mask, i + 1) for i in range(len(seeds))]
+    seeds = spread_seeds(_seedable_mask(grow_mask, k), k, rng)
+    growers = [_Grower(labels, grow_mask, i + 1) for i in range(len(seeds))]
     for g, (sy, sx) in zip(growers, seeds):
         g.claim(sy, sx)
 
@@ -308,10 +319,13 @@ def split_region(mask: np.ndarray, k: int, *, seed: int | None = None,
         if not changed:
             break
 
+    _fill_leftovers(labels, grow_mask)
+    labels = smooth_labels(labels, grow_mask, len(growers),
+                           passes=smooth_passes)
+    # Full mask last: barrier pixels inside the selection join the nearest
+    # cluster (each bank keeps its own side — growth never crossed).
     _fill_leftovers(labels, mask)
-    labels = smooth_labels(labels, mask, len(growers), passes=smooth_passes)
-    _fill_leftovers(labels, mask)                 # smoothing can't drop pixels,
-    enforce_connectivity(labels, mask, len(growers))   # but be safe
+    enforce_connectivity(labels, mask, len(growers))
     if on_progress is not None:
         on_progress(total, total)
     return labels

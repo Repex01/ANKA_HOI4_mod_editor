@@ -315,6 +315,7 @@ class CharactersEditor(EditorModule):
         for d in (self._gen_skills, self._adm_skills):
             for var in d.values():
                 var.set("1")
+        self._unknown_ideo = None      # original ideology of an "Unknown" pick
         self._status.configure(text="")
 
     def _prefill(self, model) -> None:
@@ -341,7 +342,15 @@ class CharactersEditor(EditorModule):
         leader = raw.get_block("country_leader")
         if leader is not None:
             self._role_leader.set(True)
-            self._select_combo(self._v_leader_ideo, self._ideo_map, leader.get_scalar("ideology", ""))
+            raw_ideo = leader.get_scalar("ideology", "")
+            if raw_ideo and raw_ideo not in self._ideo_map.values():
+                # The (sub-)ideology no longer exists — show it as unknown but
+                # keep the original value so saving doesn't silently change it.
+                self._unknown_ideo = raw_ideo
+                self._v_leader_ideo.set(
+                    f"{self.t('characters.unknown_ideology')} ({raw_ideo})")
+            else:
+                self._select_combo(self._v_leader_ideo, self._ideo_map, raw_ideo)
             self._v_leader_traits.set(self._traits(leader))
         adv = raw.get_block("advisor")
         if adv is not None:
@@ -378,7 +387,8 @@ class CharactersEditor(EditorModule):
 
         kwargs = {"portraits": dict(self._portrait_paths) or None}
         kwargs["country_leader"] = (
-            {"ideology": self._ideo_map.get(self._v_leader_ideo.get(), "despotism"),
+            {"ideology": self._ideo_map.get(self._v_leader_ideo.get(),
+                                            self._unknown_ideo or "despotism"),
              "traits": self._v_leader_traits.get().split()} if self._role_leader.get() else None)
         kwargs["advisor"] = (
             {"slot": self._v_adv_slot.get(), "idea_token": self._v_adv_token.get().strip() or char_id,

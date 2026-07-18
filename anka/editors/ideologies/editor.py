@@ -97,6 +97,10 @@ class IdeologiesEditor(EditorModule):
                    command=self._new_file).pack(side="left", padx=2)
         ttk.Button(bar, text="💾 " + self.t("common.save"),
                    command=self.save_all).pack(side="left", padx=4)
+        ttk.Button(bar, text="🗑 " + self.t("ideology.delete"),
+                   command=self._delete_selected).pack(side="left", padx=2)
+        ttk.Button(bar, text="🎲 " + self.t("ideology.randomise"),
+                   command=self._randomise_all).pack(side="left", padx=2)
         self._copy_btn = ttk.Button(bar, text="⧉ " + self.t("focuses.copy_to_mod"),
                                     command=self._copy_to_mod)
         self._btn_problems = ttk.Button(bar, text="⚠ 0",
@@ -380,11 +384,83 @@ class IdeologiesEditor(EditorModule):
         if not hasattr(doc, "entries") or doc.ref.is_vanilla:
             return
         entries = doc.entries()
-        if index < len(entries):
-            entry = entries[index]
-            if messagebox.askyesno("ANKA", self.t("ideology.confirm_delete",
-                                                  name=entry.name)):
-                self.delete_entry(doc, entry)
+        if index >= len(entries):
+            return
+        entry = entries[index]
+        # A deleted ideology must also disappear from every country that
+        # rules by it / has popularity for it — warn with the exact impact.
+        from ...services.country_service import CountryService
+        from ...services.ideology_service import IdeologyService
+        ideo_svc = IdeologyService(self.context)
+        # `remaining` spans EVERY effective file (this mod, submods, vanilla
+        # merges) — the game cannot run without a single ideology group.
+        remaining = [g.name for g in ideo_svc.list_groups()
+                     if g.name != entry.name]
+        if not remaining:
+            messagebox.showerror("ANKA", self.t("ideology.err.last_ideology"))
+            return
+        countries = CountryService(self.context)
+        try:
+            ruling, pops_tags = countries.ideology_usage(entry.name)
+        except Exception:                                  # noqa: BLE001
+            ruling, pops_tags = [], []
+        affected = sorted(set(ruling) | set(pops_tags))
+        if not affected:
+            if not messagebox.askyesno("ANKA", self.t("ideology.confirm_delete",
+                                                      name=entry.name)):
+                return
+            self._finish_delete(doc, entry, ideo_svc, countries, [], None)
+            return
+        # One dialog up front: the impact warning AND (when any country is
+        # ruled by it) the replacement-ideology choice. Nothing is deleted
+        # until the user confirms there.
+        shown = ", ".join(affected[:25]) + ("…" if len(affected) > 25 else "")
+        warning = self.t("ideology.confirm_delete_used", name=entry.name,
+                         count=len(affected), tags=shown, ruling=len(ruling))
+        FallbackIdeologyDialog(
+            self._grid_root, self, entry.name, len(ruling), remaining,
+            lambda fallback: self._finish_delete(doc, entry, ideo_svc,
+                                                 countries, affected, fallback),
+            warning=warning)
+
+    def _finish_delete(self, doc, entry, ideo_svc, countries,
+                       affected: list[str], fallback: str | None) -> None:
+        """Confirmed: delete the entry, then clean the affected countries."""
+        name = entry.name
+        self.delete_entry(doc, entry)
+        self.save_all()          # the existence re-check below reads the disk
+        # Same-named group in another effective file (submod / duplicate
+        # definition) → the ideology still exists, nothing to clean up.
+        if any(g.name == name for g in ideo_svc.list_groups()):
+            return
+        if not affected:
+            return
+        changed = countries.cleanup_ideology(name, fallback)
+        messagebox.showinfo(
+            "ANKA", self.t("ideology.cleanup_done", count=len(changed),
+                           fallback=fallback))
+
+    def _randomise_all(self) -> None:
+        """Randomise ideology popularities of every country (ruling party =
+        the most popular one). Histories are rewritten into the mod."""
+        from ...services.country_service import CountryService
+        from ...services.ideology_service import IdeologyService
+        groups = [g.name for g in IdeologyService(self.context).list_groups()]
+        if not groups:
+            return
+        countries = CountryService(self.context)
+        tags = countries.list_tags(include_vanilla=True)
+        if not messagebox.askyesno(
+                "ANKA", self.t("ideology.confirm_randomise",
+                               count=len(tags))):
+            return
+        try:
+            changed = countries.randomise_ideologies(groups)
+        except Exception as exc:                          # noqa: BLE001
+            messagebox.showerror("ANKA", str(exc))
+            return
+        messagebox.showinfo(
+            "ANKA", self.t("ideology.randomise_done", count=changed))
 
     # ------------------------------------------------------------------- icons
     def ideology_sprite(self, name: str, *, group: bool) -> str:
@@ -479,3 +555,66 @@ class IdeologiesEditor(EditorModule):
 
     def on_leave(self) -> None:
         self.save_all()
+
+
+class FallbackIdeologyDialog:
+    """The delete-ideology dialog: shows the impact warning and — when any
+    country is ruled by the deleted ideology — the replacement choice in the
+    SAME window. The combobox is editable: any remaining ideology group, or
+    free text (e.g. an ideology a submod will provide). Nothing is deleted
+    until this dialog is confirmed."""
+
+    def __init__(self, master, editor, deleted: str, ruling_count: int,
+                 options: list[str], on_submit, warning: str | None = None):
+        import re as _re
+        from ..common.dialogs import BaseDialog
+
+        self._re = _re
+        self._on_submit = on_submit
+
+        outer = self
+
+        class _Dlg(BaseDialog):
+            def _submit(self) -> None:  # noqa: D401
+                outer._submit(self)
+
+        dlg = _Dlg(master, editor, editor.t("ideology.delete_title"),
+                   (480, 400 if warning else 240))
+        self.dlg = dlg
+        body = ttk.Frame(dlg, style="Card.TFrame", padding=14)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(0, weight=1)
+        row = 0
+        if warning:
+            ttk.Label(body, text=warning, style="Card.TLabel",
+                      wraplength=420, justify="left").grid(
+                row=row, column=0, sticky="w")
+            row += 1
+        default = "neutrality" if "neutrality" in options else options[0]
+        self._var = tk.StringVar(value=default)
+        if ruling_count > 0:
+            ttk.Label(body, text=editor.t("ideology.pick_fallback_hint",
+                                          name=deleted, count=ruling_count),
+                      style="CardMuted.TLabel", wraplength=420,
+                      justify="left").grid(row=row, column=0, sticky="w",
+                                           pady=(10, 0))
+            row += 1
+            combo = ttk.Combobox(body, textvariable=self._var, values=options,
+                                 width=26)                  # editable: free text
+            combo.grid(row=row, column=0, sticky="w", pady=(8, 4))
+            row += 1
+        self._error = ttk.Label(body, text="", style="CardMuted.TLabel",
+                                foreground=editor.palette.danger)
+        self._error.grid(row=row, column=0, sticky="w")
+        row += 1
+        dlg.buttons_row(body, "🗑 " + editor.t("ideology.delete")).grid(
+            row=row, column=0, sticky="ew", pady=(10, 0))
+        self._editor = editor
+
+    def _submit(self, dlg) -> None:
+        value = self._var.get().strip()
+        if not self._re.fullmatch(r"\w+", value):
+            self._error.configure(text=self._editor.t("ideology.err.bad_fallback"))
+            return
+        dlg.destroy()
+        self._on_submit(value)

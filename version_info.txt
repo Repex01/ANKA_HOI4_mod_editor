@@ -2,8 +2,8 @@
 # Keep the version in sync with VERSION in anka/config/constants.py.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(1, 1, 1, 0),
+    prodvers=(1, 1, 1, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
       StringTable('040904B0', [
         StringStruct('CompanyName', 'ANKA Project'),
         StringStruct('FileDescription', 'ANKA - Hearts of Iron IV mod editor'),
-        StringStruct('FileVersion', '1.0.0.0'),
+        StringStruct('FileVersion', '1.1.1.0'),
         StringStruct('InternalName', 'ANKA'),
         StringStruct('LegalCopyright', 'Copyright (c) 2026 Borys'),
         StringStruct('OriginalFilename', 'ANKA.exe'),
         StringStruct('ProductName', 'ANKA'),
-        StringStruct('ProductVersion', '1.0.0.0')
+        StringStruct('ProductVersion', '1.1.1.0')
       ])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])

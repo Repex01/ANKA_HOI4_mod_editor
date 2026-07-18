@@ -804,13 +804,16 @@ class MapService:
     def preview_split_area(self, pids: list[int], k: int, *,
                            seed: int | None = None, strategy: str = "organic",
                            smooth_passes: int = 2, within_states: bool = False,
-                           on_progress=None):
+                           avoid_rivers: bool = False, on_progress=None):
         """Compute split labels for the union of several provinces without
         touching the map. Returns (labels int32 on the bbox slice, bbox).
 
         With `within_states` the clusters never cross an existing state
         border: each state's pixels are partitioned separately, with `k`
-        shared out proportionally to pixel area (at least 1 per state)."""
+        shared out proportionally to pixel area (at least 1 per state).
+
+        With `avoid_rivers` the clusters never cross a river pixel from
+        ``rivers.bmp`` (river pixels themselves join the nearest bank)."""
         from .region_gen import split_region
         self.ensure_bitmap()
         codes = []
@@ -830,11 +833,16 @@ class MapService:
                 max(b[2] for b in boxes), max(b[3] for b in boxes))
         x0, y0, x1, y1 = bbox
         crop = self._codes[y0:y1 + 1, x0:x1 + 1]
+        barrier = None
+        if avoid_rivers:
+            rm = self._rivers_mask()          # None when rivers.bmp is absent
+            if rm is not None:
+                barrier = rm[y0:y1 + 1, x0:x1 + 1]
         if not within_states:
             mask = np.isin(crop, np.array(codes, dtype=np.uint32))
             labels = split_region(mask, k, seed=seed, strategy=strategy,
                                   smooth_passes=smooth_passes,
-                                  on_progress=on_progress)
+                                  barrier=barrier, on_progress=on_progress)
             return labels, bbox
         # Group the selection by owning state (stateless provinces together),
         # split each group's pixel mask separately and merge the label maps.
@@ -865,7 +873,7 @@ class MapService:
         for i, mask in enumerate(masks):
             sub = split_region(mask, min(ks[i], areas[i]), seed=seed,
                                strategy=strategy, smooth_passes=smooth_passes,
-                               on_progress=on_progress)
+                               barrier=barrier, on_progress=on_progress)
             labels[sub > 0] = sub[sub > 0] + offset
             offset = int(labels.max())
         return labels, bbox

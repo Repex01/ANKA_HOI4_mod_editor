@@ -1,20 +1,20 @@
 {
-  "game_path": "F:/SteamLibrary/steamapps/common/Hearts of Iron IV",
-  "local_mods_path": "C:/Users/Zalman/Documents/Paradox Interactive/Hearts of Iron IV/mod",
-  "workshop_mods_path": "F:/SteamLibrary/steamapps/workshop/content/394360",
+  "game_path": "F:\\SteamLibrary\\steamapps\\common\\Hearts of Iron IV",
+  "local_mods_path": "C:\\Users\\Zalman\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod",
+  "workshop_mods_path": "F:\\SteamLibrary\\steamapps\\workshop\\content\\394360",
   "language": "en",
   "theme": "dark",
   "recent_mods": [
-    "TheTestIsATest",
     "AMapTest",
+    "TheTestIsATest",
+    "3465348500",
     "1521695605",
     "2265420196",
     "AnotherTest",
     "2438003901",
     "TestBeforeShowcase",
     "Technoaura",
-    "AShowcase",
-    "TheBlackStarOverUkraine"
+    "AShowcase"
   ],
   "openai_api_key": "",
   "claude_api_key": ""

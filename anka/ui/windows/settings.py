@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import filedialog, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from ...config.settings import Settings
 
@@ -30,7 +30,7 @@ class SettingsScreen(ttk.Frame):
         # instead and let the user configure paths before continuing.
         if not self._first_run:
             ttk.Button(header, text="‹ " + t("common.back"),
-                       command=self.app.show_main_menu).pack(side="left")
+                       command=self._back).pack(side="left")
         ttk.Label(header, text=t("settings.title"), style="Title.TLabel").pack(side="left", padx=16)
         if self._first_run:
             ttk.Label(self, text=t("settings.first_run_hint"), style="Muted.TLabel",
@@ -160,7 +160,8 @@ class SettingsScreen(ttk.Frame):
         path = filedialog.askdirectory(initialdir=self._value(key) or None)
         if path:
             self._is_ph[key] = False
-            var.set(path)
+            # Windows: backslashed; Linux/macOS: kept as-is.
+            var.set(Settings.normalize_separators(path))
             self._refresh_status()
 
     def _refresh_status(self) -> None:
@@ -175,22 +176,28 @@ class SettingsScreen(ttk.Frame):
             if not value:
                 label.configure(text="")
                 continue
-            ok = validity[key]
-            label.configure(
-                text=("✔ " + self.app.t("settings.path_ok")) if ok
-                else ("✕ " + self.app.t("settings.path_invalid")),
-                foreground=self.app.palette.text_muted if ok else self.app.palette.danger,
-            )
+            if not validity[key]:
+                label.configure(text="✕ " + self.app.t("settings.path_invalid"),
+                                foreground=self.app.palette.danger)
+                continue
+            issue = Settings.path_format_issue(key, value)
+            if issue:
+                label.configure(text="⚠ " + self.app.t(f"settings.err.{issue}"),
+                                foreground=self.app.palette.danger)
+            else:
+                label.configure(text="✔ " + self.app.t("settings.path_ok"),
+                                foreground=self.app.palette.text_muted)
 
     def _theme_label(self, code: str) -> str:
         return self.app.t("settings.theme.light") if code == "light" else self.app.t("settings.theme.dark")
 
     def _persist(self) -> None:
-        """Save the form into settings.json (no navigation/rebuild)."""
+        """Save the form into settings.json (no navigation/rebuild). On Windows
+        paths are normalized to backslashes — the HOI4/launcher convention."""
         self.app.settings.update(
-            game_path=self._value("game_path"),
-            local_mods_path=self._value("local_mods_path"),
-            workshop_mods_path=self._value("workshop_mods_path"),
+            game_path=Settings.normalize_separators(self._value("game_path")),
+            local_mods_path=Settings.normalize_separators(self._value("local_mods_path")),
+            workshop_mods_path=Settings.normalize_separators(self._value("workshop_mods_path")),
             language=self._lang_label_map.get(self._lang.get(), "en"),
             theme=self._theme_label_map.get(self._theme.get(), "dark"),
             openai_api_key=self._vars["openai_api_key"].get().strip(),
@@ -202,11 +209,97 @@ class SettingsScreen(ttk.Frame):
         # First-run: settings.json now exists, so head to the main menu (Edit mod is
         # enabled there once the required paths are set). Otherwise rebuild in place.
         if self._first_run:
+            if self._saved_errors() and not self._errors_exit_prompt():
+                return
             self.app.show_main_menu()
         else:
             # Settings change triggers app re-theme/re-language; rebuild this screen.
             self.app.show_settings()
 
+    # --------------------------------------------------------- leave guards
+    def _dirty(self) -> bool:
+        """Does the form differ from what settings.json currently holds?"""
+        s = self.app.settings.current
+        norm = Settings.normalize_separators
+        return (norm(self._value("game_path")) != s.game_path
+                or norm(self._value("local_mods_path")) != s.local_mods_path
+                or norm(self._value("workshop_mods_path")) != s.workshop_mods_path
+                or self._lang_label_map.get(self._lang.get(), "en") != s.language
+                or self._theme_label_map.get(self._theme.get(), "dark") != s.theme
+                or self._vars["openai_api_key"].get().strip() != s.openai_api_key
+                or self._vars["claude_api_key"].get().strip() != s.claude_api_key)
+
+    def _saved_errors(self) -> bool:
+        """Any ✕/⚠ problem among the SAVED (persisted) paths? Empty fields
+        don't count — the main menu simply keeps mod editing disabled then."""
+        s = self.app.settings.current
+        validity = s.validate_paths()
+        for key in ("game_path", "local_mods_path", "workshop_mods_path"):
+            value = getattr(s, key)
+            if not value:
+                continue
+            if not validity.get(key, False) or Settings.path_format_issue(key, value):
+                return True
+        return False
+
+    def _errors_exit_prompt(self) -> bool:
+        """Saved settings contain path errors: show the warning with an
+        explicit "Exit anyway" choice. Returns True when the user still wants
+        to leave."""
+        t = self.app.t
+        top = self.winfo_toplevel()
+        dlg = tk.Toplevel(self)
+        self._err_dlg = dlg                    # exposed for tests
+        dlg.title("ANKA")
+        dlg.transient(top)
+        dlg.resizable(False, False)
+        dlg.configure(bg=self.app.palette.bg)
+        result = {"exit": False}
+        body = ttk.Frame(dlg, style="Card.TFrame", padding=16)
+        body.pack(fill="both", expand=True, padx=10, pady=10)
+        ttk.Label(body, text="⚠ " + t("settings.err.exit_errors"),
+                  style="Card.TLabel", wraplength=400, justify="left").pack(
+            anchor="w")
+        row = ttk.Frame(body, style="Card.TFrame")
+        row.pack(fill="x", pady=(14, 0))
+
+        def leave() -> None:
+            result["exit"] = True
+            dlg.destroy()
+
+        ttk.Button(row, text=t("common.cancel"),
+                   command=dlg.destroy).pack(side="right", padx=(6, 0))
+        dlg._exit_btn = ttk.Button(row, text=t("settings.exit_anyway"),
+                                   command=leave)
+        dlg._exit_btn.pack(side="right")
+        dlg.update_idletasks()
+        x = top.winfo_rootx() + (top.winfo_width() - dlg.winfo_reqwidth()) // 2
+        y = top.winfo_rooty() + (top.winfo_height() - dlg.winfo_reqheight()) // 3
+        dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
+        dlg.grab_set()
+        from ..widgets.modal import guard_modal
+        guard_modal(dlg, top)
+        dlg.wait_window()
+        return result["exit"]
+
+    def _back(self) -> None:
+        """Back to menu: warn about unsaved changes; on saved path errors show
+        the warning with an "Exit anyway" escape hatch."""
+        t = self.app.t
+        discard = False
+        if self._dirty():
+            if not messagebox.askyesno("ANKA", t("settings.confirm_unsaved")):
+                return
+            discard = True                    # leave without applying the form
+        if self._saved_errors() and not self._errors_exit_prompt():
+            return
+        self._discard = discard
+        self.app.show_main_menu()
+
     def on_leave(self) -> None:
-        """Auto-save settings when navigating away (no rebuild)."""
+        """Auto-save settings when navigating away (no rebuild) — unless the
+        user chose to discard the form in the unsaved-changes prompt."""
+        if getattr(self, "_discard", False):
+            self._discard = False
+            return
         self._persist()

@@ -102,6 +102,19 @@ class CountriesEditor(EditorModule):
         """Auto-save pending edits for the selected country when leaving the editor."""
         self._save_all_pending()
 
+    def on_enter(self) -> None:
+        """Editor became visible again: ideologies may have been added/deleted
+        in the Ideologies editor meanwhile — re-read them into every combo.
+        With a country selected, re-populate it fully (its pending edits were
+        flushed by on_leave when this editor was left)."""
+        try:
+            if self._selected is not None:
+                self._populate(self._selected)
+            else:
+                self._refresh_ideology_lists()
+        except Exception:
+            pass
+
     def _build_list(self, root) -> None:
         left = ttk.Frame(root, style="Card.TFrame", padding=10)
         left.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
@@ -286,8 +299,11 @@ class CountriesEditor(EditorModule):
         self._loc_base_label = self.t("countries.name_base")
         self._loc_ideology = tk.StringVar(value=self._loc_base_label)
         ideo_values = [self._loc_base_label] + [g.name for g in self.ideology_service.list_groups()]
-        ttk.Combobox(tab, textvariable=self._loc_ideology, values=ideo_values, state="readonly",
-                     width=16).grid(row=r, column=1, sticky="w", padx=8); r += 1
+        # Kept for _refresh_ideology_lists(): ideologies added/deleted in the
+        # Ideologies editor must show up here without reopening the mod.
+        self._loc_ideo_combo = ttk.Combobox(tab, textvariable=self._loc_ideology, values=ideo_values,
+                                            state="readonly", width=16)
+        self._loc_ideo_combo.grid(row=r, column=1, sticky="w", padx=8); r += 1
 
         # --- Country name section ---
         ttk.Label(tab, text=self.t("countries.section.country_name"), style="Heading.TLabel").grid(
@@ -798,6 +814,9 @@ class CountriesEditor(EditorModule):
             zone.show_image(existing) if existing else zone.clear()
         self._flag_status.configure(text="")
 
+        # Cosmetic tags edit per-ideology party names too — keep the Names-tab
+        # ideology combo fresh here as well.
+        self._refresh_ideology_lists()
         self._names = self.service.get_names(ref.tag)
         self._load_localisation()
         self._render_existing_names()
@@ -1327,6 +1346,12 @@ class CountriesEditor(EditorModule):
         self._groups = groups
         self._ruling_combo.configure(values=groups)
         self._build_pop_rows()
+        # Names tab: party localisation is per-ideology — keep that combo in
+        # sync too (a vanished selection falls back to the base country name).
+        loc_values = [self._loc_base_label] + groups
+        self._loc_ideo_combo.configure(values=loc_values)
+        if self._loc_ideology.get() not in loc_values:
+            self._loc_ideology.set(self._loc_base_label)
 
     def _entry_field(self, parent, row: int, label: str, var: tk.StringVar, width: int = 16) -> None:
         ttk.Label(parent, text=label, style="CardMuted.TLabel").grid(row=row, column=0, sticky="w", padx=16, pady=4)

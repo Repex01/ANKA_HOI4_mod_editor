@@ -129,4 +129,12 @@ class ModEditorScreen(ttk.Frame):
             self._built[module.id] = widget
         else:
             widget.grid()
+            # Re-shown editor: give it a chance to re-read data another editor
+            # may have changed meanwhile (e.g. ideologies added/deleted).
+            hook = getattr(module, "on_enter", None)
+            if callable(hook):
+                try:
+                    hook()
+                except Exception:
+                    pass
         self._active = module.id

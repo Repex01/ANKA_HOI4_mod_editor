@@ -513,7 +513,7 @@ class SplitProvinceDialog(BaseDialog):
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
         body.pack(fill="both", expand=True, padx=12, pady=12)
         body.columnconfigure(1, weight=1)
-        body.rowconfigure(4, weight=1)
+        body.rowconfigure(5, weight=1)
 
         row0 = ttk.Frame(body, style="Card.TFrame")
         row0.grid(row=0, column=0, columnspan=2, sticky="ew")
@@ -547,19 +547,24 @@ class SplitProvinceDialog(BaseDialog):
                         style="Card.TCheckbutton",
                         variable=self._borders_var).grid(
             row=2, column=0, columnspan=2, sticky="w", pady=(6, 0))
+        self._rivers_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(body, text=self.t("map.split_avoid_rivers"),
+                        style="Card.TCheckbutton",
+                        variable=self._rivers_var).grid(
+            row=3, column=0, columnspan=2, sticky="w")
 
         self._progress = ttk.Label(body, text="", style="CardMuted.TLabel")
-        self._progress.grid(row=3, column=0, columnspan=2, sticky="w",
+        self._progress.grid(row=4, column=0, columnspan=2, sticky="w",
                             pady=(6, 2))
 
         self._canvas = tk.Canvas(body, width=self.PREVIEW[0],
                                  height=self.PREVIEW[1],
                                  bg=self.palette.surface_alt,
                                  highlightthickness=0, bd=0)
-        self._canvas.grid(row=4, column=0, columnspan=2, sticky="nsew")
+        self._canvas.grid(row=5, column=0, columnspan=2, sticky="nsew")
 
         bar = ttk.Frame(body, style="Card.TFrame")
-        bar.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        bar.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(10, 0))
         ttk.Button(bar, text=self.t("common.cancel"),
                    command=self.destroy).pack(side="right", padx=(6, 0))
         self._apply_btn = ttk.Button(bar, text=self.t("common.apply"),
@@ -595,6 +600,7 @@ class SplitProvinceDialog(BaseDialog):
         strategy = self._strategies.get(self._strategy_var.get(), "organic")
         smooth = max(0, int(self._smooth_var.get() or 0))
         within = self._borders_var.get()
+        avoid_rivers = self._rivers_var.get()
         self._state = "working"
         self._apply_btn.configure(state="disabled")
         self._gen_btn.configure(state="disabled")
@@ -609,7 +615,7 @@ class SplitProvinceDialog(BaseDialog):
                 labels, bbox = editor.map.preview_split_area(
                     self._pids, k, seed=seed, strategy=strategy,
                     smooth_passes=smooth, within_states=within,
-                    on_progress=on_progress)
+                    avoid_rivers=avoid_rivers, on_progress=on_progress)
                 # Up to `k` new colors may be needed (a donor id is reused per
                 # cluster at most once); unused ones are simply not taken.
                 colors = editor.map.free_colors(int(labels.max()))

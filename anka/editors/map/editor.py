@@ -308,8 +308,10 @@ class MapEditor(EditorModule):
                                for i, m in enumerate(ALL_MODES)}
         self._label_by_mode = {m: lbl for lbl, m in self._mode_by_label.items()}
         self._mode_var = tk.StringVar(value=self._label_by_mode["provinces"])
+        # Sized to the longest (localised) label so nothing is clipped.
         combo = ttk.Combobox(bar, textvariable=self._mode_var, state="readonly",
-                             width=22, values=list(self._mode_by_label))
+                             width=max(len(lbl) for lbl in self._mode_by_label) + 1,
+                             values=list(self._mode_by_label))
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._mode_changed)
         enable_form_wheel(combo)          # map-mode wheel is convenient here
@@ -387,18 +389,18 @@ class MapEditor(EditorModule):
         # Stack the create / generate pairs into two-row columns to save width.
         new_col = ttk.Frame(frame, style="TFrame")
         new_col.pack(side="left", padx=(6, 2))
-        ttk.Button(new_col, text="➕ " + self.t("map.new_province"), width=13,
+        ttk.Button(new_col, text="➕ " + self.t("map.new_province"),
                    command=self._new_province).pack(fill="x")
-        ttk.Button(new_col, text="🗺 " + self.t("map.new_state"), width=13,
+        ttk.Button(new_col, text="🗺 " + self.t("map.new_state"),
                    command=self._new_state).pack(fill="x", pady=(2, 0))
         gen_col = ttk.Frame(frame, style="TFrame")
         gen_col.pack(side="left", padx=2)
         split_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.split_area"),
-                               width=14, command=self._split_selection)
+                               command=self._split_selection)
         split_btn.pack(fill="x")
         attach_help(split_btn, self.t, "map.split", self.palette)
         gen_btn = ttk.Button(gen_col, text="⚡ " + self.t("map.gen_states"),
-                             width=14, command=self._generate_states)
+                             command=self._generate_states)
         gen_btn.pack(fill="x", pady=(2, 0))
         attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
         ttk.Button(frame, text="⇄ " + self.t("map.adjacencies"),
@@ -434,7 +436,7 @@ class MapEditor(EditorModule):
         frame = ttk.Frame(parent, style="TFrame")
         self._htool_btns: dict[str, ttk.Button] = {}
         for i, name in enumerate(_HEIGHT_TOOLS):
-            btn = ttk.Button(frame, width=11,
+            btn = ttk.Button(frame,
                              text=f"{_HEIGHT_ICONS[name]} "
                                   f"{self.t(f'map.htool.{name}')} {i + 1}",
                              command=lambda n=name: self._set_height_tool(n))
@@ -484,7 +486,7 @@ class MapEditor(EditorModule):
         frame = ttk.Frame(parent, style="TFrame")
         self._rtool_btns: dict[str, ttk.Button] = {}
         for i, name in enumerate(_REGION_TOOLS):
-            btn = ttk.Button(frame, width=12,
+            btn = ttk.Button(frame,
                              text=f"{_REGION_ICONS[name]} "
                                   f"{self.t(f'map.rtool.{name}')} {i + 1}",
                              command=lambda n=name: self._set_region_tool(n))

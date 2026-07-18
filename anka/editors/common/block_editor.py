@@ -146,6 +146,11 @@ _BLOCK_TEMPLATES = {
     "remove_opinion_modifier": ("remove_opinion_modifier = { target = FROM "
                                 "modifier = opinion_modifier_id }"),
     "set_politics": "set_politics = { ruling_party = communism elections_allowed = yes }",
+    # STATE scope. `type` gets a picker over parsed common/buildings (mods add
+    # their own buildings — never hardcode the list).
+    "add_building_construction": ("add_building_construction = { "
+                                  "type = industrial_complex level = 2 "
+                                  "instant_build = yes }"),
     "add_dynamic_modifier": "add_dynamic_modifier = { modifier = my_dynamic_modifier }",
     "remove_dynamic_modifier": ("remove_dynamic_modifier = "
                                 "{ modifier = my_dynamic_modifier }"),
@@ -168,6 +173,8 @@ _SUGGESTED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
     "defender": _BORDER_WAR_SIDE,
     # has_army_size: the optional unit-type filter (armor / infantry / …).
     "has_army_size": (("type", "armor"),),
+    # optional province targeting for provincial buildings (bunkers, naval bases…)
+    "add_building_construction": (("province", "1234"),),
 }
 
 # Effects whose ``modifier`` field names a *dynamic* modifier (picker over
@@ -211,12 +218,21 @@ def _shared_value_options(ctx, vtype: str) -> list[tuple[str, str]]:
     if vtype == "modifier":
         return [(f"{n} · {', '.join(m.scopes)}" if m.scopes else n, n)
                 for n, m in sorted(ScriptCatalog.modifiers().items())]
+    if vtype == "building":
+        from ...services.building_service import BuildingService
+        return [(f"{b.name} · {b.scope}", b.name)
+                for b in sorted(BuildingService(ctx).buildings().values(),
+                                key=lambda b: b.name)]
     return []
 
 
 def value_type_of(parent_key: str, key: str) -> str | None:
     if key == "id" and parent_key in _EVENT_EFFECT_KEYS:
         return "event"
+    # `type` is heavily overloaded in HOI4 script — only the building effect's
+    # one is a building name.
+    if parent_key == "add_building_construction" and key == "type":
+        return "building"
     if parent_key in _DYNAMIC_MODIFIER_EFFECTS:
         if key == "modifier":
             return "dynamic_modifier"

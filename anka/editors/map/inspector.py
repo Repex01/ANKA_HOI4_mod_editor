@@ -22,6 +22,15 @@ from ..common.script_editor import ScriptEditorDialog
 PROVINCE_TYPES = ("land", "sea", "lake")
 
 
+def _darken(color: str, factor: float = 0.82) -> str:
+    """A slightly darker shade of a ``#rrggbb`` colour (menu hover highlight)."""
+    try:
+        r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    except (ValueError, IndexError):
+        return color
+    return "#%02x%02x%02x" % (int(r * factor), int(g * factor), int(b * factor))
+
+
 class ProvinceInspector(InspectorBase):
     """definition.csv row of one province: type / coastal / terrain / continent
     (phase 3) + read-only geometry facts (area, bbox, neighbors)."""
@@ -364,14 +373,24 @@ class StateInspector(InspectorBase):
 
         actions = ttk.Frame(b, style="Card.TFrame")
         actions.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(12, 0))
-        ttk.Button(actions, text="👁 " + self.t("map.preview"),
-                   command=self._preview).pack(side="left")
-        ttk.Button(actions, text="📜 " + self.t("map.edit_history"),
-                   command=self._edit_history).pack(side="left", padx=6)
-        self._reassign_btn = ttk.Button(actions,
-                                        text="🔢 " + self.t("map.reassign_id"),
-                                        command=self._reassign_id)
-        self._reassign_btn.pack(side="left")
+        # The rare actions live in one drop-down menu instead of a button row —
+        # it never overflows the panel width and Tk scrolls long menus natively.
+        menu_btn = ttk.Menubutton(actions, text="⚙ " + self.t("map.actions"))
+        # Hover highlight: same colours, just a slightly darker background —
+        # the accent colour is too loud for a plain action list.
+        menu = tk.Menu(menu_btn, tearoff=0,
+                       bg=self.palette.surface_alt, fg=self.palette.text,
+                       activebackground=_darken(self.palette.surface_alt),
+                       activeforeground=self.palette.text)
+        menu.add_command(label="👁 " + self.t("map.preview"),
+                         command=self._preview)
+        menu.add_command(label="📜 " + self.t("map.edit_history"),
+                         command=self._edit_history)
+        menu.add_command(label="🔢 " + self.t("map.reassign_id"),
+                         command=self._reassign_id)
+        menu_btn.configure(menu=menu)
+        menu_btn.pack(side="left")
+        self._actions_menu = menu
         self._delete_btn = ttk.Button(actions, text="🗑 " + self.t("map.delete_state"),
                                       command=self._delete)
         self._delete_btn.pack(side="right")

@@ -17,7 +17,7 @@ _ROOT = Path(getattr(sys, "_MEIPASS")) if _FROZEN else Path(__file__).resolve().
 _WRITABLE_ROOT = Path(sys.executable).resolve().parent if _FROZEN else _ROOT
 
 # Basic constants
-VERSION = "1.0"
+VERSION = "1.1.1"
 
 class Paths:
     ROOT: Path = _WRITABLE_ROOT

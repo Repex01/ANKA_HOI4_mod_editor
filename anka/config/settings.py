@@ -6,11 +6,16 @@ owns load/save and notifies listeners so UI (theme/language) can react to change
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Callable
 
 from .constants import Paths
+
+# Path-layout rules (backslashes, Steam/Documents folder shapes) are Windows
+# conventions; on Linux/macOS paths are left exactly as the user typed them.
+_IS_WINDOWS = os.name == "nt"
 
 
 @dataclass
@@ -40,6 +45,49 @@ class Settings:
             "workshop_mods_path": bool(self.workshop_mods_path) and Path(self.workshop_mods_path).is_dir(),
         }
 
+    @staticmethod
+    def normalize_separators(raw: str) -> str:
+        """Windows: paths are kept backslashed (launcher convention).
+        Other platforms: returned untouched — `/` IS the separator there."""
+        return raw.replace("/", "\\") if _IS_WINDOWS else raw
+
+    @staticmethod
+    def path_format_issue(key: str, raw: str) -> str | None:
+        """Layout sanity check for the three content paths — users regularly
+        point fields at the wrong folder. Returns a locale suffix
+        (``settings.err.<suffix>``) or None when the path looks right.
+        Backslash separators are required (Windows/launcher convention).
+
+        WINDOWS-ONLY: on Linux/macOS Steam/Paradox folder layouts differ
+        (~/.steam, ~/.local/share/Paradox Interactive) and `/` is the real
+        separator, so no layout check is performed there.
+
+        Expected layouts:
+        * game:      …\\SteamLibrary\\steamapps\\common\\Hearts of Iron IV
+                     (never inside Documents; ``Steam\\steamapps\\…`` — the
+                     default library — passes too)
+        * local mods: …\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod
+        * workshop:  …\\steamapps\\workshop\\content\\394360 — 394360 last
+        """
+        if not _IS_WINDOWS or not raw:
+            return None
+        if "/" in raw:
+            return "slashes"
+        norm = raw.rstrip("\\").lower()
+        if key == "game_path":
+            if "documents" in norm:
+                return "game_documents"
+            if "steamapps\\common\\hearts of iron iv" not in norm:
+                return "game_path"
+        elif key == "local_mods_path":
+            if "documents\\paradox interactive\\hearts of iron iv\\mod" not in norm:
+                return "local_mods"
+        elif key == "workshop_mods_path":
+            if "steamapps\\workshop\\content\\394360" not in norm \
+                    or not norm.endswith("394360"):
+                return "workshop"
+        return None
+
 
 class SettingsService:
     """Loads/saves `Settings` and broadcasts changes to subscribers."""
@@ -67,7 +115,15 @@ class SettingsService:
         except (json.JSONDecodeError, OSError):
             return Settings()
         known = {f.name for f in fields(Settings)}
-        return Settings(**{k: v for k, v in raw.items() if k in known})
+        loaded = Settings(**{k: v for k, v in raw.items() if k in known})
+        # Migration (Windows only): settings saved by older ANKA versions kept
+        # forward slashes; paths are backslashed now (launcher convention).
+        if _IS_WINDOWS:
+            for key in ("game_path", "local_mods_path", "workshop_mods_path"):
+                value = getattr(loaded, key)
+                if "/" in value:
+                    setattr(loaded, key, value.replace("/", "\\"))
+        return loaded
 
     def save(self, settings: Settings | None = None) -> None:
         if settings is not None:

@@ -655,6 +655,133 @@ class CountryService:
         block.set("set_politics", politics)
         return self._write_history(tag, name, block)
 
+    # --- deleted-ideology cleanup ----------------------------------------
+    def ideology_usage(self, ideology: str) -> tuple[list[str], list[str]]:
+        """Which countries reference an ideology group in their history:
+        ``(ruling-party tags, popularity tags)``. Cheap text prefilter, then a
+        real parse of the candidates only."""
+        import re as _re
+        word = _re.compile(rf"\b{_re.escape(ideology)}\b")
+        ruling: list[str] = []
+        pops_tags: list[str] = []
+        for ref in self.list_tags(include_vanilla=True):
+            source = self._find_history_file(ref.tag)
+            if source is None:
+                continue
+            try:
+                text = source.read_text(encoding="utf-8-sig", errors="ignore")
+            except OSError:
+                continue
+            if not word.search(text):
+                continue
+            block = self._history_block(ref.tag)
+            pops = block.get_block("set_popularities")
+            politics = block.get_block("set_politics")
+            if pops is not None and pops.has(ideology):
+                pops_tags.append(ref.tag)
+            if politics is not None and \
+                    (politics.get_scalar("ruling_party", "") or "").strip('"') == ideology:
+                ruling.append(ref.tag)
+        return ruling, pops_tags
+
+    def cleanup_ideology(self, ideology: str, fallback: str) -> list[str]:
+        """A deleted ideology must not linger in country histories: its
+        popularity share is REDISTRIBUTED proportionally over the remaining
+        ideologies (the total — normally 100 — is preserved exactly), and
+        ``ruling_party`` swaps to `fallback`. Vanilla countries get a mod-side
+        history via the normal copy-on-write path. Returns the changed tags."""
+        changed: list[str] = []
+        ruling, pops_tags = self.ideology_usage(ideology)
+        affected = set(ruling) | set(pops_tags)
+        for ref in self.list_tags(include_vanilla=True):
+            if ref.tag not in affected:
+                continue
+            block = self._history_block(ref.tag)
+            pops = block.get_block("set_popularities")
+            politics = block.get_block("set_politics")
+            hit = False
+            if pops is not None and pops.has(ideology):
+                self._redistribute_popularity(pops, ideology, fallback)
+                hit = True
+            if politics is not None and \
+                    (politics.get_scalar("ruling_party", "") or "").strip('"') == ideology:
+                politics.set("ruling_party", Scalar(fallback))
+                hit = True
+            if hit:
+                self._write_history(ref.tag, ref.name, block)
+                changed.append(ref.tag)
+        return changed
+
+    @staticmethod
+    def _redistribute_popularity(pops: Block, ideology: str, fallback: str) -> None:
+        """Remove `ideology` from a ``set_popularities`` block, handing its
+        share to the remaining entries proportionally to their current values.
+        Integer result with the exact original total (largest-remainder
+        rounding); degenerate cases (no others / all-zero others) give the
+        whole share to `fallback`."""
+        values: dict[str, int] = {}
+        for pair in pops.pairs():
+            if isinstance(pair.value, Scalar) and pair.value.as_int() is not None:
+                values[pair.key] = pair.value.as_int()
+        removed = values.pop(ideology, 0) or 0
+        pops.remove(ideology)
+        if not removed:
+            return
+        rest_sum = sum(values.values())
+        if values and rest_sum > 0:
+            exact = {k: v + removed * v / rest_sum for k, v in values.items()}
+            floors = {k: int(exact[k]) for k in exact}
+            leftover = (rest_sum + removed) - sum(floors.values())
+            for k in sorted(exact, key=lambda k: exact[k] - floors[k],
+                            reverse=True)[:leftover]:
+                floors[k] += 1
+            values = floors
+        else:
+            # nothing left to scale — the fallback inherits the whole share
+            target = fallback if (fallback and (not values or fallback in values)) \
+                else next(iter(values), fallback)
+            values[target] = values.get(target, 0) + removed
+        for k, v in values.items():
+            pops.set(k, Scalar(str(int(v))))
+
+    def randomise_ideologies(self, groups: list[str], seed=None) -> int:
+        """Random popularity split (sum exactly 100) over `groups` for EVERY
+        country; the most popular becomes ``ruling_party``. One parse + one
+        write per country (vanilla histories get mod-side overrides). Returns
+        how many countries were written."""
+        import random
+        rng = random.Random(seed)
+        changed = 0
+        for ref in self.list_tags(include_vanilla=True):
+            block = self._history_block(ref.tag)
+            weights = [rng.random() ** 2 for _ in groups]  # squared → clear leader
+            total = sum(weights) or 1.0
+            exact = [w / total * 100 for w in weights]
+            floors = [int(v) for v in exact]
+            leftover = 100 - sum(floors)
+            for i in sorted(range(len(groups)),
+                            key=lambda i: exact[i] - floors[i],
+                            reverse=True)[:leftover]:
+                floors[i] += 1
+            pop = Block()
+            for g, v in zip(groups, floors):
+                if v > 0:
+                    pop.add(g, Scalar(str(v)))
+            block.set("set_popularities", pop)
+            ruling = groups[max(range(len(groups)), key=lambda i: floors[i])]
+            politics = block.get_block("set_politics") or Block()
+            politics.set("ruling_party", Scalar(ruling))
+            if not politics.has("last_election"):
+                politics.set("last_election", Scalar("1936.1.1", quoted=True))
+            if not politics.has("election_frequency"):
+                politics.set("election_frequency", Scalar("48"))
+            if not politics.has("elections_allowed"):
+                politics.set("elections_allowed", Scalar("no"))
+            block.set("set_politics", politics)
+            self._write_history(ref.tag, ref.name, block)
+            changed += 1
+        return changed
+
     # --- order of battle (OOB) ------------------------------------------
     def list_oob_files(self) -> list[str]:
         """OOB file stems available in history/units (mod + game)."""
