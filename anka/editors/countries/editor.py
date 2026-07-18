@@ -433,22 +433,51 @@ class CountriesEditor(EditorModule):
         self._entry_field(tab, row, self.t("countries.war_support"), self._pol_war); row += 1
         self._entry_field(tab, row, self.t("countries.manpower"), self._pol_manpower); row += 1
 
-        # Order of battle: land / naval / air, each from the existing OOB files.
+        # Order of battle: land / naval / air — picked via a searchable dialog.
+        # The file list is rescanned on every open, so OOBs just created in the
+        # OOB editor always show up.
         self._oob_none_label = self.t("countries.oob_none")
-        oob_values = [self._oob_none_label] + self.service.list_oob_files()
         self._oob_vars: dict[str, tk.StringVar] = {}
-        self._oob_combos: dict[str, ttk.Combobox] = {}
         for kind in ("land", "naval", "air"):
-            var = tk.StringVar()
+            var = tk.StringVar(value=self._oob_none_label)
             self._oob_vars[kind] = var
-            self._oob_combos[kind] = self._combo_field(
-                tab, row, self.t(f"countries.oob_{kind}"), var, oob_values, width=28); row += 1
+            self._oob_pick_field(tab, row, self.t(f"countries.oob_{kind}"),
+                                 var, kind); row += 1
         self._pol_oob = self._oob_vars["land"]  # back-compat alias
 
         ttk.Label(tab, text=self.t("countries.autosave_hint"), style="CardMuted.TLabel").grid(
             row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 2)); row += 1
         self._pol_status = ttk.Label(tab, text="", style="CardMuted.TLabel")
         self._pol_status.grid(row=row, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
+
+    def _oob_pick_field(self, tab, row: int, label: str, var: tk.StringVar,
+                        kind: str) -> None:
+        """Read-only value + "…" button opening the searchable OOB picker."""
+        ttk.Label(tab, text=label, style="CardMuted.TLabel").grid(
+            row=row, column=0, sticky="w", padx=16, pady=4)
+        wrap = ttk.Frame(tab, style="Card.TFrame")
+        wrap.grid(row=row, column=1, sticky="w", pady=4)
+        entry = ttk.Entry(wrap, textvariable=var, width=28, state="readonly")
+        entry.pack(side="left")
+        ttk.Button(wrap, text="…", width=3,
+                   command=lambda: self._pick_oob(kind)).pack(side="left",
+                                                              padx=(4, 0))
+
+    def _pick_oob(self, kind: str) -> None:
+        if not self._selected:
+            return
+        from ..common.dialogs import SinglePickDialog
+        # Fresh scan on every open — no stale cached list.
+        options = [(self._oob_none_label, "")] + [
+            (name, name) for name in self.service.list_oob_files()]
+        var = self._oob_vars[kind]
+        current = "" if var.get() == self._oob_none_label else var.get()
+
+        def picked(value: str) -> None:
+            var.set(value or self._oob_none_label)
+
+        SinglePickDialog(self._nb, self, self.t(f"countries.oob_{kind}"),
+                         options, picked, current=current)
 
     # --- tab: technology -------------------------------------------------
     def _build_tab_technology(self) -> None:
@@ -735,11 +764,8 @@ class CountriesEditor(EditorModule):
             var.set(str(pops.get(group, "")))
         self._update_pop_sum()
 
-        # OOB (land / naval / air) — refresh the file list so OOBs created in the
-        # OOB editor this session show up without reopening the mod.
-        oob_values = [self._oob_none_label] + self.service.list_oob_files()
+        # OOB (land / naval / air)
         for kind, var in self._oob_vars.items():
-            self._oob_combos[kind].configure(values=oob_values)
             var.set(self.service.get_oob(ref.tag, kind) or self._oob_none_label)
 
         # technologies (tech, condition) entries
