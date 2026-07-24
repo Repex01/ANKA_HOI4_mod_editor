@@ -8,6 +8,7 @@ screens stay thin and decoupled.
 from __future__ import annotations
 
 import gc
+import os
 import tkinter as tk
 from tkinter import ttk
 
@@ -33,6 +34,7 @@ class AnkaApp:
         self.repo = ModRepository(self.settings.current)
 
         self.root = create_root()
+        self._apply_dpi_scaling()
         # Wheel over a dropdown/spinbox must not silently change its value; the
         # few convenient exceptions opt back in via enable_form_wheel().
         disable_form_wheel(self.root)
@@ -137,6 +139,30 @@ class AnkaApp:
     @property
     def palette(self):
         return self.theme.palette
+
+    def _apply_dpi_scaling(self) -> None:
+        """Scale the whole UI on HiDPI / scaled desktops.
+
+        Tkinter does not follow HiDPI or fractional desktop scaling (common on
+        Linux, especially Wayland via XWayland), so the interface renders tiny.
+        We derive a factor from the screen DPI and apply it to Tk. Because
+        XWayland frequently reports a fixed 96 dpi regardless of the compositor
+        scale, an explicit ANKA_UI_SCALE environment variable always wins
+        (e.g. ANKA_UI_SCALE=1.5). Fonts are point-based, so tk scaling grows the
+        whole layout with them.
+        """
+        try:
+            override = os.environ.get("ANKA_UI_SCALE")
+            if override:
+                factor = float(override)
+            else:
+                dpi = self.root.winfo_fpixels("1i")   # device px per inch (96 = 1.0)
+                factor = dpi / 96.0
+            factor = max(1.0, round(factor, 2))
+            if factor > 1.0:
+                self.root.tk.call("tk", "scaling", factor)
+        except Exception:
+            pass
 
     def _maximize(self) -> None:
         """Start maximized ("zoomed" on Windows; X11 uses the -zoomed attribute)."""

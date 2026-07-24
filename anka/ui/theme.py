@@ -52,8 +52,32 @@ FONT_HEADING = ("Segoe UI Semibold", 13)
 FONT_SMALL = ("Segoe UI", 9)
 
 
+def _resolve_ui_fonts(root) -> None:
+    """Pick a UI font that actually exists on this OS.
+
+    ANKA hardcodes "Segoe UI", which does not exist on Linux; Tk then silently
+    substitutes an ugly default. We resolve the best available sans-serif and
+    rewrite the module font tuples in place. Bold weight replaces the Windows-only
+    "Segoe UI Semibold" family.
+    """
+    global FONT, FONT_TITLE, FONT_HEADING, FONT_SMALL
+    try:
+        import tkinter.font as tkfont
+        avail = set(tkfont.families(root))
+        fam = next((c for c in ("Segoe UI", "Noto Sans", "Cantarell", "Ubuntu",
+                                 "DejaVu Sans", "Liberation Sans")
+                    if c in avail), tkfont.nametofont("TkDefaultFont").cget("family"))
+        FONT = (fam, 10)
+        FONT_SMALL = (fam, 9)
+        FONT_TITLE = (fam, 20, "bold")
+        FONT_HEADING = (fam, 13, "bold")
+    except Exception:
+        pass
+
+
 class ThemeManager:
     def __init__(self, root):
+        _resolve_ui_fonts(root)
         self._style = ttk.Style(root)
         self._style.theme_use("clam")
         self.palette: Palette = DARK

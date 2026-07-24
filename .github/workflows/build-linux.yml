@@ -51,6 +51,7 @@ jobs:
             --add-data "anka/editors/focuses/templates.json:anka/editors/focuses" \
             --add-data "anka/editors/technologies/templates.json:anka/editors/technologies" \
             --collect-all tkinterdnd2 \
+            --hidden-import PIL._tkinter_finder \
             main.py
 
       - name: Smoke-check the binary
