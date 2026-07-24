@@ -21,7 +21,11 @@ class _Dialog(tk.Toplevel):
         self.title(title)
         self.configure(bg=self.palette.bg)
         self.transient(master.winfo_toplevel())
-        self.resizable(False, False)
+        self._master_ref = master
+        self._base_size = size
+        # Resizable as a safety net: UI scaling can make content exceed the
+        # hardcoded size, and a fixed non-resizable window would clip it.
+        self.resizable(True, True)
         w, h = size
         self.geometry(f"{w}x{h}")
         self.update_idletasks()
@@ -31,6 +35,22 @@ class _Dialog(tk.Toplevel):
         self.grab_set()
         from ...ui.widgets import guard_modal
         guard_modal(self)           # keep taskbar restore working (Windows)
+        # Once the subclass has built its widgets, grow to fit so nothing is
+        # clipped when tk scaling enlarges the content.
+        self.after_idle(self._fit_to_content)
+
+    def _fit_to_content(self) -> None:
+        try:
+            self.update_idletasks()
+            base_w, base_h = self._base_size
+            w = max(base_w, self.winfo_reqwidth())
+            h = max(base_h, self.winfo_reqheight())
+            m = self._master_ref
+            x = m.winfo_rootx() + (m.winfo_width() - w) // 2
+            y = m.winfo_rooty() + (m.winfo_height() - h) // 2
+            self.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
 
 
 class NewCountryDialog(_Dialog):
