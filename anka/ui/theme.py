@@ -62,11 +62,18 @@ def _resolve_ui_fonts(root) -> None:
     """
     global FONT, FONT_TITLE, FONT_HEADING, FONT_SMALL
     try:
+        import os
         import tkinter.font as tkfont
         avail = set(tkfont.families(root))
-        fam = next((c for c in ("Segoe UI", "Noto Sans", "Cantarell", "Ubuntu",
-                                 "DejaVu Sans", "Liberation Sans")
-                    if c in avail), tkfont.nametofont("TkDefaultFont").cget("family"))
+        # ANKA_UI_FONT lets the user force any installed family; otherwise pick
+        # the first good sans-serif that exists on this system.
+        forced = os.environ.get("ANKA_UI_FONT", "").strip()
+        candidates = ([forced] if forced else []) + [
+            "Inter", "Noto Sans", "Cantarell", "Ubuntu", "Roboto",
+            "Open Sans", "Fira Sans", "Segoe UI", "DejaVu Sans", "Liberation Sans",
+        ]
+        fam = next((c for c in candidates if c and c in avail),
+                   tkfont.nametofont("TkDefaultFont").cget("family"))
         FONT = (fam, 10)
         FONT_SMALL = (fam, 9)
         FONT_TITLE = (fam, 20, "bold")

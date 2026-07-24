@@ -26,6 +26,16 @@ from .dialogs import ItemPickerDialog
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{1,}$")
 
 
+_ROLE_FILTER_ALL = "All roles"
+_ROLE_FILTERS = (
+    ("Country leader", "country_leader"),
+    ("Advisor", "advisor"),
+    ("Field marshal", "field_marshal"),
+    ("Corps commander", "corps_commander"),
+    ("Admiral", "navy_leader"),
+)
+
+
 @EditorRegistry.register
 class CharactersEditor(EditorModule):
     id = "characters"
@@ -88,9 +98,18 @@ class CharactersEditor(EditorModule):
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
         self._search = tk.StringVar()
         ttk.Entry(left, textvariable=self._search).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        opts = ttk.Frame(left, style="Card.TFrame")
+        opts.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 6))
+        opts.columnconfigure(1, weight=1)
         self._vanilla = tk.BooleanVar(value=False)
-        ttk.Checkbutton(left, text=self.t("characters.vanilla"), variable=self._vanilla,
-                        command=self._reload).grid(row=2, column=0, sticky="w", pady=(0, 6))
+        ttk.Checkbutton(opts, text=self.t("characters.vanilla"), variable=self._vanilla,
+                        command=self._reload).grid(row=0, column=0, sticky="w")
+        self._role_filter = tk.StringVar(value=_ROLE_FILTER_ALL)
+        role_combo = ttk.Combobox(opts, textvariable=self._role_filter, state="readonly",
+                                  width=16,
+                                  values=[_ROLE_FILTER_ALL] + [lbl for lbl, _ in _ROLE_FILTERS])
+        role_combo.grid(row=0, column=2, sticky="e")
+        role_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_list())
 
         self._tree = ttk.Treeview(left, columns=("roles",), show="tree headings", selectmode="browse")
         self._tree.heading("#0", text=self.t("characters.id"))
@@ -226,14 +245,21 @@ class CharactersEditor(EditorModule):
             self._models = sorted([m for m in all_models if m.in_mod], key=lambda m: m.char_id)
         self._refresh_list()
 
+    def _selected_role_key(self) -> str:
+        label = self._role_filter.get()
+        return next((key for lbl, key in _ROLE_FILTERS if lbl == label), "")
+
     def _refresh_list(self) -> None:
         q = self._search.get().strip().lower()
+        role = self._selected_role_key()
         self._tree.delete(*self._tree.get_children())
         if not self._models:
             self._tree.insert("", "end", text=self.t("characters.none"), values=("",))
             return
         for m in self._models:
             if q and q not in m.char_id.lower() and q not in m.name.lower():
+                continue
+            if role and role not in m.roles:
                 continue
             self._tree.insert("", "end", iid=m.char_id, text=m.char_id, values=(m.roles_label,))
 
