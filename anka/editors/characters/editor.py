@@ -8,6 +8,7 @@ editor authors them.
 from __future__ import annotations
 
 import re
+import shutil
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
@@ -21,9 +22,37 @@ from ...services.ideology_service import IdeologyService
 from ...services.trait_service import TraitService
 from ...ui.widgets import ImageDropZone, ScrollableFrame
 from ..base import EditorModule, EditorRegistry
-from .dialogs import ItemPickerDialog
+from .dialogs import ItemPickerDialog, LeaderScopeDialog
 
 _ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{1,}$")
+
+
+# Sub-ideologies grouped under the four main ideologies, for sorting leaders.
+_IDEOLOGY_GROUPS = {
+    "fascism":    ("nazism", "fascism", "fascism_ideology", "falangism", "rexism",
+                   "gen_nazism", "gen_fascism"),
+    "communism":  ("marxism", "leninism", "stalinism", "marxism_leninism",
+                   "anarchist_communism", "trotskyism", "gen_communism"),
+    "democratic": ("conservatism", "liberalism", "socialism", "social_democracy",
+                   "market_liberalism", "gen_democratic", "democratic"),
+    "neutrality": ("despotism", "oligarchism", "anarchism", "moderatism",
+                   "centrism", "gen_neutrality", "neutrality"),
+}
+_GROUP_ORDER = ("fascism", "communism", "democratic", "neutrality", "")
+
+
+def _ideology_group(ideology: str) -> str:
+    """Main ideology an ideology belongs to ("" when unknown / not a leader)."""
+    low = (ideology or "").lower()
+    if not low:
+        return ""
+    for group, subs in _IDEOLOGY_GROUPS.items():
+        if low in subs:
+            return group
+    for group, subs in _IDEOLOGY_GROUPS.items():
+        if any(sub in low for sub in subs):
+            return group
+    return ""
 
 
 _ROLE_FILTER_ALL = "All roles"
@@ -111,10 +140,13 @@ class CharactersEditor(EditorModule):
         role_combo.grid(row=0, column=2, sticky="e")
         role_combo.bind("<<ComboboxSelected>>", lambda e: self._refresh_list())
 
-        self._tree = ttk.Treeview(left, columns=("roles",), show="tree headings", selectmode="browse")
+        self._tree = ttk.Treeview(left, columns=("roles", "ideology"),
+                                  show="tree headings", selectmode="browse")
         self._tree.heading("#0", text=self.t("characters.id"))
         self._tree.heading("roles", text=self.t("characters.roles"))
-        self._tree.column("roles", width=110, anchor="w")
+        self._tree.column("roles", width=100, anchor="w")
+        self._tree.heading("ideology", text=self.t("characters.ideology"))
+        self._tree.column("ideology", width=110, anchor="w")
         self._tree.grid(row=3, column=0, sticky="nsew")
         self._tree.bind("<<TreeviewSelect>>", self._on_select)
         sb = ttk.Scrollbar(left, orient="vertical", command=self._tree.yview)
@@ -126,6 +158,8 @@ class CharactersEditor(EditorModule):
         ttk.Button(btns, text="➕ " + self.t("characters.new"), style="Accent.TButton",
                    command=self._new).pack(side="left")
         ttk.Button(btns, text="🗑 " + self.t("characters.delete"), command=self._delete).pack(side="left", padx=6)
+        ttk.Button(btns, text="👑 " + self.t("characters.takeover"),
+                   command=self._takeover_leaders).pack(side="left", padx=6)
 
     def _build_form(self, root) -> None:
         outer = ttk.Frame(root, style="Card.TFrame")
@@ -254,14 +288,36 @@ class CharactersEditor(EditorModule):
         role = self._selected_role_key()
         self._tree.delete(*self._tree.get_children())
         if not self._models:
-            self._tree.insert("", "end", text=self.t("characters.none"), values=("",))
+            self._tree.insert("", "end", text=self.t("characters.none"), values=("", ""))
             return
+        rows = []
         for m in self._models:
             if q and q not in m.char_id.lower() and q not in m.name.lower():
                 continue
             if role and role not in m.roles:
                 continue
-            self._tree.insert("", "end", iid=m.char_id, text=m.char_id, values=(m.roles_label,))
+            rows.append(m)
+        # Country leaders read much better grouped by main ideology.
+        show_groups = (role == "country_leader") or any(m.ideology for m in rows)
+        if show_groups:
+            rows.sort(key=lambda m: (_GROUP_ORDER.index(_ideology_group(m.ideology))
+                                     if _ideology_group(m.ideology) in _GROUP_ORDER
+                                     else len(_GROUP_ORDER),
+                                     m.ideology.lower(), m.char_id.lower()))
+            current = None
+            for m in rows:
+                grp = _ideology_group(m.ideology)
+                if grp != current:
+                    current = grp
+                    label = self.t(f"characters.group.{grp}") if grp else self.t("characters.group.other")
+                    self._tree.insert("", "end", iid=f"__grp_{grp or 'other'}",
+                                      text=f"— {label} —", values=("", ""), open=True)
+                self._tree.insert("", "end", iid=m.char_id, text=m.char_id,
+                                  values=(m.roles_label, m.ideology))
+        else:
+            for m in rows:
+                self._tree.insert("", "end", iid=m.char_id, text=m.char_id,
+                                  values=(m.roles_label, m.ideology))
 
     def _on_select(self, _e=None) -> None:
         sel = self._tree.selection()
@@ -444,6 +500,99 @@ class CharactersEditor(EditorModule):
         if self._tree.exists(char_id):
             self._tree.selection_set(char_id)
         self._status.configure(text=self.t("characters.saved", id=char_id), foreground=self.palette.text_muted)
+
+    # ------------------------------------------------------- leader takeover
+    def _takeover_leaders(self) -> None:
+        """Make ONE character the face and name of every country leader of a tag.
+
+        Whatever focus / civil war / ideology switch happens in game, the leader
+        shown is always this person. Two things are written:
+          * interface/zzz_anka_leader_takeover.gfx — overrides every leader's
+            portrait sprite (the zzz_ prefix makes it win over DLC sprites);
+          * the display name of every leader key via the localisation override.
+        Focus-created leaders carry a literal name in their effect, so for those
+        only the portrait can be replaced — they are reported afterwards.
+        """
+        src_model = self._selected
+        if src_model is None:
+            self._fail("characters.takeover.pick_first")
+            return
+        tag = (self._v_tag.get() or src_model.tag or "").strip().upper()
+        if not tag:
+            self._fail("characters.takeover.no_tag")
+            return
+
+        # Portrait of the chosen character (any large one will do).
+        sprite = next((sp for cat in ("civilian", "army", "navy")
+                       for sz, sp in (src_model.portraits.get(cat) or {}).items()
+                       if sz == "large"), "")
+        source_file = self.service.resolve_sprite(sprite) if sprite else None
+        if source_file is None or not Path(source_file).is_file():
+            self._fail("characters.takeover.no_portrait")
+            return
+
+        all_leaders = [m for m in self.service.all_characters()
+                       if "country_leader" in m.roles and (m.tag or "").upper() == tag
+                       and m.char_id != src_model.char_id]
+        if not all_leaders:
+            self._fail("characters.takeover.none")
+            return
+
+        # Scope: every ideology, or only one of the four main ideologies.
+        present = [g for g in _GROUP_ORDER
+                   if g and any(_ideology_group(m.ideology) == g for m in all_leaders)]
+        choices = [(self.t("characters.takeover.scope_all"), "")]
+        choices += [(self.t(f"characters.group.{g}"), g) for g in present]
+        scope = LeaderScopeDialog(self._root_widget(), self, choices,
+                                  default=_ideology_group(src_model.ideology)).result
+        if scope is None:
+            return
+        leaders = ([m for m in all_leaders if _ideology_group(m.ideology) == scope]
+                   if scope else all_leaders)
+        if not leaders:
+            self._fail("characters.takeover.none")
+            return
+
+        display = (self._v_loc_name.get() or src_model.name or "").strip()
+        scope_label = (self.t("characters.takeover.scope_all") if not scope
+                       else self.t(f"characters.group.{scope}"))
+        if not messagebox.askyesno("ANKA", self.t("characters.takeover.confirm",
+                                                  count=len(leaders), tag=tag,
+                                                  scope=scope_label,
+                                                  name=display or src_model.char_id)):
+            return
+
+        # 1) copy the portrait into the mod so the sprite path is mod-local
+        rel = f"gfx/leaders/{tag}/anka_leader_takeover.dds"
+        target = self.context.mod.path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_file, target)
+
+        # 2) sprite overrides for every leader portrait of this tag
+        lines = ["spriteTypes = {"]
+        for m in leaders:
+            for cat, sizes in (m.portraits or {}).items():
+                for size, sp in sizes.items():
+                    if sp:
+                        lines.append(f'\tspriteType = {{ name = "{sp}" '
+                                     f'texturefile = "{rel}" }}')
+        lines.append("}")
+        gfx = self.context.mod.path / "interface" / "zzz_anka_leader_takeover.gfx"
+        gfx.parent.mkdir(parents=True, exist_ok=True)
+        gfx.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        # 3) rename every leader
+        renamed = 0
+        if display:
+            language = self._v_loc_lang.get() or "english"
+            for m in leaders:
+                if m.name_key:
+                    self.service.set_name_loc(m.name_key, language, display)
+                    renamed += 1
+
+        self._reload()
+        messagebox.showinfo("ANKA", self.t("characters.takeover.done",
+                                           count=len(leaders), renamed=renamed))
 
     def _delete(self) -> None:
         sel = self._tree.selection()

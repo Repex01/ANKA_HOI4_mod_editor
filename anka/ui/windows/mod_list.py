@@ -1,8 +1,10 @@
 """Mod list screen: search, sort, filter, preview, then open the editor."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
-from tkinter import ttk
+from pathlib import Path
+from tkinter import messagebox, ttk
 
 from PIL import Image, ImageTk
 
@@ -28,6 +30,8 @@ class ModListScreen(ttk.Frame):
         header.pack(fill="x", padx=24, pady=(20, 8))
         ttk.Button(header, text="‹ " + t("common.back"), command=self.app.show_main_menu).pack(side="left")
         ttk.Label(header, text=t("modlist.title"), style="Title.TLabel").pack(side="left", padx=16)
+        ttk.Button(header, text="➕ " + t("modlist.new"), style="Accent.TButton",
+                   command=self._new_mod).pack(side="left", padx=(16, 0))
         self._count = ttk.Label(header, text="", style="Muted.TLabel")
         self._count.pack(side="right")
 
@@ -203,6 +207,21 @@ class ModListScreen(ttk.Frame):
         if self._selected:
             self.app.show_mod_editor(self._selected)
 
+    # ------------------------------------------------------------ new mod
+    def _new_mod(self) -> None:
+        """Create an empty local mod (folder + descriptor.mod + launcher .mod)."""
+        t = self.app.t
+        root = (self.app.settings.current.local_mods_path or "").strip()
+        if not root or not Path(root).is_dir():
+            messagebox.showerror("ANKA", t("modlist.new.no_path"))
+            return
+        NewModDialog(self, self.app, Path(root), self._after_create)
+
+    def _after_create(self, mod_dir: Path) -> None:
+        self.app.repo = type(self.app.repo)(self.app.settings.current)
+        self._load()
+        messagebox.showinfo("ANKA", self.app.t("modlist.new.done", path=str(mod_dir)))
+
     def _placeholder(self, entry: ttk.Entry, text: str) -> None:
         entry.insert(0, text)
 
@@ -216,3 +235,101 @@ class ModListScreen(ttk.Frame):
 
         entry.bind("<FocusIn>", on_in)
         entry.bind("<FocusOut>", on_out)
+
+
+class NewModDialog(tk.Toplevel):
+    """Name / folder / supported version -> writes an empty, valid mod."""
+
+    def __init__(self, master, app, mods_root: Path, on_done):
+        super().__init__(master)
+        self.app = app
+        self.t = app.t
+        self._root_dir = mods_root
+        self._on_done = on_done
+        self.title(self.t("modlist.new"))
+        self.configure(bg=app.palette.bg)
+        top = master.winfo_toplevel()
+        self.transient(top)
+        self.resizable(True, True)
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=18)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        body.columnconfigure(1, weight=1)
+
+        ttk.Label(body, text=self.t("modlist.new.name"),
+                  style="CardMuted.TLabel").grid(row=0, column=0, sticky="w", pady=4)
+        self._name = tk.StringVar()
+        ttk.Entry(body, textvariable=self._name, width=32).grid(
+            row=0, column=1, sticky="ew", pady=4)
+
+        ttk.Label(body, text=self.t("modlist.new.folder"),
+                  style="CardMuted.TLabel").grid(row=1, column=0, sticky="w", pady=4)
+        self._folder = tk.StringVar()
+        ttk.Entry(body, textvariable=self._folder, width=32).grid(
+            row=1, column=1, sticky="ew", pady=4)
+
+        ttk.Label(body, text=self.t("modlist.new.version"),
+                  style="CardMuted.TLabel").grid(row=2, column=0, sticky="w", pady=4)
+        self._version = tk.StringVar(value="1.19.*")
+        ttk.Entry(body, textvariable=self._version, width=14).grid(
+            row=2, column=1, sticky="w", pady=4)
+
+        # Suggest a folder name while typing, until the user edits it themselves.
+        self._folder_touched = False
+        self._folder.trace_add("write", self._mark_touched)
+        self._name.trace_add("write", self._suggest_folder)
+
+        row = ttk.Frame(body, style="Card.TFrame")
+        row.grid(row=3, column=0, columnspan=2, sticky="e", pady=(14, 0))
+        ttk.Button(row, text=self.t("common.cancel"),
+                   command=self.destroy).pack(side="right", padx=(6, 0))
+        ttk.Button(row, text=self.t("common.save"), style="Accent.TButton",
+                   command=self._create).pack(side="right")
+
+        self.grab_set()
+        from ...ui.widgets import guard_modal, fit_to_content
+        guard_modal(self, top)
+        self.bind("<Escape>", lambda e: self.destroy())
+        fit_to_content(self, top, (460, 240))
+
+    def _mark_touched(self, *_):
+        if self.focus_get() is not None:
+            self._folder_touched = True
+
+    def _suggest_folder(self, *_):
+        if not self._folder_touched:
+            self._folder.set(_slug(self._name.get()))
+
+    def _create(self) -> None:
+        name = self._name.get().strip()
+        folder = _slug(self._folder.get() or name)
+        version = self._version.get().strip() or "1.19.*"
+        if not name or not folder:
+            messagebox.showerror("ANKA", self.t("modlist.new.err_name"), parent=self)
+            return
+        target = self._root_dir / folder
+        if target.exists():
+            messagebox.showerror("ANKA", self.t("modlist.new.err_exists",
+                                                folder=folder), parent=self)
+            return
+        try:
+            for sub in ("interface", "common", "localisation/english", "gfx"):
+                (target / sub).mkdir(parents=True, exist_ok=True)
+            body = (f'name="{name}"\n'
+                    f'tags={{\n\t"Graphics"\n}}\n'
+                    f'supported_version="{version}"\n'
+                    f'version="0.1"\n')
+            # descriptor.mod lives inside the mod; the launcher .mod adds `path`.
+            (target / "descriptor.mod").write_text(body, encoding="utf-8")
+            (self._root_dir / f"{folder}.mod").write_text(
+                body + f'path="mod/{folder}"\n', encoding="utf-8")
+        except OSError as exc:
+            messagebox.showerror("ANKA", str(exc), parent=self)
+            return
+        self.destroy()
+        self._on_done(target)
+
+
+def _slug(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9_]+", "_", (text or "").strip().lower()).strip("_")
+    return slug or "new_mod"

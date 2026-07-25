@@ -76,3 +76,54 @@ class ItemPickerDialog(tk.Toplevel):
         if sel:
             self._on_pick(sel)
         self.destroy()
+
+
+class LeaderScopeDialog(tk.Toplevel):
+    """Ask whether a leader takeover applies to one ideology or to all of them.
+
+    ``result`` is None when cancelled, otherwise "" for every ideology or the
+    main-ideology key ("fascism" / "communism" / "democratic" / "neutrality").
+    """
+
+    def __init__(self, master, editor, choices, default=""):
+        super().__init__(master)
+        self.editor = editor
+        self.t = editor.t
+        self.palette = editor.palette
+        self.result = None
+        self._choices = choices            # [(label, key), ...]
+
+        self.title(self.t("characters.takeover"))
+        self.configure(bg=self.palette.bg)
+        top = master.winfo_toplevel()
+        self.transient(top)
+        self.resizable(True, True)
+
+        body = ttk.Frame(self, style="Card.TFrame", padding=18)
+        body.pack(fill="both", expand=True, padx=12, pady=12)
+        ttk.Label(body, text=self.t("characters.takeover.scope"),
+                  style="CardMuted.TLabel").pack(anchor="w")
+
+        self._var = tk.StringVar(value=next(
+            (lbl for lbl, key in choices if key == default), choices[0][0]))
+        ttk.Combobox(body, textvariable=self._var, state="readonly", width=30,
+                     values=[lbl for lbl, _ in choices]).pack(anchor="w", pady=(4, 10))
+
+        row = ttk.Frame(body, style="Card.TFrame")
+        row.pack(fill="x")
+        ttk.Button(row, text=self.t("common.cancel"),
+                   command=self.destroy).pack(side="right", padx=(6, 0))
+        ttk.Button(row, text=self.t("common.save"), style="Accent.TButton",
+                   command=self._ok).pack(side="right")
+
+        self.grab_set()
+        from ...ui.widgets import guard_modal, fit_to_content
+        guard_modal(self, top)
+        self.bind("<Escape>", lambda e: self.destroy())
+        fit_to_content(self, top, (420, 190))
+        self.wait_window()
+
+    def _ok(self) -> None:
+        label = self._var.get()
+        self.result = next((key for lbl, key in self._choices if lbl == label), "")
+        self.destroy()

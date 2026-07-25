@@ -56,6 +56,16 @@ class CharacterModel:
     def roles_label(self) -> str:
         return ", ".join(self.roles) if self.roles else "—"
 
+    @property
+    def ideology(self) -> str:
+        """Sub-ideology of the country_leader role ("" when not a leader)."""
+        if self.raw is None:
+            return ""
+        block = self.raw.get_block("country_leader")
+        if block is None:
+            return ""
+        return (block.get_scalar("ideology", "") or "").strip('"')
+
     def sprites(self) -> list[tuple[str, str, str]]:
         return [(cat, size, sprite)
                 for cat, sizes in self.portraits.items()
