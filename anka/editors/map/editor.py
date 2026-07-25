@@ -405,6 +405,10 @@ class MapEditor(EditorModule):
         attach_help(gen_btn, self.t, "map.gen_states_help", self.palette)
         ttk.Button(frame, text="⇄ " + self.t("map.adjacencies"),
                    command=self._open_adjacencies).pack(side="left", padx=2)
+        # Housekeeping: drop province definitions left with no pixels and scrub
+        # every dangling reference to them (regions / supply areas / states).
+        ttk.Button(frame, text="🧹 " + self.t("map.cleanup_orphans"),
+                   command=self._cleanup_orphan_provinces).pack(side="left", padx=2)
         # One-shot: turn the mod into a full history/states replacement.
         self._replace_btn = ttk.Button(frame, text="🔒 " + self.t("map.make_replace"),
                                        command=self._make_replace_path)
@@ -1818,6 +1822,87 @@ class MapEditor(EditorModule):
         vanilla state files no longer load, so deletion can be physical."""
         from ...domain.mod import _replaces
         return _replaces(self.context.mod.replace_paths, "history/states")
+
+    def _cleanup_orphan_provinces(self) -> None:
+        """Remove province definitions that have no pixels left and scrub every
+        dangling reference to them.
+
+        Painting one province over another (or undoing a split by overpainting)
+        leaves the donor defined in definition.csv with zero pixels, while
+        strategic regions / supply areas / states still list its id. HOI4 then
+        fails to load the map or crashes on game start. This collects those
+        provinces and cleans all four places in one go.
+        """
+        if not self.map.loaded:
+            return
+        orphans = [pid for pid in sorted(self.map.by_id)
+                   if pid != 0 and self.map.area_of(pid) == 0]
+        if not orphans:
+            messagebox.showinfo("ANKA", self.t("map.cleanup_none"))
+            return
+        preview = ", ".join(str(p) for p in orphans[:20])
+        if len(orphans) > 20:
+            preview += " …"
+        if not messagebox.askyesno("ANKA", self.t("map.cleanup_confirm",
+                                                  count=len(orphans),
+                                                  ids=preview)):
+            return
+
+        dead = set(orphans)
+        touched: list[str] = []
+
+        # a) strategic regions + supply areas
+        for service in (self.strat_regions, self.supply_areas):
+            for ref in service.list_docs():
+                try:
+                    doc = service.load(ref)
+                except Exception:
+                    continue
+                members = doc.members()
+                kept = [m for m in members if m not in dead]
+                if len(kept) == len(members):
+                    continue
+                doc = service.to_mod(doc)      # never touch base-game files
+                doc.set_members(kept)
+                service.save_doc(doc)
+                touched.append(ref.path.name)
+
+        # b) states — list_states() yields light StateInfo records, so edit the
+        #    actual documents (copying vanilla files into the mod first).
+        for info in list(self.states.list_states()):
+            if not any(p in dead for p in info.provinces):
+                continue
+            ref = self.states.doc_ref_for(info.id)
+            if ref is None:
+                continue
+            if ref.is_vanilla:
+                ref = self.states.copy_to_mod(ref)
+            try:
+                doc = self.states.load(ref)
+            except Exception:
+                continue
+            st = doc.state
+            if st is None:
+                continue
+            kept = [p for p in st.provinces if p not in dead]
+            if kept == st.provinces:
+                continue
+            st.set_provinces(kept)
+            self.states.save_doc(doc)
+            touched.append(ref.path.name)
+
+        # c) definition.csv
+        for pid in orphans:
+            self.map.remove_province(pid)
+        self.map.save()
+
+        self.states.invalidate()
+        self._status.configure(text=self.t("map.cleanup_done",
+                                           count=len(orphans),
+                                           files=len(touched)))
+        messagebox.showinfo("ANKA", self.t("map.cleanup_done",
+                                           count=len(orphans),
+                                           files=len(touched)))
 
     def _make_replace_path(self) -> None:
         """One-shot, irreversible: copy every remaining vanilla state into the

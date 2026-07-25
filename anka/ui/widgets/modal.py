@@ -83,3 +83,29 @@ def _unbind_one(widget: tk.Misc, seq: str, funcid: str) -> None:
         widget.deletecommand(funcid)
     except tk.TclError:
         pass
+
+
+def fit_to_content(dialog: tk.Toplevel, top: tk.Misc, base_size) -> None:
+    """Grow a modal so UI-scaled content is never clipped, then re-center.
+
+    Call at the end of a dialog's __init__ (after its widgets are built). The
+    window is sized to the larger of its hardcoded size and the content's
+    requested size, clamped to the screen so it can never exceed the display.
+    """
+    def _fit() -> None:
+        try:
+            dialog.update_idletasks()
+            base_w, base_h = base_size
+            w = max(base_w, dialog.winfo_reqwidth())
+            h = max(base_h, dialog.winfo_reqheight())
+            w = min(w, int(dialog.winfo_screenwidth() * 0.95))
+            h = min(h, int(dialog.winfo_screenheight() * 0.92))
+            x = top.winfo_rootx() + (top.winfo_width() - w) // 2
+            y = top.winfo_rooty() + (top.winfo_height() - h) // 2
+            dialog.geometry(f"{w}x{h}+{max(0, x)}+{max(0, y)}")
+        except tk.TclError:
+            pass
+    try:
+        dialog.after_idle(_fit)
+    except tk.TclError:
+        pass

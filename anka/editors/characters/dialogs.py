@@ -21,16 +21,17 @@ class ItemPickerDialog(tk.Toplevel):
         self.title(title)
         self.configure(bg=self.palette.bg)
         self.transient(master.winfo_toplevel())
-        self.resizable(False, False)
+        self.resizable(True, True)
         self.geometry("440x520")
         self.update_idletasks()
         x = master.winfo_rootx() + (master.winfo_width() - 440) // 2
         y = master.winfo_rooty() + (master.winfo_height() - 520) // 2
         self.geometry(f"+{max(0, x)}+{max(0, y)}")
         self.grab_set()
-        from ...ui.widgets import guard_modal
+        from ...ui.widgets import guard_modal, fit_to_content
         guard_modal(self)           # keep taskbar restore working (Windows)
         self._build(title)
+        fit_to_content(self, master.winfo_toplevel(), (440, 520))
 
     def _build(self, title: str) -> None:
         body = ttk.Frame(self, style="Card.TFrame", padding=12)
