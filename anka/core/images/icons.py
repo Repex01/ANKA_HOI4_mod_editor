@@ -305,13 +305,18 @@ class IconService:
         sprite = f"GFX_portrait_{char_id}{suffix}"
         rel_texture = f"{GAME_DIRS.GFX_LEADERS}/{tag}/portrait_{char_id}{suffix}.dds"
         dims = SMALL_PORTRAIT_SIZE if size == "small" else LEADER_PORTRAIT_SIZE
-        dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims, compressed)
+        # Portraits keep their aspect ratio (centre-crop) — stretching a photo to
+        # 156x210 squashes the face; icons/flags below still use the plain resize.
+        dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims,
+                                  compressed, crop=True)
         return dds, gfx, sprite
 
     # --- shared ----------------------------------------------------------
-    def _add_icon(self, source, sprite, rel_texture, gfx_file, size, compressed):
+    def _add_icon(self, source, sprite, rel_texture, gfx_file, size, compressed,
+                  crop: bool = False):
         img = source if isinstance(source, Image.Image) else ImageConverter.load(source)
-        dds_path = ImageConverter.save_dds(img, self.mod_root / rel_texture, size, compressed)
+        dds_path = ImageConverter.save_dds(img, self.mod_root / rel_texture, size,
+                                           compressed, crop)
         gfx_path = self.mod_root / GAME_DIRS.INTERFACE / gfx_file
         registry = SpriteRegistry(gfx_path)
         registry.register(sprite, rel_texture).save()

@@ -160,6 +160,17 @@ class SpriteResolver:
                     self._map = self._build()
         return self._map
 
+    def invalidate(self) -> None:
+        """Drop the cached sprite map so the next lookup re-reads the .gfx files.
+
+        The map is built once and shared by every editor module, so writing a new
+        portrait (new .dds + new spriteType entry) would otherwise keep resolving
+        to the previously cached texture — the editor showed the old image while
+        the game already used the new one.
+        """
+        with self._build_lock:
+            self._map = None
+
     def resolve(self, sprite_name: str) -> Path | None:
         path = self._mapping().get(sprite_name)
         if not path:

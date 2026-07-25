@@ -36,9 +36,28 @@ class ImageConverter:
         return img.convert("RGBA") if img.mode != "RGBA" else img
 
     @staticmethod
-    def fit(img: Image.Image, size: tuple[int, int]) -> Image.Image:
-        """Resize to an exact size (HOI4 sprites are fixed-dimension, not aspect-fit)."""
-        return img if img.size == size else img.resize(size, _RESAMPLE)
+    def fit(img: Image.Image, size: tuple[int, int],
+            crop: bool = False) -> Image.Image:
+        """Resize to an exact size (HOI4 sprites are fixed-dimension, not aspect-fit).
+
+        With ``crop=True`` the aspect ratio is preserved: the image is scaled to
+        cover the target and the excess is cut away — centred horizontally and
+        anchored at the top, which keeps a portrait's head in frame instead of
+        squashing it. Used for character portraits; flags and icons keep the
+        plain stretch, where an exact fit is what the game expects.
+        """
+        if img.size == size:
+            return img
+        if not crop:
+            return img.resize(size, _RESAMPLE)
+        tw, th = size
+        w, h = img.size
+        scale = max(tw / w, th / h)
+        new_size = (max(tw, int(round(w * scale))), max(th, int(round(h * scale))))
+        scaled = img.resize(new_size, _RESAMPLE)
+        left = max(0, (new_size[0] - tw) // 2)      # centre horizontally
+        top = 0                                     # keep the head, cut the feet
+        return scaled.crop((left, top, left + tw, top + th))
 
     @staticmethod
     def save_tga(img: Image.Image, dest: str | Path, size: tuple[int, int] | None = None) -> Path:
@@ -54,12 +73,13 @@ class ImageConverter:
         dest: str | Path,
         size: tuple[int, int] | None = None,
         compressed: bool = False,
+        crop: bool = False,
     ) -> Path:
         """Write a DDS. Uncompressed ARGB8888 by default (matches vanilla focus icons);
         `compressed=True` uses DXT5 for smaller files with an alpha channel."""
         dest = Path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        out = ImageConverter._prepare(img, size)
+        out = ImageConverter._prepare(img, size, crop)
         if compressed:
             out.save(dest, format="DDS", pixel_format="DXT5")
         else:
@@ -88,6 +108,7 @@ class ImageConverter:
         return Path(dest)
 
     @staticmethod
-    def _prepare(img: Image.Image, size: tuple[int, int] | None) -> Image.Image:
+    def _prepare(img: Image.Image, size: tuple[int, int] | None,
+                 crop: bool = False) -> Image.Image:
         out = img.convert("RGBA") if img.mode != "RGBA" else img
-        return ImageConverter.fit(out, size) if size else out
+        return ImageConverter.fit(out, size, crop) if size else out

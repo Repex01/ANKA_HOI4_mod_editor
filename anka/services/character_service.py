@@ -260,6 +260,9 @@ class CharacterService:
                 if pblock.get_block(category) is None:
                     pblock.add(category, cat_block)
             character.set("portraits", pblock)
+            # New textures/sprites were just written: drop the resolver cache so
+            # the editor preview shows the new portrait instead of the old one.
+            self._sprites.invalidate()
 
         self._apply_role(character, "country_leader", country_leader, self._build_country_leader)
         self._apply_role(character, "advisor", advisor, self._build_advisor)

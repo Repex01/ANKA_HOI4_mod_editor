@@ -580,6 +580,9 @@ class CharactersEditor(EditorModule):
         gfx = self.context.mod.path / "interface" / "zzz_anka_leader_takeover.gfx"
         gfx.parent.mkdir(parents=True, exist_ok=True)
         gfx.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        # New sprite definitions on disk: refresh the resolver so the editor
+        # previews the new portraits instead of the cached originals.
+        self.context.sprites.invalidate()
 
         # 3) rename every leader
         renamed = 0
