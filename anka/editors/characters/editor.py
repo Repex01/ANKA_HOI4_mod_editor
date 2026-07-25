@@ -79,6 +79,8 @@ class CharactersEditor(EditorModule):
         self.trait_service = TraitService(context)
         self._models = []
         self._selected = None
+        self._focus_leaders: list[dict] | None = None
+        self._focus_rows: dict[str, dict] = {}
         self._editing_existing = False
         self._portrait_paths: dict[tuple[str, str], Path] = {}   # (category, size)
         self._loading = False
@@ -133,6 +135,11 @@ class CharactersEditor(EditorModule):
         self._vanilla = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text=self.t("characters.vanilla"), variable=self._vanilla,
                         command=self._reload).grid(row=0, column=0, sticky="w")
+        self._show_focus = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opts, text=self.t("characters.focus_made"),
+                        variable=self._show_focus,
+                        command=self._refresh_list).grid(row=0, column=1, sticky="w",
+                                                         padx=(12, 0))
         self._role_filter = tk.StringVar(value=_ROLE_FILTER_ALL)
         role_combo = ttk.Combobox(opts, textvariable=self._role_filter, state="readonly",
                                   width=16,
@@ -318,10 +325,23 @@ class CharactersEditor(EditorModule):
             for m in rows:
                 self._tree.insert("", "end", iid=m.char_id, text=m.char_id,
                                   values=(m.roles_label, m.ideology))
+        if self._show_focus.get():
+            self._append_focus_leaders(q)
 
     def _on_select(self, _e=None) -> None:
         sel = self._tree.selection()
         if not sel:
+            return
+        if sel[0].startswith("__focus_"):
+            # Created by a focus/event effect — there is no character to edit.
+            entry = getattr(self, "_focus_rows", {}).get(sel[0])
+            if entry:
+                self._status.configure(
+                    text=self.t("characters.focus_hint", name=entry["name"],
+                                sprite=entry["sprite"], file=entry["file"]),
+                    foreground=self.palette.text_muted)
+            return
+        if sel[0].startswith("__grp_"):
             return
         model = self.service.get(sel[0])
         if model is None:
@@ -501,6 +521,127 @@ class CharactersEditor(EditorModule):
             self._tree.selection_set(char_id)
         self._status.configure(text=self.t("characters.saved", id=char_id), foreground=self.palette.text_muted)
 
+    def _append_focus_leaders(self, query: str) -> None:
+        """Read-only rows for leaders that only exist as a focus/event effect."""
+        entries = self._scan_focus_leaders()
+        tag = (self._v_tag.get() or "").strip().upper()
+        shown = [e for e in entries
+                 if (not tag or e["tag"] == tag)
+                 and (not query or query in e["name"].lower()
+                      or query in e["sprite"].lower())]
+        if not shown:
+            return
+        self._tree.insert("", "end", iid="__grp_focus",
+                          text=f"— {self.t('characters.focus_made')} —",
+                          values=("", ""), open=True)
+        for i, e in enumerate(sorted(shown, key=lambda x: (x["tag"], x["name"]))):
+            label = f"{e['name']}  ({e['tag']})" if e["tag"] else e["name"]
+            self._tree.insert("", "end", iid=f"__focus_{i}", text=label,
+                              values=(self.t("characters.focus_role"), e["ideology"]))
+        self._focus_rows = {f"__focus_{i}": e for i, e
+                            in enumerate(sorted(shown, key=lambda x: (x["tag"], x["name"])))}
+
+    def _scan_focus_leaders(self) -> list[dict]:
+        """All leaders that focuses / events create, across every content root.
+
+        These are effects, not characters, so they never appear in
+        common/characters. Listed read-only so it is at least visible that they
+        exist — editing them means editing the focus/event script itself.
+        Scanned once per editor session (the file sweep is not cheap).
+        """
+        if self._focus_leaders is not None:
+            return self._focus_leaders
+        roots = [self.context.game_path]
+        for sub in ("dlc", "integrated_dlc"):
+            parent = self.context.game_path / sub
+            if parent.is_dir():
+                roots.extend(p for p in sorted(parent.iterdir()) if p.is_dir())
+        roots.append(self.context.mod.path)
+
+        block_re = re.compile(r"create_country_leader\s*=\s*\{(.*?)\}", re.S)
+        pic_re = re.compile(r"picture\s*=\s*\"?(GFX_[A-Za-z0-9_]+)")
+        name_re = re.compile(r"name\s*=\s*\"?([^\"\n}#]+)")
+        ideo_re = re.compile(r"ideology\s*=\s*([A-Za-z0-9_]+)")
+        tag_re = re.compile(r"GFX_portraits?_([A-Za-z]{3})_", re.I)
+
+        out: list[dict] = []
+        seen: set[str] = set()
+        for root in roots:
+            for folder in ("common/national_focus", "events"):
+                d = root / folder
+                if not d.is_dir():
+                    continue
+                for file in d.rglob("*.txt"):
+                    try:
+                        text = file.read_text(encoding="utf-8", errors="ignore")
+                    except OSError:
+                        continue
+                    if "create_country_leader" not in text:
+                        continue
+                    for body in block_re.findall(text):
+                        pic = pic_re.search(body)
+                        if not pic or pic.group(1) in seen:
+                            continue
+                        sprite = pic.group(1)
+                        seen.add(sprite)
+                        tag_m = tag_re.search(sprite)
+                        nm = name_re.search(body)
+                        ideo = ideo_re.search(body)
+                        out.append({
+                            "name": (nm.group(1).strip() if nm else "?"),
+                            "sprite": sprite,
+                            "ideology": (ideo.group(1) if ideo else ""),
+                            "tag": (tag_m.group(1).upper() if tag_m else ""),
+                            "file": file.name,
+                        })
+        self._focus_leaders = out
+        return out
+
+    def _focus_created_leader_sprites(self, tag: str) -> list[str]:
+        """Portrait sprites of leaders that focuses / events create at runtime.
+
+        Monarchist restorations and similar paths do not define characters in
+        common/characters — they call ``create_country_leader`` with a literal
+        name and a ``picture``. Those leaders never appear in the character list,
+        so a takeover has to pick their sprites up from the scripts instead.
+        Base game, its DLC folders and the mod are all scanned; the mod wins.
+        """
+        roots = [self.context.game_path]
+        for sub in ("dlc", "integrated_dlc"):
+            parent = self.context.game_path / sub
+            if parent.is_dir():
+                roots.extend(p for p in sorted(parent.iterdir()) if p.is_dir())
+        roots.append(self.context.mod.path)
+
+        needle = f"_{tag}_".lower()
+        found: list[str] = []
+        seen: set[str] = set()
+        block_re = re.compile(r"create_country_leader\s*=\s*\{(.*?)\}", re.S)
+        pic_re = re.compile(r"picture\s*=\s*\"?(GFX_[A-Za-z0-9_]+)")
+        for root in roots:
+            for folder in ("common/national_focus", "events"):
+                d = root / folder
+                if not d.is_dir():
+                    continue
+                for file in d.rglob("*.txt"):
+                    try:
+                        text = file.read_text(encoding="utf-8", errors="ignore")
+                    except OSError:
+                        continue
+                    if "create_country_leader" not in text:
+                        continue
+                    for body in block_re.findall(text):
+                        m = pic_re.search(body)
+                        if not m:
+                            continue
+                        sprite = m.group(1)
+                        low = sprite.lower()
+                        # Sprite names carry the tag, e.g. GFX_portrait_fra_jean_…
+                        if needle in low and sprite not in seen:
+                            seen.add(sprite)
+                            found.append(sprite)
+        return found
+
     # ------------------------------------------------------- leader takeover
     def _takeover_leaders(self) -> None:
         """Make ONE character the face and name of every country leader of a tag.
@@ -570,12 +711,28 @@ class CharactersEditor(EditorModule):
 
         # 2) sprite overrides for every leader portrait of this tag
         lines = ["spriteTypes = {"]
+        written: set[str] = set()
         for m in leaders:
             for cat, sizes in (m.portraits or {}).items():
                 for size, sp in sizes.items():
-                    if sp:
+                    if sp and sp not in written:
+                        written.add(sp)
                         lines.append(f'\tspriteType = {{ name = "{sp}" '
                                      f'texturefile = "{rel}" }}')
+        # Leaders that only exist as a focus/event effect (monarchist paths and
+        # the like) are covered too — otherwise those paths would still show the
+        # original leader.
+        extra = 0
+        if not scope:
+            for sp in self._focus_created_leader_sprites(tag):
+                if sp in written:
+                    continue
+                written.add(sp)
+                extra += 1
+                lines.append(f'\tspriteType = {{ name = "{sp}" '
+                             f'texturefile = "{rel}" }}')
+                lines.append(f'\tspriteType = {{ name = "{sp}_small" '
+                             f'texturefile = "{rel}" }}')
         lines.append("}")
         gfx = self.context.mod.path / "interface" / "zzz_anka_leader_takeover.gfx"
         gfx.parent.mkdir(parents=True, exist_ok=True)
@@ -595,7 +752,8 @@ class CharactersEditor(EditorModule):
 
         self._reload()
         messagebox.showinfo("ANKA", self.t("characters.takeover.done",
-                                           count=len(leaders), renamed=renamed))
+                                           count=len(leaders), renamed=renamed,
+                                           extra=extra))
 
     def _delete(self) -> None:
         sel = self._tree.selection()

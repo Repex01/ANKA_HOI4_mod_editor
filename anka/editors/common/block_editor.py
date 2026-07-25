@@ -383,10 +383,25 @@ class BlockTreeEditor(ttk.Frame):
             import time
             t0 = time.perf_counter()
             while (state["idx"] < len(items)
+                   and self._row_budget > 0
                    and time.perf_counter() - t0 < 0.03):
                 self._render_item(self.root_block, items[state["idx"]],
                                   self._body, 0, self.root_key, self.kinds)
                 state["idx"] += 1
+            if self._row_budget <= 0 and state["idx"] < len(items):
+                # Very large scripts (a country's whole history file can hold
+                # thousands of entries) would otherwise build tens of thousands
+                # of widgets and exhaust the X server's pixmap memory — the app
+                # died with "BadAlloc". Stop here and point at the text tab,
+                # which handles any size.
+                ttk.Label(self._body,
+                          text=self.t("block.truncated", shown=state["idx"],
+                                      total=len(items)),
+                          style="CardMuted.TLabel", wraplength=760,
+                          justify="left").pack(anchor="w", padx=4, pady=(8, 4))
+                self._body.update_idletasks()
+                self._canvas.yview_moveto(y[0])
+                return
             if state["idx"] < len(items):
                 self.after(1, pump)
                 return
