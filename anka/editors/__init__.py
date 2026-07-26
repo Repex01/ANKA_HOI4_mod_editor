@@ -22,6 +22,7 @@ from .scripted_loc import ScriptedLocEditor  # noqa: F401,E402
 from .dynamic_modifiers import DynamicModifiersEditor  # noqa: F401,E402
 from .ideologies import IdeologiesEditor  # noqa: F401,E402
 from .technologies import TechnologiesEditor  # noqa: F401,E402
+from .bookmarks import BookmarksEditor  # noqa: F401,E402
 from . import _stubs  # noqa: F401,E402
 
 __all__ = ["EditorModule", "EditorRegistry", "EditorServices"]
