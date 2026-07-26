@@ -174,6 +174,13 @@ class BookmarksEditor(EditorModule):
         self._selected = ""
         self._redraw()
         self._fill_inspector()
+        # A tag listed twice shows up twice on the selection screen. Saving
+        # rewrites the list without duplicates, so just say what will happen.
+        dupes = self._entry.duplicate_tags() if self._entry is not None else []
+        if dupes:
+            self._status.configure(
+                text=self.t("bookmarks.duplicates", tags=", ".join(dupes)),
+                foreground=self.palette.danger)
 
     def _countries(self) -> list[BookmarkCountryEntry]:
         return self._entry.countries() if self._entry is not None else []

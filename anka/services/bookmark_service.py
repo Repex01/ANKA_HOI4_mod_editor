@@ -129,26 +129,64 @@ class BookmarkEntry:
             self.block.set("default_country", Scalar(f'"{tag}"'))
 
     def countries(self) -> list[BookmarkCountryEntry]:
+        """Country entries, first occurrence wins.
+
+        A tag listed twice makes the game show it twice on the selection
+        screen, so the editor must never present (or write back) a duplicate.
+        """
         out: list[BookmarkCountryEntry] = []
+        seen: set[str] = set()
         for pair in self.block.pairs():
-            if _looks_like_tag(pair.key) and isinstance(pair.value, Block):
-                out.append(BookmarkCountryEntry(pair.key.strip('"'), pair.value))
+            if not (_looks_like_tag(pair.key) and isinstance(pair.value, Block)):
+                continue
+            tag = pair.key.strip('"')
+            if tag in seen:
+                continue
+            seen.add(tag)
+            out.append(BookmarkCountryEntry(tag, pair.value))
         return out
 
+    def duplicate_tags(self) -> list[str]:
+        """Tags that appear more than once in the raw block (repairable on save)."""
+        counts: dict[str, int] = {}
+        for pair in self.block.pairs():
+            if _looks_like_tag(pair.key) and isinstance(pair.value, Block):
+                tag = pair.key.strip('"')
+                counts[tag] = counts.get(tag, 0) + 1
+        return sorted(t for t, n in counts.items() if n > 1)
+
     def set_country_order(self, tags: list[str]) -> None:
-        """Rewrite the country entries in `tags` order, keeping metadata in place."""
+        """Rewrite the country entries in `tags` order, keeping metadata in place.
+
+        The rewritten list goes back where the countries were, not at the end of
+        the block: a bookmark can carry trailing keys, and moving the countries
+        past them changes what the game reads. Duplicates are dropped, and any
+        country missing from `tags` is kept rather than silently deleted.
+        """
         by_tag = {c.tag: c for c in self.countries()}
-        kept: list = []
-        for item in list(self.block.items):
-            if isinstance(item, Pair) and _looks_like_tag(item.key) \
-                    and isinstance(item.value, Block):
-                continue                      # country entries are re-added below
-            kept.append(item)
+        ordered: list[str] = []
+        seen: set[str] = set()
         for tag in tags:
-            entry = by_tag.get(tag)
-            if entry is not None:
-                kept.append(Pair(f'"{tag}"', entry.block))
-        self.block.items = kept
+            if tag in by_tag and tag not in seen:
+                seen.add(tag)
+                ordered.append(tag)
+        for tag in by_tag:                    # safety net: never lose an entry
+            if tag not in seen:
+                ordered.append(tag)
+
+        head: list = []
+        tail: list = []
+        first_seen = False
+        for item in list(self.block.items):
+            is_country = (isinstance(item, Pair) and _looks_like_tag(item.key)
+                          and isinstance(item.value, Block))
+            if is_country:
+                first_seen = True
+                continue
+            (tail if first_seen else head).append(item)
+        self.block.items = (head
+                            + [Pair(f'"{t}"', by_tag[t].block) for t in ordered]
+                            + tail)
 
     def add_country(self, tag: str, minor: bool = True) -> BookmarkCountryEntry:
         tag = tag.strip('"').upper()
