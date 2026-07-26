@@ -198,23 +198,42 @@ class BookmarkService:
         self.ctx = context
 
     # --- discovery --------------------------------------------------------
+    def _roots(self) -> list[Path]:
+        """Every root that can hold bookmarks, lowest priority first.
+
+        DLC matters here: an expansion ships its own bookmark file, and that is
+        the scenario the game actually shows. Scanning only the base game would
+        hide it — you would edit a file the start screen no longer reads.
+        """
+        roots: list[Path] = []
+        for sub in ("dlc", "integrated_dlc"):
+            parent = self.ctx.game_path / sub
+            if parent.is_dir():
+                roots.extend(p for p in sorted(parent.iterdir()) if p.is_dir())
+        roots.append(self.ctx.game_path)
+        roots.extend(self.ctx.dependency_paths)
+        roots.append(self.ctx.mod.path)
+        return roots
+
     def list_docs(self, include_vanilla: bool = True) -> list[BookmarkDocRef]:
-        """Bookmark files across the layers; a mod file hides the game's namesake."""
+        """Bookmark files across game, DLC, dependencies and mod.
+
+        A mod file with the same name hides the lower layer's, mirroring how the
+        game resolves overrides.
+        """
         by_rel: dict[str, BookmarkDocRef] = {}
-        for root, is_edited in self.ctx.override_layers(DIR):
+        mod_root = self.ctx.mod.path
+        for root in self._roots():
             folder = root / DIR
             if not folder.is_dir():
                 continue
             for file in sorted(folder.glob("*.txt")):
                 rel = f"{DIR}/{file.name}"
-                is_vanilla = root == self.ctx.game_path
-                if is_vanilla and not include_vanilla and rel in by_rel:
-                    continue
-                by_rel[rel] = BookmarkDocRef(rel, root, is_vanilla)
+                by_rel[rel] = BookmarkDocRef(rel, root, root != mod_root)
         refs = list(by_rel.values())
         if not include_vanilla:
             refs = [r for r in refs if not r.is_vanilla]
-        return sorted(refs, key=lambda r: r.name.lower())
+        return sorted(refs, key=lambda r: (r.is_vanilla, r.name.lower()))
 
     # --- loading / saving -------------------------------------------------
     def load(self, ref: BookmarkDocRef) -> BookmarkDocument:
