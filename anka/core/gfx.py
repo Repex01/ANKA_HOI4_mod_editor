@@ -134,7 +134,11 @@ class SpriteResolver:
             interface = root / "interface"
             if not interface.is_dir():
                 continue
-            for gfx in interface.rglob("*.gfx"):
+            # Sorted, because the game loads .gfx alphabetically and the last
+            # definition wins — that is exactly why override files are named
+            # zzz_*. Filesystem order would resolve a different texture than the
+            # game does, so the editor preview and the game would disagree.
+            for gfx in sorted(interface.rglob("*.gfx")):
                 try:
                     block = parse_file(gfx)
                 except Exception:
@@ -249,7 +253,11 @@ class SpriteCatalog:
             interface = root / "interface"
             if not interface.is_dir():
                 continue
-            for gfx in interface.rglob("*.gfx"):
+            # Sorted, because the game loads .gfx alphabetically and the last
+            # definition wins — that is exactly why override files are named
+            # zzz_*. Filesystem order would resolve a different texture than the
+            # game does, so the editor preview and the game would disagree.
+            for gfx in sorted(interface.rglob("*.gfx")):
                 try:
                     block = parse_file(gfx)
                 except Exception:
