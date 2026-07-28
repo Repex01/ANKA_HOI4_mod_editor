@@ -25,9 +25,18 @@ DIR = "common/bookmarks"
 _COUNTRY_META = ("minor",)
 
 
+# Three-letter uppercase words that are script keywords, not country tags. A
+# bookmark carries conditions such as ``NOT = { has_dlc = ... }``, and treating
+# those as countries would list them on the selection screen — and reorder them
+# out of the block they belong to.
+_NOT_TAGS = {"NOT", "AND", "OR", "NOR", "ANY", "ALL"}
+
+
 def _looks_like_tag(key: str) -> bool:
     """Country entries are 3-letter tags; everything else is bookmark metadata."""
     key = key.strip('"')
+    if key in _NOT_TAGS:
+        return False
     return len(key) == 3 and key.isupper() and key.isalnum()
 
 

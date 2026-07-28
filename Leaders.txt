@@ -1,0 +1,47 @@
+Japan:
+Fascism: 11
+Neutrality: 10
+Communism: 6
+Democratic: 7
+
+Germany:
+Fascism: 10
+Neutrality: 9
+Communism: 5
+Democratic: 2
+
+Soviet Union:
+Fascism: 1
+Neutrality: 3
+Communism: 10
+Democratic: 1
+
+UK:
+Fascism: 1
+Neutrality: 4
+Communism: 2
+Democratic: 6
+
+France:
+Fascism: 5
+Neutrality: 6
+Communism: 2
+Democratic: 4
+
+US:
+Fascism: 4
+Neutrality: 6
+Communism: 1
+Democratic: 6
+
+Italy:
+Fascism: 4
+Neutrality: 4
+Communism: 4
+Democratic: 6
+
+Poland:
+Fascism: 4
+Neutrality: 12
+Communism: 2
+Democratic: 4
