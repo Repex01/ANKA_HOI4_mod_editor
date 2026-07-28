@@ -42,10 +42,20 @@ def _looks_like_tag(key: str) -> bool:
 
 @dataclass
 class BookmarkCountryEntry:
-    """One selectable country inside a bookmark."""
+    """One selectable country entry inside a bookmark.
+
+    A tag may legitimately appear more than once: the base game lists the majors
+    twice, gated on DLC, so owners see different preview focuses than everyone
+    else. Entries are therefore identified by position, never by tag alone.
+    """
 
     tag: str
     block: Block
+    index: int = 0
+
+    @property
+    def uid(self) -> str:
+        return f"{self.tag}#{self.index}"
 
     @property
     def minor(self) -> bool:
@@ -138,31 +148,56 @@ class BookmarkEntry:
             self.block.set("default_country", Scalar(f'"{tag}"'))
 
     def countries(self) -> list[BookmarkCountryEntry]:
-        """Country entries, first occurrence wins.
+        """Every country entry, in file order — duplicates included.
 
-        A tag listed twice makes the game show it twice on the selection
-        screen, so the editor must never present (or write back) a duplicate.
+        Dropping a repeated tag would delete the base game's DLC variants and
+        make those countries vanish from the selection screen.
         """
         out: list[BookmarkCountryEntry] = []
-        seen: set[str] = set()
-        for pair in self.block.pairs():
-            if not (_looks_like_tag(pair.key) and isinstance(pair.value, Block)):
-                continue
-            tag = pair.key.strip('"')
-            if tag in seen:
-                continue
-            seen.add(tag)
-            out.append(BookmarkCountryEntry(tag, pair.value))
+        for i, pair in enumerate(self.block.pairs()):
+            if _looks_like_tag(pair.key) and isinstance(pair.value, Block):
+                out.append(BookmarkCountryEntry(pair.key.strip('"'), pair.value,
+                                                len(out)))
         return out
 
     def duplicate_tags(self) -> list[str]:
-        """Tags that appear more than once in the raw block (repairable on save)."""
+        """Tags with more than one entry — informational, not an error."""
         counts: dict[str, int] = {}
-        for pair in self.block.pairs():
-            if _looks_like_tag(pair.key) and isinstance(pair.value, Block):
-                tag = pair.key.strip('"')
-                counts[tag] = counts.get(tag, 0) + 1
+        for c in self.countries():
+            counts[c.tag] = counts.get(c.tag, 0) + 1
         return sorted(t for t, n in counts.items() if n > 1)
+
+    def set_entry_order(self, uids: list[str]) -> None:
+        """Reorder the country entries, addressed by uid (tag#index).
+
+        Every existing entry is written back exactly once — nothing is merged
+        and nothing is dropped, so DLC duplicates survive a reorder.
+        """
+        by_uid = {c.uid: c for c in self.countries()}
+        ordered: list[BookmarkCountryEntry] = []
+        seen: set[str] = set()
+        for uid in uids:
+            entry = by_uid.get(uid)
+            if entry is not None and uid not in seen:
+                seen.add(uid)
+                ordered.append(entry)
+        for uid, entry in by_uid.items():          # safety net
+            if uid not in seen:
+                ordered.append(entry)
+
+        head: list = []
+        tail: list = []
+        first_seen = False
+        for item in list(self.block.items):
+            is_country = (isinstance(item, Pair) and _looks_like_tag(item.key)
+                          and isinstance(item.value, Block))
+            if is_country:
+                first_seen = True
+                continue
+            (tail if first_seen else head).append(item)
+        self.block.items = (head
+                            + [Pair(f'"{e.tag}"', e.block) for e in ordered]
+                            + tail)
 
     def set_country_order(self, tags: list[str]) -> None:
         """Rewrite the country entries in `tags` order, keeping metadata in place.
@@ -199,15 +234,21 @@ class BookmarkEntry:
 
     def add_country(self, tag: str, minor: bool = True) -> BookmarkCountryEntry:
         tag = tag.strip('"').upper()
-        existing = next((c for c in self.countries() if c.tag == tag), None)
-        if existing is not None:
-            return existing
         block = Block()
         block.set("history", Scalar(f'"{tag}_GATHERING_STORM_DESC"'))
         entry = BookmarkCountryEntry(tag, block)
         entry.set_minor(minor)
         self.block.items.append(Pair(f'"{tag}"', block))
-        return entry
+        return next((c for c in self.countries() if c.block is block), entry)
+
+    def remove_entry(self, entry: "BookmarkCountryEntry") -> None:
+        """Remove exactly this entry, leaving other entries of the same tag."""
+        target = entry.block
+        self.block.items = [
+            it for it in self.block.items
+            if not (isinstance(it, Pair) and _looks_like_tag(it.key)
+                    and it.value is target)
+        ]
 
     def remove_country(self, tag: str) -> None:
         tag = tag.strip('"').upper()

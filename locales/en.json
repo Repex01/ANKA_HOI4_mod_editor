@@ -723,7 +723,6 @@
   "bookmarks.moved": "{tag} moved.",
   "bookmarks.applied": "{tag} updated.",
   "bookmarks.saved": "Saved to {path}",
-  "bookmarks.duplicates": "Listed more than once: {tags}. Saving removes the duplicates \u2014 the game would otherwise show these countries twice.",
   "bookmarks.err.tag": "A country tag is 3 characters, e.g. KOR.",
   "editors.map.name": "Map",
   "editors.map.desc": "Provinces and states: borders, owners, buildings, terrain, straits, province splitting.",

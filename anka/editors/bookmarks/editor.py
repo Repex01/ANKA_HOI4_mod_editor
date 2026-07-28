@@ -43,7 +43,7 @@ class BookmarksEditor(EditorModule):
         self.service = BookmarkService(context)
         self._doc: BookmarkDocument | None = None
         self._entry: BookmarkEntry | None = None
-        self._selected: str = ""
+        self._selected: str = ""      # uid (tag#index)
         self._cards: dict[str, dict] = {}      # tag -> {id, lane, index}
         self._drag: dict | None = None
         self._dirty = False
@@ -174,19 +174,12 @@ class BookmarksEditor(EditorModule):
         self._selected = ""
         self._redraw()
         self._fill_inspector()
-        # A tag listed twice shows up twice on the selection screen. Saving
-        # rewrites the list without duplicates, so just say what will happen.
-        dupes = self._entry.duplicate_tags() if self._entry is not None else []
-        if dupes:
-            self._status.configure(
-                text=self.t("bookmarks.duplicates", tags=", ".join(dupes)),
-                foreground=self.palette.danger)
 
     def _countries(self) -> list[BookmarkCountryEntry]:
         return self._entry.countries() if self._entry is not None else []
 
-    def _find(self, tag: str) -> BookmarkCountryEntry | None:
-        return next((c for c in self._countries() if c.tag == tag), None)
+    def _find(self, uid: str) -> BookmarkCountryEntry | None:
+        return next((c for c in self._countries() if c.uid == uid), None)
 
     # ------------------------------------------------------------------ draw
     def _redraw(self) -> None:
@@ -228,28 +221,28 @@ class BookmarksEditor(EditorModule):
     def _draw_card(self, entry: BookmarkCountryEntry, x: int, y: int,
                    lane: str, index: int) -> None:
         c = self._canvas
-        selected = entry.tag == self._selected
+        selected = entry.uid == self._selected
         fill = self.palette.accent if selected else self.palette.surface_alt
         text_col = self.palette.accent_text if selected else self.palette.text
         rect = c.create_rectangle(x, y, x + _CARD_W, y + _CARD_H,
                                   fill=fill, outline=self.palette.border,
                                   width=2 if selected else 1,
-                                  tags=("card", f"tag::{entry.tag}"))
+                                  tags=("card", f"uid::{entry.uid}"))
         c.create_text(x + _CARD_W / 2, y + _CARD_H / 2 - 8, text=entry.tag,
                       fill=text_col, font=("", 13, "bold"),
-                      tags=("card", f"tag::{entry.tag}"))
+                      tags=("card", f"uid::{entry.uid}"))
         sub = entry.ideology or "—"
         c.create_text(x + _CARD_W / 2, y + _CARD_H / 2 + 12, text=sub[:12],
                       fill=text_col, font=("", 8),
-                      tags=("card", f"tag::{entry.tag}"))
-        self._cards[entry.tag] = {"id": rect, "lane": lane, "index": index,
+                      tags=("card", f"uid::{entry.uid}"))
+        self._cards[entry.uid] = {"id": rect, "lane": lane, "index": index,
                                   "x": x, "y": y}
 
     # ------------------------------------------------------------------ drag
     def _tag_at(self, x: int, y: int) -> str:
         for item in self._canvas.find_overlapping(x, y, x, y):
             for tag in self._canvas.gettags(item):
-                if tag.startswith("tag::"):
+                if tag.startswith("uid::"):
                     return tag.split("::", 1)[1]
         return ""
 
@@ -286,16 +279,16 @@ class BookmarksEditor(EditorModule):
             return
 
         target_lane = self._lane_at(y)
-        featured = [c.tag for c in self._countries() if not c.minor]
-        minors = [c.tag for c in self._countries() if c.minor]
+        featured = [c.uid for c in self._countries() if not c.minor]
+        minors = [c.uid for c in self._countries() if c.minor]
         source = featured if not moved.minor else minors
-        if moved.tag in source:
-            source.remove(moved.tag)
+        if moved.uid in source:
+            source.remove(moved.uid)
         target = featured if target_lane == "featured" else minors
-        target.insert(self._drop_index(x, y, target), moved.tag)
+        target.insert(self._drop_index(x, y, target), moved.uid)
         moved.set_minor(target_lane != "featured")
 
-        self._entry.set_country_order(featured + minors)
+        self._entry.set_entry_order(featured + minors)
         self._dirty = True
         self._redraw()
         self._fill_inspector()
@@ -317,10 +310,10 @@ class BookmarksEditor(EditorModule):
                 best, best_dist = lane, dist
         return best
 
-    def _drop_index(self, x: float, y: float, lane_tags: list[str]) -> int:
+    def _drop_index(self, x: float, y: float, lane_uids: list[str]) -> int:
         """Insertion index from the drop position, by nearest card centre."""
-        best_idx, best_dist = len(lane_tags), None
-        for i, tag in enumerate(lane_tags):
+        best_idx, best_dist = len(lane_uids), None
+        for i, tag in enumerate(lane_uids):
             card = self._cards.get(tag)
             if not card:
                 continue
@@ -330,7 +323,7 @@ class BookmarksEditor(EditorModule):
             if best_dist is None or dist < best_dist:
                 best_dist = dist
                 best_idx = i if x < cx else i + 1
-        return max(0, min(best_idx, len(lane_tags)))
+        return max(0, min(best_idx, len(lane_uids)))
 
     # ------------------------------------------------------------- inspector
     def _fill_inspector(self) -> None:
@@ -367,9 +360,9 @@ class BookmarksEditor(EditorModule):
         if entry is None or self._entry is None:
             return
         entry.set_minor(not self._v_featured.get())
-        featured = [c.tag for c in self._countries() if not c.minor]
-        minors = [c.tag for c in self._countries() if c.minor]
-        self._entry.set_country_order(featured + minors)
+        featured = [c.uid for c in self._countries() if not c.minor]
+        minors = [c.uid for c in self._countries() if c.minor]
+        self._entry.set_entry_order(featured + minors)
         self._dirty = True
         self._redraw()
 
@@ -383,8 +376,8 @@ class BookmarksEditor(EditorModule):
             if len(tag) != 3 or not tag.isalnum():
                 self._fail(self.t("bookmarks.err.tag"))
                 return
-            self._entry.add_country(tag, minor=True)
-            self._selected = tag
+            added = self._entry.add_country(tag, minor=True)
+            self._selected = added.uid
             self._dirty = True
             self._redraw()
             self._fill_inspector()
@@ -395,10 +388,13 @@ class BookmarksEditor(EditorModule):
     def _remove_country(self) -> None:
         if self._entry is None or not self._selected:
             return
-        if not messagebox.askyesno("ANKA", self.t("bookmarks.confirm_remove",
-                                                  tag=self._selected)):
+        entry = self._find(self._selected)
+        if entry is None:
             return
-        self._entry.remove_country(self._selected)
+        if not messagebox.askyesno("ANKA", self.t("bookmarks.confirm_remove",
+                                                  tag=entry.tag)):
+            return
+        self._entry.remove_entry(entry)
         self._selected = ""
         self._dirty = True
         self._redraw()
