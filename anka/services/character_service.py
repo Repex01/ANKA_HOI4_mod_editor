@@ -49,6 +49,10 @@ class CharacterModel:
     roles: list[str] = field(default_factory=list)
     portraits: dict[str, dict[str, str]] = field(default_factory=dict)  # cat -> {size: sprite}
     in_mod: bool = False
+    # True when the base game stores a literal name ("Anastasia Romanov")
+    # instead of a localisation key: such a character can only be renamed by
+    # overriding common/characters, which changes the checksum.
+    name_is_literal: bool = False
     recruited_by: list[str] = field(default_factory=list)
     raw: Block | None = None        # source block, for prefilling the editor
 
@@ -120,6 +124,8 @@ class CharacterService:
         return result
 
     def _to_model(self, char_id, block: Block, tag, in_mod, names) -> CharacterModel:
+        name_value = block.get("name")
+        name_is_literal = bool(getattr(name_value, "quoted", False))
         name_key = (block.get_scalar("name", "") or char_id).strip('"')
         roles = [r for r in ROLE_KEYS if block.get_block(r) is not None]
         portraits: dict[str, dict[str, str]] = {}
@@ -137,7 +143,8 @@ class CharacterService:
         return CharacterModel(
             char_id=char_id, tag=owner,
             name=names.get(name_key, name_key.replace("_", " ")),
-            name_key=name_key, roles=roles, portraits=portraits, in_mod=in_mod, raw=block,
+            name_key=name_key, roles=roles, portraits=portraits, in_mod=in_mod,
+            name_is_literal=name_is_literal, raw=block,
         )
 
     # --- recruitment status ---------------------------------------------

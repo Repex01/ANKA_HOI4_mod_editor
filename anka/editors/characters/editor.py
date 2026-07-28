@@ -135,6 +135,11 @@ class CharactersEditor(EditorModule):
         self._vanilla = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text=self.t("characters.vanilla"), variable=self._vanilla,
                         command=self._reload).grid(row=0, column=0, sticky="w")
+        self._loc_only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(opts, text=self.t("characters.loc_only"),
+                        variable=self._loc_only).grid(row=1, column=0,
+                                                      columnspan=3, sticky="w",
+                                                      pady=(4, 0))
         self._show_focus = tk.BooleanVar(value=False)
         ttk.Checkbutton(opts, text=self.t("characters.focus_made"),
                         variable=self._show_focus,
@@ -486,6 +491,19 @@ class CharactersEditor(EditorModule):
         char_id = self._v_id.get().strip()
         if not _ID_RE.match(char_id):
             return self._fail("characters.invalid_id")
+        if self._loc_only.get() and self._editing_existing:
+            # Achievements only survive while a mod leaves common/ alone, so in
+            # this mode the display name is written to localisation and nothing
+            # else is touched. Characters whose base-game name is a literal
+            # string have no key to override — those cannot be renamed this way.
+            if self._selected is not None and self._selected.name_is_literal:
+                return self._fail("characters.loc_only.literal")
+            self._save_loc_name()
+            self._dirty = False
+            self._reload()
+            self._status.configure(text=self.t("characters.loc_only.saved"),
+                                   foreground=self.palette.text_muted)
+            return
         if not self._editing_existing and self.service.get(char_id) is not None:
             return self._fail("characters.exists")
         tag = (self._v_tag.get().strip() or char_id.split("_")[0]).upper()
