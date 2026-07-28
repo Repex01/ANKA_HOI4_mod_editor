@@ -487,23 +487,64 @@ class CharactersEditor(EditorModule):
         self._dirty = False
 
     # --- save / delete ---------------------------------------------------
+    def _save_checksum_safe(self) -> None:
+        """Save without touching common/ — keeps the checksum, keeps achievements.
+
+        Portraits are safe: the new texture goes to gfx/ and redefines the sprite
+        the base game already references, both of which the checksum ignores.
+        The display name is safe too, as long as the base game stores a
+        localisation key; a literal name can only be changed in
+        common/characters, so that one edit is reported instead of applied.
+        """
+        model = self._selected
+        done: list[str] = []
+
+        # --- portraits: redefine the existing sprite ------------------------
+        if self._portrait_paths and model is not None:
+            replaced, missing = 0, []
+            for (category, size), path in list(self._portrait_paths.items()):
+                sprite = (model.portraits.get(category) or {}).get(size, "")
+                if not sprite:
+                    missing.append(f"{category}/{size}")
+                    continue
+                try:
+                    self.context.icons.override_portrait(
+                        path, sprite, (model.tag or "").upper() or "GEN",
+                        model.char_id, size)
+                    replaced += 1
+                except Exception as exc:
+                    return self._fail_msg(str(exc))
+            if replaced:
+                self.context.sprites.invalidate()
+                self._portrait_paths.clear()
+                done.append(self.t("characters.loc_only.portraits",
+                                   count=replaced))
+            if missing:
+                done.append(self.t("characters.loc_only.no_sprite",
+                                   slots=", ".join(missing)))
+
+        # --- display name ---------------------------------------------------
+        name_changed = (self._v_loc_name.get().strip() != self._loc_loaded)
+        if name_changed:
+            if model is not None and model.name_is_literal:
+                done.append(self.t("characters.loc_only.literal"))
+            else:
+                self._save_loc_name()
+                done.append(self.t("characters.loc_only.name"))
+
+        if not done:
+            done.append(self.t("characters.loc_only.nothing"))
+        self._dirty = False
+        self._reload()
+        self._status.configure(text=" · ".join(done),
+                               foreground=self.palette.text_muted)
+
     def _save(self) -> None:
         char_id = self._v_id.get().strip()
         if not _ID_RE.match(char_id):
             return self._fail("characters.invalid_id")
         if self._loc_only.get() and self._editing_existing:
-            # Achievements only survive while a mod leaves common/ alone, so in
-            # this mode the display name is written to localisation and nothing
-            # else is touched. Characters whose base-game name is a literal
-            # string have no key to override — those cannot be renamed this way.
-            if self._selected is not None and self._selected.name_is_literal:
-                return self._fail("characters.loc_only.literal")
-            self._save_loc_name()
-            self._dirty = False
-            self._reload()
-            self._status.configure(text=self.t("characters.loc_only.saved"),
-                                   foreground=self.palette.text_muted)
-            return
+            return self._save_checksum_safe()
         if not self._editing_existing and self.service.get(char_id) is not None:
             return self._fail("characters.exists")
         tag = (self._v_tag.get().strip() or char_id.split("_")[0]).upper()

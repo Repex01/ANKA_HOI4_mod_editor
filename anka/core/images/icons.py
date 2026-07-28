@@ -311,6 +311,32 @@ class IconService:
                                   compressed, crop=True)
         return dds, gfx, sprite
 
+    def override_portrait(
+        self,
+        source,
+        sprite: str,
+        tag: str,
+        char_id: str,
+        size: str = "large",
+        gfx_file: str = "zzz_anka_portrait_overrides.gfx",
+    ) -> tuple[Path, Path, str]:
+        """Point an EXISTING sprite at a new texture, without touching common/.
+
+        The regular portrait import registers ``GFX_portrait_<char_id>`` and then
+        has to write that name into the character definition — which changes the
+        game checksum and disables achievements. Redefining the sprite the base
+        game already references achieves the same visual result while only
+        touching gfx/ and interface/, both of which the checksum ignores. The
+        ``zzz_`` filename makes the override win over DLC definitions.
+        """
+        suffix = "_small" if size == "small" else ""
+        rel_texture = (f"{GAME_DIRS.GFX_LEADERS}/{tag}/"
+                       f"anka_{char_id}{suffix}.dds")
+        dims = SMALL_PORTRAIT_SIZE if size == "small" else LEADER_PORTRAIT_SIZE
+        dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims,
+                                  False, crop=True)
+        return dds, gfx, sprite
+
     # --- shared ----------------------------------------------------------
     def _add_icon(self, source, sprite, rel_texture, gfx_file, size, compressed,
                   crop: bool = False):
