@@ -172,6 +172,8 @@ class CharactersEditor(EditorModule):
         ttk.Button(btns, text="🗑 " + self.t("characters.delete"), command=self._delete).pack(side="left", padx=6)
         ttk.Button(btns, text="👑 " + self.t("characters.takeover"),
                    command=self._takeover_leaders).pack(side="left", padx=6)
+        ttk.Button(btns, text="↺ " + self.t("characters.restore_portraits"),
+                   command=self._restore_vanilla_portraits).pack(side="left", padx=6)
 
     def _build_form(self, root) -> None:
         outer = ttk.Frame(root, style="Card.TFrame")
@@ -700,6 +702,40 @@ class CharactersEditor(EditorModule):
                             seen.add(sprite)
                             found.append(sprite)
         return found
+
+    def _restore_vanilla_portraits(self) -> None:
+        """Drop this character's portrait overrides so the base game's art returns."""
+        model = self._selected
+        if model is None:
+            return self._fail("characters.restore.pick_first")
+        sprites = [sp for sizes in (model.portraits or {}).values()
+                   for sp in sizes.values() if sp]
+        if not sprites:
+            return self._fail("characters.restore.none")
+        if not messagebox.askyesno("ANKA", self.t("characters.restore.confirm",
+                                                  name=model.name or model.char_id)):
+            return
+        removed, files = 0, []
+        for sprite in sprites:
+            try:
+                n, touched = self.context.icons.restore_vanilla_sprite(sprite)
+            except Exception as exc:
+                return self._fail_msg(str(exc))
+            removed += n
+            files.extend(touched)
+        if not removed:
+            self._status.configure(text=self.t("characters.restore.nothing"),
+                                   foreground=self.palette.text_muted)
+            return
+        self.context.sprites.invalidate()
+        self._portrait_paths.clear()
+        self._reload()
+        if self._tree.exists(model.char_id):
+            self._tree.selection_set(model.char_id)
+        self._status.configure(text=self.t("characters.restore.done",
+                                           count=removed,
+                                           files=len(set(files))),
+                               foreground=self.palette.text_muted)
 
     # ------------------------------------------------------- leader takeover
     def _takeover_leaders(self) -> None:

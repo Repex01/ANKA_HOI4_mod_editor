@@ -74,6 +74,26 @@ class SpriteRegistry:
             self._sprite_types().add("SpriteType", sprite)
         return self
 
+    def unregister(self, name: str) -> bool:
+        """Remove a SpriteType by name. True when something was removed."""
+        types = self._sprite_types()
+        keep = []
+        removed = False
+        for pair in types.pairs():
+            block = pair.value
+            if (isinstance(block, Block)
+                    and (block.get_scalar("name", "") or "").strip('"') == name):
+                removed = True
+                continue
+            keep.append(pair)
+        if removed:
+            types.items = list(keep)
+        return removed
+
+    def is_empty(self) -> bool:
+        """True when the file no longer declares any sprite."""
+        return not any(isinstance(p.value, Block) for p in self._sprite_types().pairs())
+
     def register_sprite(self, sprite: Block) -> "SpriteRegistry":
         """Add a fully-built SpriteType block (replaces an existing one by name).
         Used for complex sprites (shine animations) that `register` can't express."""

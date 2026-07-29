@@ -337,6 +337,58 @@ class IconService:
                                   False, crop=True)
         return dds, gfx, sprite
 
+    def restore_vanilla_sprite(self, sprite: str) -> tuple[int, list[str]]:
+        """Undo a portrait override: drop the mod's redefinition of `sprite`.
+
+        Every .gfx in the mod is searched, the matching SpriteType removed, and
+        the texture it pointed at deleted when no other sprite still uses it and
+        the file lives inside the mod. A .gfx left without sprites is removed as
+        well, so an undone override leaves no trace and the base game's
+        definition applies again.
+
+        Returns (number of definitions removed, names of files touched).
+        """
+        interface = self.mod_root / GAME_DIRS.INTERFACE
+        if not interface.is_dir():
+            return 0, []
+
+        textures: list[Path] = []
+        removed = 0
+        touched: list[str] = []
+        for gfx_path in sorted(interface.rglob("*.gfx")):
+            registry = SpriteRegistry(gfx_path)
+            entry = registry.find(sprite)
+            if entry is None:
+                continue
+            texture = (entry.get_scalar("texturefile") or "").strip('"')
+            if texture:
+                textures.append(self.mod_root / texture.replace("\\", "/"))
+            if registry.unregister(sprite):
+                removed += 1
+                touched.append(gfx_path.name)
+                if registry.is_empty():
+                    gfx_path.unlink(missing_ok=True)
+                else:
+                    registry.save()
+
+        # Delete textures that nothing in the mod references any more.
+        still_used: set[str] = set()
+        for gfx_path in sorted(interface.rglob("*.gfx")):
+            try:
+                text = gfx_path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            still_used.add(text)
+        for tex in textures:
+            try:
+                rel = tex.relative_to(self.mod_root).as_posix()
+            except ValueError:
+                continue                      # outside the mod: never touch it
+            if any(rel in text for text in still_used):
+                continue
+            tex.unlink(missing_ok=True)
+        return removed, touched
+
     # --- shared ----------------------------------------------------------
     def _add_icon(self, source, sprite, rel_texture, gfx_file, size, compressed,
                   crop: bool = False):
