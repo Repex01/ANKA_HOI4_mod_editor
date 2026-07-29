@@ -356,8 +356,13 @@ class IconService:
                 px = fp[x, y]
                 if px[3] < 128:
                     continue                     # outside the card: stays clear
-                if x >= int(w * 0.42) and y >= int(h * 0.37) and luminance(px) > 105:
-                    np_[x, y] = 255              # the note belongs on top
+                r, g, b = px[0], px[1], px[2]
+                beige = r >= g >= b and (r - b) > 18 and abs(r - g) < 40
+                if (x >= int(w * 0.42) and y >= int(h * 0.37)
+                        and luminance(px) > 105 and beige):
+                    # Beige and warm, in the lower right: that is the note.
+                    # Brightness alone is not enough — blond hair is bright too.
+                    np_[x, y] = 255
                 else:
                     cp[x, y] = 255               # card surface takes the photo
         # Shrink the card so the frame keeps its dark border.

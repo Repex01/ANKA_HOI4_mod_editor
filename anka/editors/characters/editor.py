@@ -513,8 +513,11 @@ class CharactersEditor(EditorModule):
                 # the current image is handed over as the frame to keep it.
                 frame = None
                 if size == "small":
+                    # Deliberately the BASE GAME's artwork: resolving normally
+                    # would return this mod's previous override, so repeated
+                    # edits would composite into each other.
                     try:
-                        frame = self.service.resolve_sprite(sprite)
+                        frame = self.context.base_sprites.resolve(sprite)
                     except Exception:
                         frame = None
                 try:

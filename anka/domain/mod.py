@@ -148,6 +148,19 @@ class ModContext:
         return CharacterService(self)
 
     @cached_property
+    def base_sprites(self):
+        """Sprite resolver that ignores the edited mod.
+
+        Needed whenever the *original* artwork matters — replacing a small
+        portrait reuses the base game's frame, and resolving through the normal
+        map would hand back the mod's own previous override, so each edit would
+        composite into the last one.
+        """
+        from ..core.gfx import SpriteResolver
+        return SpriteResolver.for_mod(self.game_path, self.game_path,
+                                      self.dependency_paths)
+
+    @cached_property
     def sprites(self):
         """Shared ``GFX_*`` → texture resolver. Building its map means parsing every
         ``interface/**/*.gfx`` of the game + all DLC (seconds), so every editor module
