@@ -329,59 +329,77 @@ class IconService:
 
     @staticmethod
     def compose_into_frame(source, frame_path) -> Image.Image:
-        """Put a photo inside an existing small portrait, keeping its artwork.
+        """Put a photo behind a frame image, showing through its opening.
 
-        Advisor and staff pictures are not plain images: the base game draws a
-        tilted photo card and lays a paper note over it, both baked into the
-        .dds. Rebuilding that from scratch never quite matches, so the character's
-        current picture is reused as the frame — the card silhouette, its dark
-        border and the note stay, and only the face is exchanged. That also picks
-        the right style automatically, since a civilian advisor and a military
-        staff portrait carry different artwork.
+        A small-portrait frame is the base game's artwork — photo card, border
+        and paper note — with the middle left transparent. The picture goes
+        behind it and shows through that opening; the frame itself is never
+        touched, so the result keeps the original look exactly.
+
+        The opening is found by flooding outwards from the centre across
+        transparent pixels, which distinguishes it from the transparent area
+        *around* the card.
         """
         frame = ImageConverter.load(frame_path).convert("RGBA")
         photo = (source if isinstance(source, Image.Image)
                  else ImageConverter.load(source)).convert("RGBA")
         w, h = frame.size
-        fp = frame.load()
+        alpha = frame.split()[3].load()
 
-        def luminance(px):
-            return (px[0] * 299 + px[1] * 587 + px[2] * 114) // 1000
+        # Mark the transparent area that touches the image border — that is the
+        # space *around* the card. Whatever transparency is left over is the
+        # opening. Flooding from the centre would fail whenever something opaque
+        # sits there, which is exactly the case when a note covers the middle.
+        outside = Image.new("L", (w, h), 0)
+        op = outside.load()
+        stack = []
+        for x in range(w):
+            for y in (0, h - 1):
+                if alpha[x, y] <= 40 and not op[x, y]:
+                    op[x, y] = 255
+                    stack.append((x, y))
+        for y in range(h):
+            for x in (0, w - 1):
+                if alpha[x, y] <= 40 and not op[x, y]:
+                    op[x, y] = 255
+                    stack.append((x, y))
+        while stack:
+            x, y = stack.pop()
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if 0 <= nx < w and 0 <= ny < h and not op[nx, ny] \
+                        and alpha[nx, ny] <= 40:
+                    op[nx, ny] = 255
+                    stack.append((nx, ny))
 
-        card = Image.new("L", (w, h), 0)
-        note = Image.new("L", (w, h), 0)
-        cp, np_ = card.load(), note.load()
+        hole = Image.new("L", (w, h), 0)
+        hp = hole.load()
         for y in range(h):
             for x in range(w):
-                px = fp[x, y]
-                if px[3] < 128:
-                    continue                     # outside the card: stays clear
-                r, g, b = px[0], px[1], px[2]
-                beige = r >= g >= b and (r - b) > 18 and abs(r - g) < 40
-                if (x >= int(w * 0.42) and y >= int(h * 0.37)
-                        and luminance(px) > 105 and beige):
-                    # Beige and warm, in the lower right: that is the note.
-                    # Brightness alone is not enough — blond hair is bright too.
-                    np_[x, y] = 255
-                else:
-                    cp[x, y] = 255               # card surface takes the photo
-        # Shrink the card so the frame keeps its dark border.
-        card = card.filter(ImageFilter.MinFilter(5))
+                if alpha[x, y] <= 40 and not op[x, y]:
+                    hp[x, y] = 255
 
-        box = card.getbbox() or (0, 0, w, h)
+        box = hole.getbbox()
+        if box is None:
+            return ImageConverter.fit(photo, (w, h), crop=True,
+                                      keep_top=_SMALL_KEEP_TOP)
         bw, bh = box[2] - box[0], box[3] - box[1]
+
+        # Head and shoulders, then cover the opening without distorting.
+        if _SMALL_KEEP_TOP < 1.0:
+            photo = photo.crop((0, 0, photo.width,
+                                max(1, int(photo.height * _SMALL_KEEP_TOP))))
         scale = max(bw / photo.width, bh / photo.height)
-        scaled = photo.resize((max(bw, int(photo.width * scale)),
-                               max(bh, int(photo.height * scale))),
+        scaled = photo.resize((max(1, round(photo.width * scale)),
+                               max(1, round(photo.height * scale))),
                               Image.Resampling.LANCZOS)
-        left = (scaled.width - bw) // 2
+        left = max(0, (scaled.width - bw) // 2)
         scaled = scaled.crop((left, 0, left + bw, bh))
+
+        out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         layer.paste(scaled, (box[0], box[1]))
-
-        out = frame.copy()
-        out.paste(layer, (0, 0), card)
-        out.paste(frame, (0, 0), note)
+        out.paste(layer, (0, 0), hole)            # picture only inside the opening
+        out.alpha_composite(frame)                # frame stays exactly as it is
         return out
 
     def override_portrait(

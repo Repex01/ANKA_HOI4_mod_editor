@@ -174,6 +174,8 @@ class CharactersEditor(EditorModule):
                    command=self._takeover_leaders).pack(side="left", padx=6)
         ttk.Button(btns, text="↺ " + self.t("characters.restore_portraits"),
                    command=self._restore_vanilla_portraits).pack(side="left", padx=6)
+        ttk.Button(btns, text="🖼 " + self.t("characters.frame.button"),
+                   command=self._choose_small_frame).pack(side="left", padx=6)
 
     def _build_form(self, root) -> None:
         outer = ttk.Frame(root, style="Card.TFrame")
@@ -489,6 +491,58 @@ class CharactersEditor(EditorModule):
         self._dirty = False
 
     # --- save / delete ---------------------------------------------------
+    _SMALL_FRAME_NAMES = ("small_portrait_frame.dds", "small_portrait_frame.png",
+                          "small_portrait_frame.tga")
+
+    def _small_frame_locations(self):
+        """Where a small-portrait frame may live, most specific first.
+
+        A mod can carry its own; otherwise the one stored next to the settings
+        applies to every mod, and a copy shipped with ANKA is the last resort.
+        """
+        from ...config.constants import Paths
+        return (self.context.mod.path / "gfx" / "anka",
+                Paths.ROOT,
+                Paths.IMAGES)
+
+    def _small_frame_template(self):
+        """The frame used for small portraits, or None when there is none.
+
+        The picture is composed behind an image whose middle is transparent, so
+        the artwork — photo card, border, paper note — is copied over untouched.
+        Without a frame the character's base-game picture is used instead.
+        """
+        for folder in self._small_frame_locations():
+            for name in self._SMALL_FRAME_NAMES:
+                candidate = folder / name
+                if candidate.is_file():
+                    return candidate
+        return None
+
+    def _choose_small_frame(self) -> None:
+        """Store a frame template for every mod, next to the settings file."""
+        from tkinter import filedialog
+        from ...config.constants import Paths
+        path = filedialog.askopenfilename(
+            title=self.t("characters.frame.choose"),
+            filetypes=[("Images", "*.dds *.png *.tga"), ("All files", "*.*")])
+        if not path:
+            return
+        src = Path(path)
+        target = Paths.ROOT / f"small_portrait_frame{src.suffix.lower()}"
+        try:
+            Paths.ROOT.mkdir(parents=True, exist_ok=True)
+            for name in self._SMALL_FRAME_NAMES:      # only one may win
+                old = Paths.ROOT / name
+                if old.is_file() and old != target:
+                    old.unlink()
+            shutil.copyfile(src, target)
+        except OSError as exc:
+            return self._fail_msg(str(exc))
+        self._status.configure(text=self.t("characters.frame.saved",
+                                           path=str(target)),
+                               foreground=self.palette.text_muted)
+
     def _save_checksum_safe(self) -> None:
         """Save without touching common/ — keeps the checksum, keeps achievements.
 
@@ -513,13 +567,15 @@ class CharactersEditor(EditorModule):
                 # the current image is handed over as the frame to keep it.
                 frame = None
                 if size == "small":
-                    # Deliberately the BASE GAME's artwork: resolving normally
-                    # would return this mod's previous override, so repeated
-                    # edits would composite into each other.
-                    try:
-                        frame = self.context.base_sprites.resolve(sprite)
-                    except Exception:
-                        frame = None
+                    frame = self._small_frame_template()
+                    if frame is None:
+                        # Fall back to the BASE GAME's artwork — deliberately not
+                        # the normal resolver, which would hand back this mod's
+                        # own override so edits would stack on each other.
+                        try:
+                            frame = self.context.base_sprites.resolve(sprite)
+                        except Exception:
+                            frame = None
                 try:
                     self.context.icons.override_portrait(
                         path, sprite, (model.tag or "").upper() or "GEN",
