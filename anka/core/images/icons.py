@@ -20,7 +20,18 @@ from ...config.constants import (
 )
 from ..gfx import SpriteRegistry
 from ..pdx import Block, Pair, Scalar
+from PIL import ImageFilter
+
 from .converter import ImageConverter
+
+# How much of a photo the small (advisor) portrait keeps, measured from the top.
+# The game draws its own frame around these, so no template art is needed — only
+# a tighter crop than the large portrait.
+_SMALL_KEEP_TOP = 0.70
+# Share of the tile left as a margin around a small portrait. The game shows
+# advisor art inside a border, not edge to edge, so filling the tile makes the
+# face look far too big next to the vanilla ministers.
+_SMALL_INSET = 0.18
 
 # The animated overlay every focus "shine" uses; shipped by the base game, so a mod
 # .gfx may reference it by this path without bundling the texture.
@@ -307,9 +318,66 @@ class IconService:
         dims = SMALL_PORTRAIT_SIZE if size == "small" else LEADER_PORTRAIT_SIZE
         # Portraits keep their aspect ratio (centre-crop) — stretching a photo to
         # 156x210 squashes the face; icons/flags below still use the plain resize.
+        # The small portrait is nearly square and shows head and shoulders, so it
+        # is taken from the upper part of the same photo.
+        small = size == "small"
         dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims,
-                                  compressed, crop=True)
+                                  compressed, crop=True,
+                                  keep_top=_SMALL_KEEP_TOP if small else 1.0,
+                                  inset=_SMALL_INSET if small else 0.0)
         return dds, gfx, sprite
+
+    @staticmethod
+    def compose_into_frame(source, frame_path) -> Image.Image:
+        """Put a photo inside an existing small portrait, keeping its artwork.
+
+        Advisor and staff pictures are not plain images: the base game draws a
+        tilted photo card and lays a paper note over it, both baked into the
+        .dds. Rebuilding that from scratch never quite matches, so the character's
+        current picture is reused as the frame — the card silhouette, its dark
+        border and the note stay, and only the face is exchanged. That also picks
+        the right style automatically, since a civilian advisor and a military
+        staff portrait carry different artwork.
+        """
+        frame = ImageConverter.load(frame_path).convert("RGBA")
+        photo = (source if isinstance(source, Image.Image)
+                 else ImageConverter.load(source)).convert("RGBA")
+        w, h = frame.size
+        fp = frame.load()
+
+        def luminance(px):
+            return (px[0] * 299 + px[1] * 587 + px[2] * 114) // 1000
+
+        card = Image.new("L", (w, h), 0)
+        note = Image.new("L", (w, h), 0)
+        cp, np_ = card.load(), note.load()
+        for y in range(h):
+            for x in range(w):
+                px = fp[x, y]
+                if px[3] < 128:
+                    continue                     # outside the card: stays clear
+                if x >= int(w * 0.42) and y >= int(h * 0.37) and luminance(px) > 105:
+                    np_[x, y] = 255              # the note belongs on top
+                else:
+                    cp[x, y] = 255               # card surface takes the photo
+        # Shrink the card so the frame keeps its dark border.
+        card = card.filter(ImageFilter.MinFilter(5))
+
+        box = card.getbbox() or (0, 0, w, h)
+        bw, bh = box[2] - box[0], box[3] - box[1]
+        scale = max(bw / photo.width, bh / photo.height)
+        scaled = photo.resize((max(bw, int(photo.width * scale)),
+                               max(bh, int(photo.height * scale))),
+                              Image.Resampling.LANCZOS)
+        left = (scaled.width - bw) // 2
+        scaled = scaled.crop((left, 0, left + bw, bh))
+        layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        layer.paste(scaled, (box[0], box[1]))
+
+        out = frame.copy()
+        out.paste(layer, (0, 0), card)
+        out.paste(frame, (0, 0), note)
+        return out
 
     def override_portrait(
         self,
@@ -319,6 +387,7 @@ class IconService:
         char_id: str,
         size: str = "large",
         gfx_file: str = "zzz_anka_portrait_overrides.gfx",
+        frame_from=None,
     ) -> tuple[Path, Path, str]:
         """Point an EXISTING sprite at a new texture, without touching common/.
 
@@ -333,8 +402,18 @@ class IconService:
         rel_texture = (f"{GAME_DIRS.GFX_LEADERS}/{tag}/"
                        f"anka_{char_id}{suffix}.dds")
         dims = SMALL_PORTRAIT_SIZE if size == "small" else LEADER_PORTRAIT_SIZE
+        small = size == "small"
+        if small and frame_from:
+            # Reuse the existing artwork: the composite already has the right
+            # size, so no further cropping or insetting.
+            composed = self.compose_into_frame(source, frame_from)
+            dds, gfx = self._add_icon(composed, sprite, rel_texture, gfx_file,
+                                      None, False)
+            return dds, gfx, sprite
         dds, gfx = self._add_icon(source, sprite, rel_texture, gfx_file, dims,
-                                  False, crop=True)
+                                  False, crop=True,
+                                  keep_top=_SMALL_KEEP_TOP if small else 1.0,
+                                  inset=_SMALL_INSET if small else 0.0)
         return dds, gfx, sprite
 
     def restore_vanilla_sprite(self, sprite: str) -> tuple[int, list[str]]:
@@ -391,10 +470,11 @@ class IconService:
 
     # --- shared ----------------------------------------------------------
     def _add_icon(self, source, sprite, rel_texture, gfx_file, size, compressed,
-                  crop: bool = False):
+                  crop: bool = False, keep_top: float = 1.0,
+                  inset: float = 0.0):
         img = source if isinstance(source, Image.Image) else ImageConverter.load(source)
         dds_path = ImageConverter.save_dds(img, self.mod_root / rel_texture, size,
-                                           compressed, crop)
+                                           compressed, crop, keep_top, inset)
         gfx_path = self.mod_root / GAME_DIRS.INTERFACE / gfx_file
         registry = SpriteRegistry(gfx_path)
         registry.register(sprite, rel_texture).save()

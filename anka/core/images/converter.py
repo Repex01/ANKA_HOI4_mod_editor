@@ -23,6 +23,9 @@ class ImageFormat(str, Enum):
 
 # HOI4-friendly resampling: high quality downscale for icons/flags.
 _RESAMPLE = Image.Resampling.LANCZOS
+# Background behind an inset (small) portrait — matches the dark tone the game
+# uses behind advisor art.
+_INSET_BG = (26, 24, 22, 255)
 
 
 class ImageConverter:
@@ -37,7 +40,8 @@ class ImageConverter:
 
     @staticmethod
     def fit(img: Image.Image, size: tuple[int, int],
-            crop: bool = False) -> Image.Image:
+            crop: bool = False, keep_top: float = 1.0,
+            inset: float = 0.0) -> Image.Image:
         """Resize to an exact size (HOI4 sprites are fixed-dimension, not aspect-fit).
 
         With ``crop=True`` the aspect ratio is preserved: the image is scaled to
@@ -46,6 +50,23 @@ class ImageConverter:
         squashing it. Used for character portraits; flags and icons keep the
         plain stretch, where an exact fit is what the game expects.
         """
+        if keep_top < 1.0:
+            # Take the upper part of the source first: the head belongs in frame.
+            w, h = img.size
+            img = img.crop((0, 0, w, max(1, int(round(h * keep_top)))))
+        if inset > 0.0:
+            # Small (advisor) portraits sit inside a border rather than filling
+            # the tile edge to edge, so the picture is scaled to FIT with a dark
+            # margin around it — cropping to cover makes the face far too large.
+            tw, th = size
+            iw, ih = max(1, int(tw * (1 - inset))), max(1, int(th * (1 - inset)))
+            fitted = img.copy()
+            fitted.thumbnail((iw, ih), _RESAMPLE)
+            canvas = Image.new("RGBA", size, _INSET_BG)
+            canvas.paste(fitted,
+                         ((tw - fitted.width) // 2, (th - fitted.height) // 2),
+                         fitted if fitted.mode == "RGBA" else None)
+            return canvas
         if img.size == size:
             return img
         if not crop:
@@ -74,12 +95,14 @@ class ImageConverter:
         size: tuple[int, int] | None = None,
         compressed: bool = False,
         crop: bool = False,
+        keep_top: float = 1.0,
+        inset: float = 0.0,
     ) -> Path:
         """Write a DDS. Uncompressed ARGB8888 by default (matches vanilla focus icons);
         `compressed=True` uses DXT5 for smaller files with an alpha channel."""
         dest = Path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
-        out = ImageConverter._prepare(img, size, crop)
+        out = ImageConverter._prepare(img, size, crop, keep_top, inset)
         if compressed:
             out.save(dest, format="DDS", pixel_format="DXT5")
         else:
@@ -109,6 +132,7 @@ class ImageConverter:
 
     @staticmethod
     def _prepare(img: Image.Image, size: tuple[int, int] | None,
-                 crop: bool = False) -> Image.Image:
+                 crop: bool = False, keep_top: float = 1.0,
+                 inset: float = 0.0) -> Image.Image:
         out = img.convert("RGBA") if img.mode != "RGBA" else img
-        return ImageConverter.fit(out, size, crop) if size else out
+        return ImageConverter.fit(out, size, crop, keep_top, inset) if size else out

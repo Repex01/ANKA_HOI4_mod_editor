@@ -509,10 +509,18 @@ class CharactersEditor(EditorModule):
                 if not sprite:
                     missing.append(f"{category}/{size}")
                     continue
+                # Small pictures carry baked-in artwork (photo card + note), so
+                # the current image is handed over as the frame to keep it.
+                frame = None
+                if size == "small":
+                    try:
+                        frame = self.service.resolve_sprite(sprite)
+                    except Exception:
+                        frame = None
                 try:
                     self.context.icons.override_portrait(
                         path, sprite, (model.tag or "").upper() or "GEN",
-                        model.char_id, size)
+                        model.char_id, size, frame_from=frame)
                     replaced += 1
                 except Exception as exc:
                     return self._fail_msg(str(exc))
